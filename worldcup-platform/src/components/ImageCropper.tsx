@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { Edit3, RotateCw, Square, Scissors, Check, X } from 'lucide-react';
+import { useState } from 'react';
+import { Edit3, RotateCw, Square, Scissors, Check, X, Eye } from 'lucide-react';
 
 interface WorldCupItem {
   id: string;
@@ -25,6 +25,7 @@ interface CropData {
 
 export default function ImageCropper({ items, onItemUpdate }: ImageCropperProps) {
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
+  const [previewItem, setPreviewItem] = useState<string | null>(null);
   const [cropData, setCropData] = useState<CropData>({
     x: 0,
     y: 0,
@@ -34,27 +35,19 @@ export default function ImageCropper({ items, onItemUpdate }: ImageCropperProps)
   });
   const [editingTitle, setEditingTitle] = useState<string | null>(null);
   const [titleInput, setTitleInput] = useState('');
-  const [loadingImages, setLoadingImages] = useState<Set<string>>(new Set());
-  const objectUrlsRef = useRef<Set<string>>(new Set());
-
-  // Debug items when component loads
-  useEffect(() => {
-    console.log('ImageCropper received items:', items.length, 'items');
-  }, [items]);
 
   const getImageUrl = (image: string | File): string => {
     try {
       if (typeof image === 'string') {
         if (image.trim() === '') {
+          console.warn('Empty URL string');
           return '';
         }
         return image;
       }
       
       if (image instanceof File) {
-        const url = URL.createObjectURL(image);
-        objectUrlsRef.current.add(url);
-        return url;
+        return URL.createObjectURL(image);
       }
       
       console.error('Invalid image type:', typeof image);
@@ -62,49 +55,6 @@ export default function ImageCropper({ items, onItemUpdate }: ImageCropperProps)
     } catch (error) {
       console.error('Error creating image URL:', error);
       return '';
-    }
-  };
-
-  // Cleanup object URLs on unmount
-  useEffect(() => {
-    return () => {
-      objectUrlsRef.current.forEach(url => {
-        URL.revokeObjectURL(url);
-      });
-      objectUrlsRef.current.clear();
-    };
-  }, []);
-
-  const handleImageLoad = (itemId: string) => {
-    setLoadingImages(prev => {
-      const newSet = new Set(prev);
-      newSet.delete(itemId);
-      return newSet;
-    });
-  };
-
-  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>, itemId: string) => {
-    console.error('Image failed to load for item:', itemId);
-    setLoadingImages(prev => {
-      const newSet = new Set(prev);
-      newSet.delete(itemId);
-      return newSet;
-    });
-    const img = e.currentTarget;
-    img.style.display = 'none';
-    
-    // Create a fallback div if it doesn't exist
-    const parent = img.parentElement;
-    if (parent && !parent.querySelector('.fallback-placeholder')) {
-      const fallback = document.createElement('div');
-      fallback.className = 'fallback-placeholder w-full h-full flex items-center justify-center bg-gray-200 text-gray-500';
-      fallback.innerHTML = `
-        <div class="text-center p-4">
-          <div class="text-2xl mb-2">🖼️</div>
-          <div class="text-xs">이미지 로딩 실패</div>
-        </div>
-      `;
-      parent.appendChild(fallback);
     }
   };
 
@@ -203,64 +153,48 @@ export default function ImageCropper({ items, onItemUpdate }: ImageCropperProps)
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {items.map((item) => (
               <div key={item.id} className="bg-white border rounded-lg overflow-hidden shadow-sm">
-                {/* Image */}
-                <div className="aspect-square bg-gray-100 relative group overflow-hidden">
-                  {(() => {
-                    const imageUrl = getImageUrl(item.image);
-                    if (!imageUrl) {
-                      const errorInfo = typeof item.image === 'string' 
-                        ? `URL: ${item.image.slice(0, 30)}...`
-                        : item.image instanceof File 
-                        ? `File: ${item.image.name}`
-                        : `Type: ${typeof item.image}`;
-                      
-                      return (
-                        <div className="w-full h-full flex items-center justify-center bg-gray-200 text-gray-500">
-                          <div className="text-center p-4">
-                            <div className="text-2xl mb-2">🖼️</div>
-                            <div className="text-xs font-medium">이미지 로딩 실패</div>
-                            <div className="text-xs text-gray-400 mt-1">
-                              {typeof item.image === 'string' ? 'URL 오류' : 'File 오류'}
-                            </div>
-                            <div className="text-xs text-gray-400 mt-1 break-all">
-                              {errorInfo}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    }
-                    
-                    return (
-                      <>
-                        <img
-                          src={imageUrl}
-                          alt={item.title}
-                          className="w-full h-full object-cover"
-                          onLoad={() => handleImageLoad(item.id)}
-                          onError={(e) => handleImageError(e, item.id)}
-                          loading="lazy"
-                        />
-                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all flex items-center justify-center">
-                          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex space-x-2">
-                            <button
-                              onClick={() => handleRotate(item.id)}
-                              className="p-2 bg-white bg-opacity-90 rounded-full hover:bg-opacity-100 transition-colors"
-                              title="회전"
-                            >
-                              <RotateCw className="w-4 h-4 text-gray-700" />
-                            </button>
-                            <button
-                              onClick={() => handleCrop(item.id)}
-                              className="p-2 bg-white bg-opacity-90 rounded-full hover:bg-opacity-100 transition-colors"
-                              title="크롭"
-                            >
-                              <Scissors className="w-4 h-4 text-gray-700" />
-                            </button>
-                          </div>
-                        </div>
-                      </>
-                    );
-                  })()}
+                {/* Image Preview */}
+                <div className="aspect-square bg-gray-100 relative overflow-hidden rounded-lg">
+                  {item.image ? (
+                    <img
+                      src={getImageUrl(item.image)}
+                      alt={item.title}
+                      className="w-full h-full object-cover"
+                      onClick={() => setPreviewItem(item.id)}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <div className="text-center p-4">
+                        <div className="text-4xl mb-3 text-gray-400">🖼️</div>
+                        <div className="text-sm font-medium text-gray-500">이미지 없음</div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Action Buttons */}
+                  <div className="absolute top-2 right-2 flex space-x-1">
+                    <button
+                      onClick={() => setPreviewItem(item.id)}
+                      className="p-2 bg-white bg-opacity-90 rounded-full hover:bg-opacity-100 transition-colors shadow-sm"
+                      title="미리보기"
+                    >
+                      <Eye className="w-4 h-4 text-gray-700" />
+                    </button>
+                    <button
+                      onClick={() => handleRotate(item.id)}
+                      className="p-2 bg-white bg-opacity-90 rounded-full hover:bg-opacity-100 transition-colors shadow-sm"
+                      title="회전"
+                    >
+                      <RotateCw className="w-4 h-4 text-gray-700" />
+                    </button>
+                    <button
+                      onClick={() => handleCrop(item.id)}
+                      className="p-2 bg-white bg-opacity-90 rounded-full hover:bg-opacity-100 transition-colors shadow-sm"
+                      title="크롭"
+                    >
+                      <Scissors className="w-4 h-4 text-gray-700" />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Title Editor */}
@@ -310,6 +244,27 @@ export default function ImageCropper({ items, onItemUpdate }: ImageCropperProps)
               </div>
             ))}
           </div>
+
+          {/* Preview Modal */}
+          {previewItem && (
+            <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4" onClick={() => setPreviewItem(null)}>
+              <div className="max-w-4xl max-h-[90vh] relative" onClick={(e) => e.stopPropagation()}>
+                <button
+                  onClick={() => setPreviewItem(null)}
+                  className="absolute top-4 right-4 z-10 p-2 bg-white bg-opacity-90 rounded-full hover:bg-opacity-100 transition-colors"
+                >
+                  <X className="w-6 h-6 text-gray-700" />
+                </button>
+                {items.find(item => item.id === previewItem) && (
+                  <img
+                    src={getImageUrl(items.find(item => item.id === previewItem)!.image)}
+                    alt="Preview"
+                    className="max-w-full max-h-full object-contain rounded-lg"
+                  />
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Crop Modal */}
           {selectedItem && (
