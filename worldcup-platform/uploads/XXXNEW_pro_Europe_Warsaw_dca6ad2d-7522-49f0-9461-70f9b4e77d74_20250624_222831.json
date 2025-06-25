@@ -1,0 +1,34 @@
+{
+  "blocks": [
+    {
+      "startTime": "2025-06-24T10:00:00.000Z",
+      "endTime": "2025-06-24T15:00:00.000Z",
+      "actualEndTime": "2025-06-24T12:56:11.697Z",
+      "perModelStats": {
+        "claude-sonnet-4-20250514": {
+          "tokenCounts": {
+            "inputTokens": 687,
+            "outputTokens": 21317,
+            "cacheCreationTokens": 883829,
+            "cacheReadTokens": 20754484,
+            "totalTokens": 22004
+          },
+          "costUSD": 9.86252,
+          "entriesCount": 229
+        }
+      },
+      "totalTokens": 22004,
+      "totalTokensOld": 22004,
+      "costUSD": 9.86252,
+      "entries": 231,
+      "limits": [
+        {
+          "type": "general_limit",
+          "timestamp": "2025-06-24T12:56:11.697Z",
+          "content": "Claude AI usage limit reached|1750777200",
+          "resetTime": "2025-06-24T15:00:00.000Z"
+        }
+      ]
+    }
+  ]
+}
