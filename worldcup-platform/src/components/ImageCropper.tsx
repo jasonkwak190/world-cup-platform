@@ -35,6 +35,8 @@ export default function ImageCropper({ items, onItemUpdate }: ImageCropperProps)
   });
   const [editingTitle, setEditingTitle] = useState<string | null>(null);
   const [titleInput, setTitleInput] = useState('');
+  const [editingDescription, setEditingDescription] = useState<string | null>(null);
+  const [descriptionInput, setDescriptionInput] = useState('');
 
   const getImageUrl = (image: string | File): string => {
     try {
@@ -74,6 +76,24 @@ export default function ImageCropper({ items, onItemUpdate }: ImageCropperProps)
   const handleCancelTitle = () => {
     setEditingTitle(null);
     setTitleInput('');
+  };
+
+  const handleEditDescription = (item: WorldCupItem) => {
+    setEditingDescription(item.id);
+    setDescriptionInput(item.description || '');
+  };
+
+  const handleSaveDescription = () => {
+    if (editingDescription) {
+      onItemUpdate(editingDescription, { description: descriptionInput.trim() });
+    }
+    setEditingDescription(null);
+    setDescriptionInput('');
+  };
+
+  const handleCancelDescription = () => {
+    setEditingDescription(null);
+    setDescriptionInput('');
   };
 
   const handleRotate = (itemId: string) => {
@@ -233,11 +253,66 @@ export default function ImageCropper({ items, onItemUpdate }: ImageCropperProps)
                       </h3>
                       <button
                         onClick={() => handleEditTitle(item)}
-                        className="text-sm text-emerald-600 hover:text-emerald-700 flex items-center"
+                        className="text-sm text-emerald-600 hover:text-emerald-700 flex items-center mb-3"
                       >
                         <Edit3 className="w-3 h-3 mr-1" />
                         제목 수정
                       </button>
+                    </div>
+                  )}
+
+                  {/* Description Editor */}
+                  {editingDescription === item.id ? (
+                    <div className="space-y-3 border-t pt-3">
+                      <textarea
+                        value={descriptionInput}
+                        onChange={(e) => setDescriptionInput(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-gray-900 resize-none"
+                        placeholder="게임에서 표시될 설명을 입력하세요 (선택사항)"
+                        rows={3}
+                        autoFocus
+                      />
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={handleSaveDescription}
+                          className="flex-1 px-3 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors flex items-center justify-center"
+                        >
+                          <Check className="w-4 h-4 mr-1" />
+                          저장
+                        </button>
+                        <button
+                          onClick={handleCancelDescription}
+                          className="flex-1 px-3 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 transition-colors flex items-center justify-center"
+                        >
+                          <X className="w-4 h-4 mr-1" />
+                          취소
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="border-t pt-3">
+                      {item.description ? (
+                        <div>
+                          <p className="text-sm text-gray-600 mb-2 line-clamp-3">
+                            {item.description}
+                          </p>
+                          <button
+                            onClick={() => handleEditDescription(item)}
+                            className="text-sm text-blue-600 hover:text-blue-700 flex items-center"
+                          >
+                            <Edit3 className="w-3 h-3 mr-1" />
+                            설명 수정
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => handleEditDescription(item)}
+                          className="text-sm text-gray-500 hover:text-blue-600 flex items-center"
+                        >
+                          <Edit3 className="w-3 h-3 mr-1" />
+                          설명 추가
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
