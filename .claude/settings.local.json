@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install)",
+      "Bash(npm run dev:*)",
+      "Bash(node:*)",
+      "Bash(rm:*)",
+      "Bash(npm --version)",
+      "Bash(nvm:*)",
+      "Bash(source:*)",
+      "Bash(export NVM_DIR=\"$HOME/.nvm\")",
+      "Bash([ -s \"$NVM_DIR/nvm.sh\" ])",
+      "Bash(. \"$NVM_DIR/nvm.sh\")",
+      "Bash(chmod:*)",
+      "Bash(./start-dev.sh:*)",
+      "Bash(pkill:*)",
+      "Bash(true)",
+      "Bash(npm run type-check:*)",
+      "Bash(npm run:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(open:*)",
+      "Bash(curl:*)",
+      "Bash(osascript:*)"
+    ],
+    "deny": []
+  }
+}
