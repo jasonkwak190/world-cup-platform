@@ -71,7 +71,7 @@ export default function TournamentRanking({
   onGoHome
 }: TournamentRankingProps) {
   const [sortBy, setSortBy] = useState<'rank' | 'winRate' | 'matches'>('rank');
-  const [selectedImage, setSelectedImage] = useState<{ title: string; rank: number } | null>(null);
+  const [selectedImage, setSelectedImage] = useState<{ title: string; rank: number; image?: string } | null>(null);
   const rankingData = generateRankingData(allItems, winner);
 
   const sortedData = [...rankingData].sort((a, b) => {
@@ -128,6 +128,18 @@ export default function TournamentRanking({
           className="bg-gradient-to-r from-yellow-400 via-yellow-500 to-orange-500 rounded-3xl p-8 mb-8 text-center"
         >
           <Trophy className="w-16 h-16 text-white mx-auto mb-4" />
+          {winner.image && (
+            <div className="w-24 h-24 mx-auto mb-4 rounded-2xl overflow-hidden border-4 border-white/30">
+              <img 
+                src={winner.image} 
+                alt={winner.title}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            </div>
+          )}
           <h2 className="text-3xl font-bold text-white mb-2">🏆 우승자</h2>
           <h3 className="text-2xl font-bold text-white">{winner.title}</h3>
           {winner.description && (
@@ -214,10 +226,30 @@ export default function TournamentRanking({
                 {/* Participant Info */}
                 <div className="col-span-4 flex items-center space-x-4">
                   <div 
-                    className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-500 rounded-xl flex items-center justify-center text-2xl cursor-pointer hover:scale-110 transition-transform relative group"
-                    onClick={() => setSelectedImage({ title: item.title, rank: item.rank })}
+                    className="w-12 h-12 rounded-xl overflow-hidden cursor-pointer hover:scale-110 transition-transform relative group"
+                    onClick={() => setSelectedImage({ title: item.title, rank: item.rank, image: item.image })}
                   >
-                    {item.rank === 1 ? '🎭' : '🎨'}
+                    {item.image ? (
+                      <img 
+                        src={item.image} 
+                        alt={item.title}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          // 이미지 로딩 실패 시 플레이스홀더 표시
+                          e.currentTarget.style.display = 'none';
+                          const parent = e.currentTarget.parentElement;
+                          if (parent) {
+                            const fallback = parent.querySelector('.ranking-fallback');
+                            if (fallback) {
+                              fallback.classList.remove('hidden');
+                            }
+                          }
+                        }}
+                      />
+                    ) : null}
+                    <div className={`ranking-fallback ${item.image ? 'hidden' : ''} w-full h-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-2xl`}>
+                      {item.rank === 1 ? '🎭' : '🎨'}
+                    </div>
                     <div className="absolute inset-0 bg-black/20 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                       <ZoomIn className="w-4 h-4 text-white" />
                     </div>
@@ -327,8 +359,32 @@ export default function TournamentRanking({
                   <X className="w-5 h-5 text-white" />
                 </button>
                 
-                <div className="w-80 h-80 bg-gradient-to-br from-blue-500 to-purple-500 rounded-3xl flex items-center justify-center text-9xl shadow-2xl">
-                  {selectedImage.rank === 1 ? '🎭' : '🎨'}
+                <div className="w-80 h-80 rounded-3xl overflow-hidden shadow-2xl">
+                  {selectedImage.image ? (
+                    <img 
+                      src={selectedImage.image} 
+                      alt={selectedImage.title}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        // 이미지 로딩 실패 시 플레이스홀더 표시
+                        e.currentTarget.style.display = 'none';
+                        const parent = e.currentTarget.parentElement;
+                        if (parent) {
+                          const fallback = parent.querySelector('.modal-fallback');
+                          if (fallback) {
+                            fallback.classList.remove('hidden');
+                          }
+                        }
+                      }}
+                    />
+                  ) : null}
+                  <div className={`modal-fallback ${selectedImage.image ? 'hidden' : ''} w-full h-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-9xl`}>
+                    {selectedImage.rank === 1 ? '🎭' : '🎨'}
+                  </div>
+                </div>
+                <div className="mt-4 text-center">
+                  <h3 className="text-white text-xl font-bold">{selectedImage.title}</h3>
+                  <p className="text-gray-300">#{selectedImage.rank} 위</p>
                 </div>
               </motion.div>
             </motion.div>

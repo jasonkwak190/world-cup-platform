@@ -7,6 +7,7 @@ import DragDropUpload from '@/components/DragDropUpload';
 import ImageCropper from '@/components/ImageCropper';
 import WorldCupPreview from '@/components/WorldCupPreview';
 import TournamentSettings from '@/components/TournamentSettings';
+import { saveWorldCup } from '@/utils/storage';
 
 interface WorldCupItem {
   id: string;
@@ -21,17 +22,20 @@ interface WorldCupData {
   category: string;
   items: WorldCupItem[];
   isPublic: boolean;
+  thumbnail?: string | File;
 }
 
 export default function CreatePage() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(1);
+  const [isPreviewGameActive, setIsPreviewGameActive] = useState(false);
   const [worldCupData, setWorldCupData] = useState<WorldCupData>({
     title: '',
     description: '',
     category: 'entertainment',
     items: [],
     isPublic: true,
+    thumbnail: undefined,
   });
 
   const steps = [
@@ -42,6 +46,12 @@ export default function CreatePage() {
   ];
 
   const handleBack = () => {
+    // 미리보기 게임이 활성화된 상태면 게임만 종료
+    if (isPreviewGameActive) {
+      setIsPreviewGameActive(false);
+      return;
+    }
+    
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
     } else {
@@ -67,9 +77,23 @@ export default function CreatePage() {
     });
     
     setWorldCupData(prev => {
+      // 중복 ID 방지: 기존 항목과 ID가 겹치지 않는지 확인
+      const existingIds = new Set(prev.items.map(item => item.id));
+      const filteredItems = items.filter(item => {
+        if (existingIds.has(item.id)) {
+          console.warn(`Duplicate item ID detected: ${item.id}, skipping...`);
+          return false;
+        }
+        return true;
+      });
+      
+      if (filteredItems.length !== items.length) {
+        alert(`${items.length - filteredItems.length}개의 중복된 항목이 제외되었습니다.`);
+      }
+      
       const newData = {
         ...prev,
-        items: [...prev.items, ...items]
+        items: [...prev.items, ...filteredItems]
       };
       console.log('Updated worldCupData items:', newData.items);
       return newData;
@@ -90,6 +114,37 @@ export default function CreatePage() {
       ...prev,
       items: prev.items.filter(item => item.id !== itemId)
     }));
+  };
+
+  const handleThumbnailUpload = (thumbnail: string | File) => {
+    console.log('=== handleThumbnailUpload Debug ===');
+    console.log('Called with:', thumbnail);
+    console.log('Type:', typeof thumbnail);
+    if (thumbnail instanceof File) {
+      console.log('File details:', {
+        name: thumbnail.name,
+        size: thumbnail.size,
+        type: thumbnail.type
+      });
+    } else if (typeof thumbnail === 'string') {
+      console.log('String details:', {
+        length: thumbnail.length,
+        startsWithData: thumbnail.startsWith('data:'),
+        preview: thumbnail.substring(0, 100) + '...'
+      });
+    }
+    
+    setWorldCupData(prev => {
+      const newData = {
+        ...prev,
+        thumbnail: thumbnail
+      };
+      console.log('WorldCupData updated successfully');
+      console.log('Previous thumbnail:', prev.thumbnail);
+      console.log('New thumbnail set:', thumbnail === newData.thumbnail);
+      console.log('=== End handleThumbnailUpload Debug ===');
+      return newData;
+    });
   };
 
   const canProceed = () => {
@@ -122,6 +177,8 @@ export default function CreatePage() {
             items={worldCupData.items}
             onItemsUpload={handleItemsUpload}
             onItemDelete={handleItemDelete}
+            thumbnail={worldCupData.thumbnail}
+            onThumbnailUpload={handleThumbnailUpload}
           />
         );
       case 3:
@@ -129,12 +186,27 @@ export default function CreatePage() {
           <ImageCropper
             items={worldCupData.items}
             onItemUpdate={handleItemUpdate}
+            thumbnail={worldCupData.thumbnail}
+            onThumbnailUpdate={handleThumbnailUpload}
           />
         );
       case 4:
+        console.log('=== Step 4: WorldCupPreview Debug ===');
+        console.log('Full worldCupData:', worldCupData);
+        console.log('Thumbnail data:', {
+          thumbnail: worldCupData.thumbnail,
+          thumbnailType: typeof worldCupData.thumbnail,
+          thumbnailSize: worldCupData.thumbnail instanceof File ? worldCupData.thumbnail.size : 'N/A',
+          thumbnailName: worldCupData.thumbnail instanceof File ? worldCupData.thumbnail.name : 'N/A',
+          isString: typeof worldCupData.thumbnail === 'string',
+          stringLength: typeof worldCupData.thumbnail === 'string' ? worldCupData.thumbnail.length : 0,
+          startsWithData: typeof worldCupData.thumbnail === 'string' ? worldCupData.thumbnail.startsWith('data:') : false
+        });
+        console.log('=== End Step 4 Debug ===');
         return (
           <WorldCupPreview
             data={worldCupData}
+            onGameStateChange={setIsPreviewGameActive}
           />
         );
       default:
@@ -238,7 +310,7 @@ export default function CreatePage() {
               onClick={handleBack}
               className="px-6 py-2 text-gray-600 hover:text-gray-900 transition-colors"
             >
-              {currentStep === 1 ? '취소' : '이전'}
+              {currentStep === 1 ? '취소' : isPreviewGameActive ? '미리보기 종료' : '이전'}
             </button>
             <div className="flex space-x-3">
               {currentStep < steps.length ? (
@@ -255,9 +327,20 @@ export default function CreatePage() {
                 </button>
               ) : (
                 <button
-                  onClick={() => {
-                    // TODO: Submit form
-                    console.log('Creating worldcup:', worldCupData);
+                  onClick={async () => {
+                    try {
+                      // 월드컵 생성 완료 로직
+                      console.log('Creating worldcup:', worldCupData);
+                      
+                      // LocalStorage에 저장
+                      await saveWorldCup(worldCupData);
+                      
+                      alert('월드컵이 성공적으로 생성되었습니다!');
+                      router.push('/');
+                    } catch (error) {
+                      console.error('Failed to create worldcup:', error);
+                      alert('월드컵 생성 중 오류가 발생했습니다. 다시 시도해주세요.');
+                    }
                   }}
                   disabled={!canProceed()}
                   className={`px-8 py-2 rounded-lg font-medium transition-colors ${

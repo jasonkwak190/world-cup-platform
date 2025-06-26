@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import WorldCupCard from './WorldCupCard';
+import { getStoredWorldCups, updateWorldCupStats, type StoredWorldCup } from '@/utils/storage';
 
 // Mock data - PIKU 스타일 데이터
 const mockWorldCups = [
@@ -125,15 +126,99 @@ interface WorldCupGridProps {
 export default function WorldCupGrid({ category: _category, sortBy: _sortBy }: WorldCupGridProps) {
   const [likedItems, setLikedItems] = useState<Set<string>>(new Set());
   const [bookmarkedItems, setBookmarkedItems] = useState<Set<string>>(new Set());
+  const [storedWorldCups, setStoredWorldCups] = useState<StoredWorldCup[]>([]);
+
+  // LocalStorage에서 월드컵 데이터 로드
+  useEffect(() => {
+    const loadStoredWorldCups = () => {
+      try {
+        const stored = getStoredWorldCups();
+        setStoredWorldCups(stored);
+        console.log('=== WorldCupGrid Debug ===');
+        console.log('Loaded stored worldcups count:', stored.length);
+        
+        // localStorage 원본 데이터도 확인
+        const rawData = localStorage.getItem('worldcups');
+        console.log('Raw localStorage data exists:', !!rawData);
+        console.log('Raw data length:', rawData?.length || 0);
+        
+        stored.forEach((wc, index) => {
+          console.log(`🔍 Worldcup ${index} DETAILED ANALYSIS:`, {
+            id: wc.id,
+            title: wc.title,
+            hasThumbnail: !!wc.thumbnail,
+            thumbnailType: typeof wc.thumbnail,
+            thumbnailLength: wc.thumbnail?.length || 0,
+            thumbnailStartsWithData: wc.thumbnail?.startsWith('data:'),
+            thumbnailStartsWithBlob: wc.thumbnail?.startsWith('blob:'),
+            isValidBase64: wc.thumbnail?.startsWith('data:image/') && wc.thumbnail?.includes(','),
+            base64HeaderExists: wc.thumbnail?.includes('data:image/'),
+            base64DataExists: wc.thumbnail?.split(',')[1]?.length > 100,
+            thumbnailSample: wc.thumbnail?.substring(0, 100) + '...'
+          });
+          
+          // 썸네일이 있는데 표시 안 되는 경우 특별 체크
+          if (wc.thumbnail && wc.thumbnail.length > 1000) {
+            console.log(`✅ Worldcup ${index} has valid thumbnail data - investigating display issue`);
+          } else if (wc.thumbnail) {
+            console.log(`⚠️ Worldcup ${index} has thumbnail but seems too short:`, wc.thumbnail);
+          } else {
+            console.log(`❌ Worldcup ${index} has NO thumbnail data`);
+          }
+        });
+        console.log('=== End WorldCupGrid Debug ===');
+      } catch (error) {
+        console.error('Failed to load stored worldcups:', error);
+      }
+    };
+
+    loadStoredWorldCups();
+
+    // storage 이벤트 리스너 추가 (다른 탭에서 월드컵이 생성될 때 업데이트)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'worldcups') {
+        loadStoredWorldCups();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    
+    // 페이지가 포커스를 받을 때마다 데이터 새로고침 (탭 전환 시)
+    const handleFocus = () => {
+      loadStoredWorldCups();
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, []);
 
   const handleLike = (id: string) => {
     setLikedItems(prev => {
       const newSet = new Set(prev);
+      const isLiking = !newSet.has(id);
+      
       if (newSet.has(id)) {
         newSet.delete(id);
       } else {
         newSet.add(id);
       }
+      
+      // 저장된 월드컵의 좋아요 수 업데이트
+      const storedWorldCup = storedWorldCups.find(wc => wc.id === id);
+      if (storedWorldCup) {
+        const newLikes = isLiking ? storedWorldCup.likes + 1 : Math.max(0, storedWorldCup.likes - 1);
+        updateWorldCupStats(id, { likes: newLikes });
+        
+        // 로컬 상태도 업데이트
+        setStoredWorldCups(prev => 
+          prev.map(wc => wc.id === id ? { ...wc, likes: newLikes } : wc)
+        );
+      }
+      
       return newSet;
     });
   };
@@ -151,6 +236,18 @@ export default function WorldCupGrid({ category: _category, sortBy: _sortBy }: W
   };
 
   const handlePlay = (id: string) => {
+    // 저장된 월드컵의 참여자 수 업데이트
+    const storedWorldCup = storedWorldCups.find(wc => wc.id === id);
+    if (storedWorldCup) {
+      const newParticipants = storedWorldCup.participants + 1;
+      updateWorldCupStats(id, { participants: newParticipants });
+      
+      // 로컬 상태도 업데이트
+      setStoredWorldCups(prev => 
+        prev.map(wc => wc.id === id ? { ...wc, participants: newParticipants } : wc)
+      );
+    }
+    
     // Navigate to worldcup play page
     window.location.href = `/play/${id}`;
   };
@@ -160,22 +257,37 @@ export default function WorldCupGrid({ category: _category, sortBy: _sortBy }: W
     // TODO: Implement share functionality
   };
 
+  // 저장된 월드컵과 목 데이터를 합쳐서 표시
+  const allWorldCups = [...storedWorldCups, ...mockWorldCups];
+
   return (
     <div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-        {mockWorldCups.map((worldcup) => (
-          <WorldCupCard
-            key={worldcup.id}
-            {...worldcup}
-            isLiked={likedItems.has(worldcup.id)}
-            isBookmarked={bookmarkedItems.has(worldcup.id)}
-            onPlay={() => handlePlay(worldcup.id)}
-            onLike={() => handleLike(worldcup.id)}
-            onBookmark={() => handleBookmark(worldcup.id)}
-            onShare={() => handleShare(worldcup.id)}
-          />
-        ))}
-      </div>
+      {allWorldCups.length === 0 ? (
+        <div className="text-center py-12">
+          <p className="text-gray-500 text-lg mb-4">아직 생성된 월드컵이 없습니다.</p>
+          <a 
+            href="/create" 
+            className="inline-block px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+          >
+            첫 번째 월드컵 만들기
+          </a>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+          {allWorldCups.map((worldcup) => (
+            <WorldCupCard
+              key={worldcup.id}
+              {...worldcup}
+              isLiked={likedItems.has(worldcup.id)}
+              isBookmarked={bookmarkedItems.has(worldcup.id)}
+              onPlay={() => handlePlay(worldcup.id)}
+              onLike={() => handleLike(worldcup.id)}
+              onBookmark={() => handleBookmark(worldcup.id)}
+              onShare={() => handleShare(worldcup.id)}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

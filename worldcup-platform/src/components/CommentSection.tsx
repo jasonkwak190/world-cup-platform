@@ -8,6 +8,7 @@ import { Comment } from '@/types/game';
 interface CommentSectionProps {
   worldcupTitle: string;
   winnerName: string;
+  worldcupId?: string; // 월드컵 ID 추가
 }
 
 // Mock comments data
@@ -76,42 +77,67 @@ const mockComments: Comment[] = [
 
 type SortType = 'popular' | 'recent';
 
-export default function CommentSection({ worldcupTitle, winnerName }: CommentSectionProps) {
-  const [comments, setComments] = useState<Comment[]>(mockComments);
+export default function CommentSection({ worldcupTitle, winnerName, worldcupId }: CommentSectionProps) {
+  // localStorage에서 월드컵별 댓글 로드
+  const getCommentsKey = (id: string) => `comments_${id}`;
+  
+  const loadComments = (): Comment[] => {
+    if (!worldcupId) return [];
+    
+    try {
+      const stored = localStorage.getItem(getCommentsKey(worldcupId));
+      return stored ? JSON.parse(stored) : [];
+    } catch (error) {
+      console.error('Failed to load comments:', error);
+      return [];
+    }
+  };
+  
+  const saveComments = (comments: Comment[]) => {
+    if (!worldcupId) return;
+    
+    try {
+      localStorage.setItem(getCommentsKey(worldcupId), JSON.stringify(comments));
+    } catch (error) {
+      console.error('Failed to save comments:', error);
+    }
+  };
+  
+  const [comments, setComments] = useState<Comment[]>(loadComments());
   const [sortBy, setSortBy] = useState<SortType>('popular');
   const [newComment, setNewComment] = useState('');
   const [username, setUsername] = useState('');
 
   const handleLike = (commentId: string) => {
-    setComments(prevComments =>
-      prevComments.map(comment =>
-        comment.id === commentId
-          ? {
-              ...comment,
-              likes: comment.isLiked ? comment.likes - 1 : comment.likes + 1,
-              dislikes: comment.isDisliked ? comment.dislikes - 1 : comment.dislikes,
-              isLiked: !comment.isLiked,
-              isDisliked: false
-            }
-          : comment
-      )
+    const updatedComments = comments.map(comment =>
+      comment.id === commentId
+        ? {
+            ...comment,
+            likes: comment.isLiked ? comment.likes - 1 : comment.likes + 1,
+            dislikes: comment.isDisliked ? comment.dislikes - 1 : comment.dislikes,
+            isLiked: !comment.isLiked,
+            isDisliked: false
+          }
+        : comment
     );
+    setComments(updatedComments);
+    saveComments(updatedComments);
   };
 
   const handleDislike = (commentId: string) => {
-    setComments(prevComments =>
-      prevComments.map(comment =>
-        comment.id === commentId
-          ? {
-              ...comment,
-              dislikes: comment.isDisliked ? comment.dislikes - 1 : comment.dislikes + 1,
-              likes: comment.isLiked ? comment.likes - 1 : comment.likes,
-              isDisliked: !comment.isDisliked,
-              isLiked: false
-            }
-          : comment
-      )
+    const updatedComments = comments.map(comment =>
+      comment.id === commentId
+        ? {
+            ...comment,
+            dislikes: comment.isDisliked ? comment.dislikes - 1 : comment.dislikes + 1,
+            likes: comment.isLiked ? comment.likes - 1 : comment.likes,
+            isDisliked: !comment.isDisliked,
+            isLiked: false
+          }
+        : comment
     );
+    setComments(updatedComments);
+    saveComments(updatedComments);
   };
 
   const handleSubmitComment = () => {
@@ -128,7 +154,9 @@ export default function CommentSection({ worldcupTitle, winnerName }: CommentSec
       isDisliked: false
     };
 
-    setComments(prev => [comment, ...prev]);
+    const updatedComments = [comment, ...comments];
+    setComments(updatedComments);
+    saveComments(updatedComments);
     setNewComment('');
   };
 

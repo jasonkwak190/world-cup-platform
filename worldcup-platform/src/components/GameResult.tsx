@@ -10,6 +10,7 @@ interface GameResultProps {
   onRestart: () => void;
   onGoHome: () => void;
   playTime: number;
+  worldcupId?: string;
 }
 
 export default function GameResult({
@@ -17,8 +18,10 @@ export default function GameResult({
   onRestart,
   onGoHome,
   playTime,
+  worldcupId,
 }: GameResultProps) {
   const [showRanking, setShowRanking] = useState(false);
+  const [showImageModal, setShowImageModal] = useState(false);
   const formatTime = (ms: number) => {
     const seconds = Math.floor(ms / 1000);
     const minutes = Math.floor(seconds / 60);
@@ -131,8 +134,31 @@ export default function GameResult({
         >
           <div className="bg-gradient-to-br from-emerald-100 to-blue-100 rounded-2xl p-8 mb-6">
             {/* Winner Image */}
-            <div className="w-32 h-32 mx-auto mb-6 bg-gradient-to-br from-yellow-100 to-orange-100 rounded-2xl flex items-center justify-center">
-              <div className="text-8xl">🎭</div>
+            <div 
+              className="w-48 h-48 mx-auto mb-6 rounded-2xl overflow-hidden shadow-lg cursor-pointer hover:scale-105 transition-transform"
+              onClick={() => tournament.winner?.image && setShowImageModal(true)}
+            >
+              {tournament.winner?.image ? (
+                <img 
+                  src={tournament.winner.image} 
+                  alt={tournament.winner.title}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    // 이미지 로딩 실패 시 플레이스홀더 표시
+                    e.currentTarget.style.display = 'none';
+                    const parent = e.currentTarget.parentElement;
+                    if (parent) {
+                      const fallback = parent.querySelector('.winner-fallback');
+                      if (fallback) {
+                        fallback.classList.remove('hidden');
+                      }
+                    }
+                  }}
+                />
+              ) : null}
+              <div className={`winner-fallback ${tournament.winner?.image ? 'hidden' : ''} w-full h-full bg-gradient-to-br from-yellow-100 to-orange-100 flex items-center justify-center`}>
+                <div className="text-8xl">🎭</div>
+              </div>
             </div>
             <div className="text-6xl mb-4">👑</div>
             <h2 className="text-3xl font-bold text-gray-900 mb-2">
@@ -235,8 +261,37 @@ export default function GameResult({
         <CommentSection 
           worldcupTitle={tournament.title}
           winnerName={tournament.winner?.title || ''}
+          worldcupId={worldcupId}
         />
       </div>
+
+      {/* Image Modal */}
+      {showImageModal && tournament.winner?.image && (
+        <div 
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowImageModal(false)}
+        >
+          <div className="relative max-w-4xl max-h-full">
+            <img 
+              src={tournament.winner.image} 
+              alt={tournament.winner.title}
+              className="max-w-full max-h-full object-contain rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <button
+              onClick={() => setShowImageModal(false)}
+              className="absolute top-4 right-4 w-10 h-10 bg-black/50 text-white rounded-full flex items-center justify-center hover:bg-black/70 transition-colors"
+            >
+              ×
+            </button>
+            <div className="absolute bottom-4 left-4 right-4 text-center">
+              <h3 className="text-white text-xl font-bold bg-black/50 rounded-lg px-4 py-2">
+                {tournament.winner.title}
+              </h3>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

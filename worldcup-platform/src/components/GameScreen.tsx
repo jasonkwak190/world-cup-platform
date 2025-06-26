@@ -104,12 +104,26 @@ export default function GameScreen({ match, roundName, round, totalRounds, onCho
           <div className={`bg-white rounded-3xl p-8 shadow-2xl hover:shadow-emerald-500/25 transition-all duration-300 focus:outline-none ${
             selectedItem?.id === match.item1.id ? getRoundBorderStyle(round, totalRounds) : ''
           }`}>
-            {/* Item Image Placeholder */}
-            <div className="aspect-square bg-gradient-to-br from-emerald-100 to-blue-100 rounded-2xl mb-4 flex items-center justify-center">
-              <div className="text-center">
-                <div className="text-9xl mb-2">🎭</div>
-                <div className="text-gray-600 font-medium text-xl">
-                  {match.item1.title}
+            {/* Item Image */}
+            <div className="aspect-square bg-gradient-to-br from-emerald-100 to-blue-100 rounded-2xl mb-4 overflow-hidden">
+              {match.item1.image ? (
+                <img 
+                  src={match.item1.image} 
+                  alt={match.item1.title}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    // 이미지 로딩 실패 시 플레이스홀더 표시
+                    e.currentTarget.style.display = 'none';
+                    e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                  }}
+                />
+              ) : null}
+              <div className={`w-full h-full flex items-center justify-center ${match.item1.image ? 'hidden' : ''}`}>
+                <div className="text-center">
+                  <div className="text-9xl mb-2">🎭</div>
+                  <div className="text-gray-600 font-medium text-xl">
+                    {match.item1.title}
+                  </div>
                 </div>
               </div>
             </div>
@@ -185,12 +199,26 @@ export default function GameScreen({ match, roundName, round, totalRounds, onCho
           <div className={`bg-white rounded-3xl p-8 shadow-2xl hover:shadow-emerald-500/25 transition-all duration-300 focus:outline-none ${
             selectedItem?.id === match.item2.id ? getRoundBorderStyle(round, totalRounds) : ''
           }`}>
-            {/* Item Image Placeholder */}
-            <div className="aspect-square bg-gradient-to-br from-purple-100 to-pink-100 rounded-2xl mb-4 flex items-center justify-center">
-              <div className="text-center">
-                <div className="text-9xl mb-2">🎨</div>
-                <div className="text-gray-600 font-medium text-xl">
-                  {match.item2.title}
+            {/* Item Image */}
+            <div className="aspect-square bg-gradient-to-br from-purple-100 to-pink-100 rounded-2xl mb-4 overflow-hidden">
+              {match.item2.image ? (
+                <img 
+                  src={match.item2.image} 
+                  alt={match.item2.title}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    // 이미지 로딩 실패 시 플레이스홀더 표시
+                    e.currentTarget.style.display = 'none';
+                    e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                  }}
+                />
+              ) : null}
+              <div className={`w-full h-full flex items-center justify-center ${match.item2.image ? 'hidden' : ''}`}>
+                <div className="text-center">
+                  <div className="text-9xl mb-2">🎨</div>
+                  <div className="text-gray-600 font-medium text-xl">
+                    {match.item2.title}
+                  </div>
                 </div>
               </div>
             </div>

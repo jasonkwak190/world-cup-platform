@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { WorldCupItem, GameState } from '@/types/game';
 import { createTournament, getCurrentMatch, selectWinner, getRoundName, getTournamentProgress, undoLastMatch } from '@/utils/tournament';
+import { getWorldCupById } from '@/utils/storage';
 import GameScreen from '@/components/GameScreen';
 import GameProgress from '@/components/GameProgress';
 import GameResult from '@/components/GameResult';
@@ -95,16 +96,40 @@ export default function PlayPage({ params }: PlayPageProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [showTournamentSelector, setShowTournamentSelector] = useState(false);
   const [worldcupData, setWorldcupData] = useState<typeof mockWorldCupData | null>(null);
+  const [worldcupId, setWorldcupId] = useState<string>('');
 
   useEffect(() => {
-    // 실제로는 API에서 데이터를 가져옴
     const loadWorldCup = async () => {
       try {
-        const _resolvedParams = await params;
-        // Mock delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        const resolvedParams = await params;
+        const id = resolvedParams.id;
+        setWorldcupId(id);
         
-        setWorldcupData(mockWorldCupData);
+        // localStorage에서 생성된 월드컵 찾기
+        const storedWorldCup = getWorldCupById(id);
+        
+        if (storedWorldCup) {
+          // 저장된 월드컵 데이터를 게임용 형식으로 변환
+          const gameData = {
+            id: storedWorldCup.id,
+            title: storedWorldCup.title,
+            description: storedWorldCup.description,
+            items: storedWorldCup.items.map(item => ({
+              id: item.id,
+              title: item.title,
+              description: item.description,
+              image: item.image, // Base64 이미지 포함
+            })) as WorldCupItem[]
+          };
+          
+          console.log('Loaded stored worldcup for play:', gameData);
+          setWorldcupData(gameData);
+        } else {
+          // 목 데이터에서 찾기 (기존 하드코딩된 월드컵들)
+          console.log('Using mock data for worldcup ID:', id);
+          setWorldcupData(mockWorldCupData);
+        }
+        
         setShowTournamentSelector(true);
       } catch (error) {
         console.error('Failed to load world cup:', error);
@@ -238,6 +263,7 @@ export default function PlayPage({ params }: PlayPageProps) {
         onRestart={handleRestart}
         onGoHome={handleGoHome}
         playTime={gameState.endTime ? gameState.endTime - gameState.startTime : Date.now() - gameState.startTime}
+        worldcupId={worldcupId}
       />
     );
   }

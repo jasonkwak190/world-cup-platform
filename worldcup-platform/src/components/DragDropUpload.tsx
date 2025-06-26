@@ -14,31 +14,45 @@ interface DragDropUploadProps {
   items: WorldCupItem[];
   onItemsUpload: (items: WorldCupItem[]) => void;
   onItemDelete: (itemId: string) => void;
+  thumbnail?: string | File;
+  onThumbnailUpload?: (thumbnail: string | File) => void;
 }
 
-export default function DragDropUpload({ items, onItemsUpload, onItemDelete }: DragDropUploadProps) {
+export default function DragDropUpload({ items, onItemsUpload, onItemDelete, thumbnail, onThumbnailUpload }: DragDropUploadProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [urlInputs, setUrlInputs] = useState<string[]>(['']);
+  const [showThumbnailUpload, setShowThumbnailUpload] = useState(false);
+  const [thumbnailUrl, setThumbnailUrl] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const thumbnailInputRef = useRef<HTMLInputElement>(null);
 
-  const generateId = () => Math.random().toString(36).substring(2, 11);
+  const generateId = () => Date.now().toString(36) + Math.random().toString(36).substring(2, 11);
 
   const createItemFromFile = (file: File): WorldCupItem => {
-    // Validate file
+    // Enhanced file validation
     if (!file || !(file instanceof File)) {
       console.error('Invalid file object:', file);
-      throw new Error('Invalid file object');
+      throw new Error('유효하지 않은 파일입니다');
     }
     
     if (file.size === 0) {
       console.error('Empty file:', file.name);
-      throw new Error('Empty file not allowed');
+      throw new Error('빈 파일은 업로드할 수 없습니다');
     }
     
-    if (!file.type.startsWith('image/')) {
-      console.error('Not an image file:', file.type);
-      throw new Error('Only image files are allowed');
+    // 파일 크기 제한 (10MB)
+    const maxSize = 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      console.error('File too large:', file.name, file.size);
+      throw new Error('파일 크기가 10MB를 초과합니다');
+    }
+    
+    // 지원되는 이미지 타입 확인
+    const supportedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!supportedTypes.includes(file.type.toLowerCase())) {
+      console.error('Unsupported file type:', file.type);
+      throw new Error('지원되지 않는 파일 형식입니다 (JPG, PNG, GIF, WebP만 허용)');
     }
     
     const item = {
@@ -57,10 +71,30 @@ export default function DragDropUpload({ items, onItemsUpload, onItemDelete }: D
   };
 
   const createItemFromUrl = (url: string, title: string): WorldCupItem => {
+    // URL 유효성 검사
+    if (!url || typeof url !== 'string' || url.trim() === '') {
+      throw new Error('유효하지 않은 URL입니다');
+    }
+    
+    const trimmedUrl = url.trim();
+    
+    // 기본적인 URL 형식 검사
+    try {
+      new URL(trimmedUrl);
+    } catch {
+      throw new Error('올바른 URL 형식이 아닙니다');
+    }
+    
+    // 이미지 URL인지 확인 (확장자 기반)
+    const imageExtensions = /\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?.*)?$/i;
+    if (!imageExtensions.test(trimmedUrl)) {
+      console.warn('URL이 이미지 확장자를 포함하지 않습니다:', trimmedUrl);
+    }
+    
     const item = {
       id: generateId(),
-      title: title || '새 항목',
-      image: url,
+      title: title?.trim() || '새 항목',
+      image: trimmedUrl,
     };
     console.log('Created item from URL:', {
       id: item.id,
@@ -91,12 +125,26 @@ export default function DragDropUpload({ items, onItemsUpload, onItemDelete }: D
 
   const handleFiles = useCallback((files: FileList) => {
     const newItems: WorldCupItem[] = [];
+    const errors: string[] = [];
     
     Array.from(files).forEach(file => {
-      if (file.type.startsWith('image/')) {
-        newItems.push(createItemFromFile(file));
+      try {
+        if (file.type.startsWith('image/')) {
+          newItems.push(createItemFromFile(file));
+        } else {
+          errors.push(`${file.name}: 이미지 파일이 아닙니다`);
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류';
+        errors.push(`${file.name}: ${errorMessage}`);
+        console.error('File processing error:', error);
       }
     });
+
+    // 에러가 있으면 사용자에게 알림
+    if (errors.length > 0) {
+      alert(`다음 파일들을 업로드할 수 없습니다:\n\n${errors.join('\n')}`);
+    }
 
     if (newItems.length > 0) {
       onItemsUpload(newItems);
@@ -131,8 +179,17 @@ export default function DragDropUpload({ items, onItemsUpload, onItemDelete }: D
   const handleUrlSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const validUrls = urlInputs.filter(url => url.trim() !== '');
-    if (validUrls.length > 0) {
-      const newItems = validUrls.map(url => {
+    
+    if (validUrls.length === 0) {
+      alert('최소 하나의 URL을 입력해주세요.');
+      return;
+    }
+    
+    const newItems: WorldCupItem[] = [];
+    const errors: string[] = [];
+    
+    validUrls.forEach(url => {
+      try {
         const cleanUrl = url.trim();
         const processedUrl = extractImageUrl(cleanUrl);
         const filename = processedUrl.split('/').pop()?.split('.')[0] || 'New Item';
@@ -140,10 +197,23 @@ export default function DragDropUpload({ items, onItemsUpload, onItemDelete }: D
         // Show warning for Google image URLs
         if (isGoogleImageUrl(cleanUrl)) {
           console.warn('Google image URL detected. This may not work due to CORS policies.');
+          errors.push(`${cleanUrl}: 구글 이미지 URL은 정상적으로 작동하지 않을 수 있습니다`);
         }
         
-        return createItemFromUrl(processedUrl, filename);
-      });
+        newItems.push(createItemFromUrl(processedUrl, filename));
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류';
+        errors.push(`${url}: ${errorMessage}`);
+        console.error('URL processing error:', error);
+      }
+    });
+    
+    // 에러가 있으면 사용자에게 알림
+    if (errors.length > 0) {
+      alert(`다음 URL들에 문제가 있습니다:\n\n${errors.join('\n')}`);
+    }
+    
+    if (newItems.length > 0) {
       onItemsUpload(newItems);
       setUrlInputs(['']);
       setShowUrlInput(false);
@@ -164,6 +234,65 @@ export default function DragDropUpload({ items, onItemsUpload, onItemDelete }: D
     const newInputs = [...urlInputs];
     newInputs[index] = value;
     setUrlInputs(newInputs);
+  };
+
+  // 썸네일 파일 업로드 핸들러
+  const handleThumbnailFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    try {
+      // 썸네일도 동일한 유효성 검사 적용
+      if (!file.type.startsWith('image/')) {
+        alert('이미지 파일만 업로드 가능합니다.');
+        return;
+      }
+      
+      // 파일 크기 제한 (10MB)
+      const maxSize = 10 * 1024 * 1024;
+      if (file.size > maxSize) {
+        alert('파일 크기가 10MB를 초과합니다.');
+        return;
+      }
+      
+      // 지원되는 이미지 타입 확인
+      const supportedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+      if (!supportedTypes.includes(file.type.toLowerCase())) {
+        alert('지원되지 않는 파일 형식입니다. (JPG, PNG, GIF, WebP만 허용)');
+        return;
+      }
+      
+      if (onThumbnailUpload) {
+        onThumbnailUpload(file);
+      }
+    } catch (error) {
+      console.error('Thumbnail upload error:', error);
+      alert('썸네일 업로드 중 오류가 발생했습니다.');
+    }
+  };
+
+  // 썸네일 URL 업로드 핸들러
+  const handleThumbnailUrlSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!thumbnailUrl.trim()) {
+      alert('URL을 입력해주세요.');
+      return;
+    }
+    
+    try {
+      // URL 유효성 검사
+      new URL(thumbnailUrl.trim());
+      
+      if (onThumbnailUpload) {
+        onThumbnailUpload(thumbnailUrl.trim());
+        setThumbnailUrl('');
+        setShowThumbnailUpload(false);
+      }
+    } catch (error) {
+      console.error('Invalid thumbnail URL:', error);
+      alert('올바른 URL 형식이 아닙니다.');
+    }
   };
 
   const getImageUrl = (image: string | File): string => {
@@ -222,7 +351,121 @@ export default function DragDropUpload({ items, onItemsUpload, onItemDelete }: D
         </p>
       </div>
 
-      {/* Upload Area */}
+      {/* Thumbnail Upload Section - Moved to top */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+        <h3 className="text-lg font-semibold text-blue-900 mb-4 flex items-center">
+          <FileImage className="w-5 h-5 mr-2" />
+          썸네일 설정
+        </h3>
+        <p className="text-sm text-blue-700 mb-4">
+          월드컵의 대표 이미지를 설정하세요. 설정하지 않으면 나중에 자동으로 생성됩니다.
+        </p>
+        
+        {thumbnail ? (
+          <div className="flex items-start space-x-4">
+            <div className="w-32 h-24 bg-gray-100 rounded-lg overflow-hidden">
+              <img
+                src={getImageUrl(thumbnail)}
+                alt="썸네일"
+                className="w-full h-full object-cover"
+                onError={handleImageError}
+              />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm text-green-700 font-medium mb-2">✅ 썸네일이 설정되었습니다</p>
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => thumbnailInputRef.current?.click()}
+                  className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                >
+                  변경
+                </button>
+                <button
+                  onClick={() => setShowThumbnailUpload(true)}
+                  className="px-3 py-1.5 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
+                >
+                  URL 변경
+                </button>
+                <button
+                  onClick={() => onThumbnailUpload && onThumbnailUpload('')}
+                  className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded transition-colors"
+                >
+                  제거
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center">
+            <div className="flex justify-center space-x-3">
+              <button
+                onClick={() => thumbnailInputRef.current?.click()}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+              >
+                <Upload className="w-4 h-4" />
+                <span>파일 업로드</span>
+              </button>
+              <button
+                onClick={() => setShowThumbnailUpload(true)}
+                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center space-x-2"
+              >
+                <Link className="w-4 h-4" />
+                <span>URL 입력</span>
+              </button>
+            </div>
+          </div>
+        )}
+        
+        <input
+          ref={thumbnailInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleThumbnailFileUpload}
+          className="hidden"
+        />
+      </div>
+
+      {/* Thumbnail URL Input Modal */}
+      {showThumbnailUpload && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">썸네일 URL 입력</h3>
+            <form onSubmit={handleThumbnailUrlSubmit}>
+              <div className="mb-4">
+                <input
+                  type="url"
+                  value={thumbnailUrl}
+                  onChange={(e) => setThumbnailUrl(e.target.value)}
+                  placeholder="https://example.com/thumbnail.jpg"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                  autoFocus
+                />
+              </div>
+              <div className="flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowThumbnailUpload(false);
+                    setThumbnailUrl('');
+                  }}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  disabled={!thumbnailUrl.trim()}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                >
+                  설정
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Main Upload Area */}
       <div
         onDrop={handleDrop}
         onDragOver={handleDragOver}
@@ -323,7 +566,7 @@ export default function DragDropUpload({ items, onItemsUpload, onItemDelete }: D
                   <p className="text-sm text-blue-700 font-medium mb-2">💡 이미지 URL 사용 팁:</p>
                   <ul className="text-sm text-blue-600 space-y-1">
                     <li>• 직접 이미지 파일 URL을 사용하세요 (.jpg, .png, .gif 등)</li>
-                    <li>• 이미지에 마우스 우클릭 → "이미지 주소 복사"를 사용하세요</li>
+                    <li>• 이미지에 마우스 우클릭 → &quot;이미지 주소 복사&quot;를 사용하세요</li>
                   </ul>
                 </div>
                 
@@ -369,6 +612,7 @@ export default function DragDropUpload({ items, onItemsUpload, onItemDelete }: D
           </div>
         </div>
       )}
+
 
       {/* Items Grid */}
       {items.length > 0 && (
@@ -448,7 +692,7 @@ export default function DragDropUpload({ items, onItemsUpload, onItemDelete }: D
               <h4 className="text-sm font-medium text-amber-800 mb-1">구글 이미지 사용 시 주의</h4>
               <ul className="text-sm text-amber-700 space-y-1">
                 <li>• 구글 이미지 검색에서 복사한 URL은 작동하지 않을 수 있습니다</li>
-                <li>• 이미지에 직접 우클릭 → "이미지 주소 복사"를 사용하세요</li>
+                <li>• 이미지에 직접 우클릭 → &quot;이미지 주소 복사&quot;를 사용하세요</li>
                 <li>• 가능하면 컴퓨터에서 파일을 직접 업로드하는 것을 권장합니다</li>
               </ul>
             </div>

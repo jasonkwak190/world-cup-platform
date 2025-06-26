@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import { Play, Eye, Share2, Settings, Users, MessageCircle, Heart, Trophy, Upload, Image as ImageIcon, Link, X } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import React, { useEffect, useState } from 'react';
+import { Play, Eye, Share2, Settings, Users, MessageCircle, Heart, Trophy } from 'lucide-react';
 
 interface WorldCupItem {
   id: string;
@@ -17,31 +16,45 @@ interface WorldCupData {
   category: string;
   items: WorldCupItem[];
   isPublic: boolean;
-  thumbnail?: string | File;
+  thumbnail?: string | File | Blob | null; 
 }
 
 interface WorldCupPreviewProps {
   data: WorldCupData;
+  onGameStateChange?: (isPlaying: boolean) => void;
 }
 
-export default function WorldCupPreview({ data }: WorldCupPreviewProps) {
-  const router = useRouter();
+
+
+export default function WorldCupPreview({ data, onGameStateChange }: WorldCupPreviewProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentMatchItems, setCurrentMatchItems] = useState<[WorldCupItem, WorldCupItem] | null>(null);
-  const [thumbnail, setThumbnail] = useState<string | File | null>(null);
-  const [isGeneratingThumbnail, setIsGeneratingThumbnail] = useState(false);
-  const [showUrlInput, setShowUrlInput] = useState(false);
-  const [urlInput, setUrlInput] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const getImageUrl = (image: string | File): string => {
+  
+  // getImageUrl 함수를 먼저 정의
+  const getImageUrl = (image: string | File | Blob | undefined | null): string => {
     try {
+      if (!image) {
+        return '';
+      }
+      
       if (typeof image === 'string') {
         // Accept all string URLs including blob: URLs
         if (image.trim() === '') {
-          console.warn('Empty URL string');
           return '';
         }
+        
+        // Base64 이미지 유효성 검증
+        if (image.startsWith('data:image/')) {
+          const base64Data = image.split(',')[1];
+          if (base64Data && base64Data.length > 100) {
+            console.log('✅ Preview valid base64 image detected, length:', base64Data.length);
+            return image;
+          } else {
+            console.error('❌ Preview invalid base64 image data');
+            return '';
+          }
+        }
+        
         return image;
       }
       
@@ -49,13 +62,50 @@ export default function WorldCupPreview({ data }: WorldCupPreviewProps) {
         return URL.createObjectURL(image);
       }
       
-      console.error('Invalid image type:', typeof image);
+      if (image instanceof Blob) {
+        return URL.createObjectURL(image);
+      }
+      
+      console.error('Invalid image type:', typeof image, image);
       return '';
     } catch (error) {
       console.error('Error creating image URL:', error);
       return '';
     }
   };
+  
+  // 수정: 썸네일은 getImageUrl 함수를 사용하여 처리
+  const [thumbnailUrl, setThumbnailUrl] = useState<string>('');
+  useEffect(() => {
+    console.log('🔄 Preview useEffect triggered with thumbnail:', data.thumbnail);
+    const url = getImageUrl(data.thumbnail);
+    console.log('🔄 Preview processed thumbnailUrl:', url?.substring(0, 100) + '...');
+    setThumbnailUrl(url);
+  }, [data.thumbnail]);
+  
+  // 더 직접적인 방법으로도 시도
+  const directThumbnailUrl = React.useMemo(() => {
+    const url = getImageUrl(data.thumbnail);
+    console.log('📋 Preview memoized thumbnailUrl:', url?.substring(0, 100) + '...');
+    return url;
+  }, [data.thumbnail]);
+  
+  // 디버그: 썸네일 데이터 확인
+  React.useEffect(() => {
+    console.log('=== WorldCupPreview Debug ===');
+    console.log('Complete data object:', data);
+    console.log('data.thumbnail:', data.thumbnail);
+    console.log('data.thumbnail type:', typeof data.thumbnail);
+    console.log('data.items length:', data.items.length);
+    if (data.thumbnail) {
+      const imageUrl = getImageUrl(data.thumbnail);
+      console.log('getImageUrl result:', imageUrl);
+      console.log('imageUrl length:', imageUrl.length);
+    } else {
+      console.log('No thumbnail found in data');
+    }
+    console.log('=== End Debug ===');
+  }, [data]);
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
@@ -98,6 +148,7 @@ export default function WorldCupPreview({ data }: WorldCupPreviewProps) {
       const shuffled = [...data.items].sort(() => Math.random() - 0.5);
       setCurrentMatchItems([shuffled[0], shuffled[1]]);
       setIsPlaying(true);
+      onGameStateChange?.(true);
     }
   };
 
@@ -109,135 +160,13 @@ export default function WorldCupPreview({ data }: WorldCupPreviewProps) {
     } else {
       setIsPlaying(false);
       setCurrentMatchItems(null);
+      onGameStateChange?.(false);
     }
   };
 
-  const generateAutoThumbnail = async () => {
-    if (data.items.length < 2) return;
-    
-    setIsGeneratingThumbnail(true);
-    
-    try {
-      // Create canvas for combining two random images
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        console.error('Canvas context not available');
-        return;
-      }
-      
-      canvas.width = 400;
-      canvas.height = 400;
-      
-      // Fill black background
-      ctx.fillStyle = '#000000';
-      ctx.fillRect(0, 0, 400, 400);
-      
-      // Get two random items
-      const shuffled = [...data.items].sort(() => Math.random() - 0.5);
-      const [item1, item2] = shuffled.slice(0, 2);
-      
-      console.log('Generating thumbnail with items:', item1.title, item2.title);
-      
-      // Helper function to load image
-      const loadImage = (src: string): Promise<HTMLImageElement> => {
-        return new Promise((resolve, reject) => {
-          const img = new Image();
-          img.crossOrigin = 'anonymous';
-          img.onload = () => resolve(img);
-          img.onerror = (e) => {
-            console.error('Image load error for:', src, e);
-            reject(e);
-          };
-          img.src = src;
-        });
-      };
-      
-      try {
-        // Load both images
-        const [img1, img2] = await Promise.all([
-          loadImage(getImageUrl(item1.image)),
-          loadImage(getImageUrl(item2.image))
-        ]);
-        
-        // Draw first image (left half)
-        ctx.drawImage(img1, 0, 0, 200, 400);
-        
-        // Draw second image (right half)
-        ctx.drawImage(img2, 200, 0, 200, 400);
-        
-        // Add subtle dividing line
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(200, 0);
-        ctx.lineTo(200, 400);
-        ctx.stroke();
-        
-        // Convert to blob and set as thumbnail
-        canvas.toBlob((blob) => {
-          if (blob) {
-            console.log('Thumbnail generated successfully');
-            setThumbnail(blob);
-          } else {
-            console.error('Failed to create blob from canvas');
-          }
-        }, 'image/jpeg', 0.8);
-        
-      } catch (imageError) {
-        console.error('Error loading images:', imageError);
-        // Create a simple fallback thumbnail with text
-        ctx.fillStyle = '#1F2937';
-        ctx.fillRect(0, 0, 400, 400);
-        
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = '24px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText(item1.title, 100, 180);
-        ctx.fillText('VS', 200, 220);
-        ctx.fillText(item2.title, 300, 260);
-        
-        canvas.toBlob((blob) => {
-          if (blob) {
-            setThumbnail(blob);
-          }
-        }, 'image/jpeg', 0.8);
-      }
-      
-    } catch (error) {
-      console.error('Error generating thumbnail:', error);
-    } finally {
-      setIsGeneratingThumbnail(false);
-    }
-  };
+  // 수정: 썸네일 관련 함수들 제거 (이전 단계에서 처리됨)
   
-  const handleThumbnailUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    console.log('File selected:', file);
-    if (file && file.type.startsWith('image/')) {
-      console.log('Setting thumbnail to file:', file.name);
-      setThumbnail(file);
-    } else {
-      console.log('Invalid file type or no file selected');
-    }
-  };
-  
-  const handleUrlSubmit = () => {
-    if (urlInput.trim()) {
-      console.log('Setting thumbnail to URL:', urlInput.trim());
-      setThumbnail(urlInput.trim());
-      setUrlInput('');
-      setShowUrlInput(false);
-    }
-  };
-  
-  const handleCreateWorldCup = () => {
-    // TODO: Actually create the worldcup with thumbnail
-    const finalData = { ...data, thumbnail };
-    console.log('Creating worldcup:', finalData);
-    // For now, just navigate to a mock play page
-    router.push('/play/new-worldcup');
-  };
+  // 수정: handleCreateWorldCup 제거 - 이제 create 페이지에서 처리
 
   const tournamentSize = getTournamentSize();
   const totalRounds = Math.log2(tournamentSize);
@@ -265,146 +194,45 @@ export default function WorldCupPreview({ data }: WorldCupPreviewProps) {
           {/* Main Preview */}
           <div className="lg:col-span-2">
             <div className="bg-white border rounded-lg overflow-hidden">
-              {/* Card Header */}
+              {/* Card Header - 썸네일 표시 */}
               <div className="relative aspect-video overflow-hidden">
-                {thumbnail ? (
+                {directThumbnailUrl || thumbnailUrl ? (
                   <>
                     <img
-                      src={getImageUrl(thumbnail)}
+                      key={directThumbnailUrl || thumbnailUrl}
+                      src={directThumbnailUrl || thumbnailUrl}
                       alt="썸네일"
                       className="w-full h-full object-cover"
-                      onError={() => {
-                        console.error('Thumbnail image failed to load:', getImageUrl(thumbnail));
+                      onError={(e) => {
+                        console.error('❌ Preview thumbnail failed:', {
+                          directUrl: directThumbnailUrl?.substring(0, 100) + '...',
+                          stateUrl: thumbnailUrl?.substring(0, 100) + '...',
+                          error: e
+                        });
+                        handleImageError(e);
                       }}
                       onLoad={() => {
-                        console.log('Thumbnail image loaded successfully:', getImageUrl(thumbnail));
+                        console.log('✅ Preview thumbnail loaded successfully!');
                       }}
                     />
-                    <div className="absolute inset-0 bg-black bg-opacity-40" />
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="text-center p-6">
-                        <div className="text-white text-2xl font-bold mb-2 drop-shadow-lg">
-                          {data.title}
-                        </div>
-                        {data.description && (
-                          <div className="text-white text-base drop-shadow-lg">
-                            {data.description}
-                          </div>
-                        )}
-                      </div>
-                    </div>
                   </>
                 ) : (
-                  <div className="bg-black flex items-center justify-center h-full min-h-[300px] relative">
+                  <div className="bg-gray-800 flex items-center justify-center h-full min-h-[300px] relative">
                     <div className="text-center p-6">
-                      {/* URL Input Mode */}
-                      {showUrlInput ? (
-                        <div className="space-y-4">
-                          <div className="text-white text-lg font-medium mb-4">
-                            썸네일 URL 입력
-                          </div>
-                          <div className="flex gap-2 max-w-md mx-auto">
-                            <input
-                              type="url"
-                              value={urlInput}
-                              onChange={(e) => setUrlInput(e.target.value)}
-                              placeholder="https://example.com/image.jpg"
-                              className="flex-1 px-3 py-2 border border-gray-600 rounded-lg bg-gray-800 text-white placeholder-gray-400 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                              onKeyDown={(e) => e.key === 'Enter' && handleUrlSubmit()}
-                              autoFocus
-                            />
-                            <button
-                              onClick={handleUrlSubmit}
-                              disabled={!urlInput.trim()}
-                              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-600 text-white rounded-lg transition-colors"
-                            >
-                              추가
-                            </button>
-                            <button
-                              onClick={() => {
-                                setShowUrlInput(false);
-                                setUrlInput('');
-                              }}
-                              className="p-2 text-gray-400 hover:text-white transition-colors"
-                            >
-                              <X className="w-5 h-5" />
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="space-y-6">
-                          <div className="text-white text-lg font-medium">
-                            썸네일 이미지 업로드
-                          </div>
-                          <div className="flex flex-col space-y-3">
-                            <button
-                              onClick={() => fileInputRef.current?.click()}
-                              className="flex items-center justify-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors font-medium"
-                            >
-                              <Upload className="w-5 h-5" />
-                              파일에서 업로드
-                            </button>
-                            <button
-                              onClick={() => setShowUrlInput(true)}
-                              className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
-                            >
-                              <Link className="w-5 h-5" />
-                              URL로 추가
-                            </button>
-                            <button
-                              onClick={generateAutoThumbnail}
-                              disabled={isGeneratingThumbnail || data.items.length < 2}
-                              className="flex items-center justify-center gap-2 px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:opacity-50 text-white rounded-lg transition-colors font-medium"
-                            >
-                              <ImageIcon className="w-5 h-5" />
-                              {isGeneratingThumbnail ? '생성중...' : '자동 생성'}
-                            </button>
-                          </div>
-                          {data.items.length < 2 && (
-                            <p className="text-amber-400 text-sm mt-4">
-                              ⚠️ 자동 생성을 위해서는 최소 2개의 이미지가 필요합니다
-                            </p>
-                          )}
-                        </div>
-                      )}
+                      <div className="text-white text-lg font-medium mb-4">
+                        썸네일이 설정되지 않았습니다
+                      </div>
+                      <p className="text-gray-400 text-sm">
+                        이전 단계에서 썸네일을 설정하거나 월드컵 생성 시 자동으로 생성됩니다.
+                      </p>
+                      <p className="text-yellow-400 text-xs mt-2">
+                        디버그: data.thumbnail = {String(data.thumbnail)}
+                      </p>
                     </div>
                   </div>
                 )}
-                {thumbnail && (
-                  <>
-                    <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-20 transition-all duration-200 flex items-center justify-center">
-                      <button
-                        onClick={startPreview}
-                        className="opacity-0 hover:opacity-100 transition-opacity duration-200 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full p-4 transform hover:scale-105"
-                      >
-                        <Play className="w-8 h-8 ml-1" />
-                      </button>
-                    </div>
-                    <div className="absolute top-3 right-3 flex gap-2">
-                      <button
-                        onClick={() => {
-                          console.log('Edit: File upload clicked');
-                          fileInputRef.current?.click();
-                        }}
-                        className="p-2 bg-white shadow-lg rounded-full hover:bg-gray-50 transition-all transform hover:scale-105 active:scale-95"
-                        title="새 이미지 업로드"
-                      >
-                        <Upload className="w-4 h-4 text-gray-700" />
-                      </button>
-                      <button
-                        onClick={() => {
-                          console.log('Edit: Remove thumbnail clicked');
-                          setThumbnail(null);
-                        }}
-                        className="p-2 bg-red-500 shadow-lg rounded-full hover:bg-red-600 transition-all transform hover:scale-105 active:scale-95"
-                        title="썸네일 제거"
-                      >
-                        <X className="w-4 h-4 text-white" />
-                      </button>
-                    </div>
-                  </>
-                )}
               </div>
+
 
               {/* Card Content */}
               <div className="p-6">
@@ -519,38 +347,104 @@ export default function WorldCupPreview({ data }: WorldCupPreviewProps) {
       ) : (
         /* Game Preview */
         currentMatchItems && (
-          <div className="max-w-4xl mx-auto bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 rounded-lg p-8">
+          <div className="flex flex-col items-center justify-start min-h-screen p-4 pt-8 pb-2">
+            {/* Header */}
             <div className="text-center mb-8">
-              <h3 className="text-2xl font-bold text-white mb-2">미리보기 모드</h3>
-              <p className="text-gray-300">실제 게임과 동일한 방식으로 작동합니다</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {currentMatchItems.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => handleChoice(item)}
-                  className="group relative aspect-square bg-white rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
-                >
-                  <img
-                    src={getImageUrl(item.image)}
-                    alt={item.title}
-                    className="w-full h-full object-cover"
-                    onError={handleImageError}
-                    loading="lazy"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                  <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
-                    <h3 className="text-xl font-bold text-center">{item.title}</h3>
+            {/* VS Section */}
+            <div className="flex items-center justify-center w-full max-w-6xl mt-8">
+              {/* Item 1 */}
+              <div className="flex-1 max-w-xl mx-4 cursor-pointer transition-all duration-500"
+                   onClick={() => handleChoice(currentMatchItems[0])}>
+                <div className="bg-white rounded-3xl p-8 shadow-2xl hover:shadow-emerald-500/25 transition-all duration-300">
+                  {/* Item Image */}
+                  <div className="aspect-square bg-gradient-to-br from-emerald-100 to-blue-100 rounded-2xl mb-4 overflow-hidden">
+                    {currentMatchItems[0].image ? (
+                      <img 
+                        src={getImageUrl(currentMatchItems[0].image)} 
+                        alt={currentMatchItems[0].title}
+                        className="w-full h-full object-cover"
+                        onError={handleImageError}
+                      />
+                    ) : null}
+                    <div className={`w-full h-full flex items-center justify-center ${currentMatchItems[0].image ? 'hidden' : ''}`}>
+                      <div className="text-center">
+                        <div className="text-9xl mb-2">🎭</div>
+                        <div className="text-gray-600 font-medium text-xl">
+                          {currentMatchItems[0].title}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="absolute inset-0 border-4 border-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg" />
-                </button>
-              ))}
+                  
+                  {/* Item Info */}
+                  <div className="text-center">
+                    <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                      {currentMatchItems[0].title}
+                    </h3>
+                    {currentMatchItems[0].description && (
+                      <p className="text-base text-gray-600">
+                        {currentMatchItems[0].description}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* VS Divider */}
+              <div className="flex-shrink-0 mx-4">
+                <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center shadow-2xl">
+                  <span className="text-2xl font-bold text-gray-900">VS</span>
+                </div>
+              </div>
+
+              {/* Item 2 */}
+              <div className="flex-1 max-w-xl mx-4 cursor-pointer transition-all duration-500"
+                   onClick={() => handleChoice(currentMatchItems[1])}>
+                <div className="bg-white rounded-3xl p-8 shadow-2xl hover:shadow-emerald-500/25 transition-all duration-300">
+                  {/* Item Image */}
+                  <div className="aspect-square bg-gradient-to-br from-purple-100 to-pink-100 rounded-2xl mb-4 overflow-hidden">
+                    {currentMatchItems[1].image ? (
+                      <img 
+                        src={getImageUrl(currentMatchItems[1].image)} 
+                        alt={currentMatchItems[1].title}
+                        className="w-full h-full object-cover"
+                        onError={handleImageError}
+                      />
+                    ) : null}
+                    <div className={`w-full h-full flex items-center justify-center ${currentMatchItems[1].image ? 'hidden' : ''}`}>
+                      <div className="text-center">
+                        <div className="text-9xl mb-2">🎨</div>
+                        <div className="text-gray-600 font-medium text-xl">
+                          {currentMatchItems[1].title}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Item Info */}
+                  <div className="text-center">
+                    <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                      {currentMatchItems[1].title}
+                    </h3>
+                    {currentMatchItems[1].description && (
+                      <p className="text-base text-gray-600">
+                        {currentMatchItems[1].description}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
 
+            {/* Controls */}
             <div className="text-center mt-8">
               <button
-                onClick={() => setIsPlaying(false)}
+                onClick={() => {
+                  setIsPlaying(false);
+                  onGameStateChange?.(false);
+                }}
                 className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
               >
                 미리보기 종료
@@ -590,34 +484,7 @@ export default function WorldCupPreview({ data }: WorldCupPreviewProps) {
         </div>
       )}
 
-      {/* Hidden file input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        onChange={handleThumbnailUpload}
-        className="hidden"
-      />
-      
-      {/* Final Action */}
-      {!isPlaying && (
-        <div className="text-center">
-          <button
-            onClick={handleCreateWorldCup}
-            className="px-8 py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold text-lg transition-colors"
-          >
-            🎉 월드컵 만들기 완료
-          </button>
-          <p className="text-sm text-gray-500 mt-2">
-            월드컵이 생성되고 다른 사용자들과 공유할 수 있습니다
-          </p>
-          {!thumbnail && (
-            <p className="text-xs text-amber-600 mt-1">
-              💡 썸네일을 설정하면 더 매력적인 월드컵을 만들 수 있습니다
-            </p>
-          )}
-        </div>
-      )}
+      {/* 수정: 파일 업로드 입력 제거 */}
     </div>
   );
 }
