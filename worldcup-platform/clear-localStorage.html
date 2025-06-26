@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear localStorage</title>
+</head>
+<body>
+    <script>
+        console.log('Before clearing:', localStorage.getItem('worldcups'));
+        localStorage.removeItem('worldcups');
+        console.log('After clearing:', localStorage.getItem('worldcups'));
+        alert('localStorage cleared successfully!');
+        
+        // Redirect to the app
+        setTimeout(() => {
+            window.location.href = 'http://localhost:3001';
+        }, 1000);
+    </script>
+    <h1>localStorage cleared!</h1>
+    <p>Redirecting to app...</p>
+</body>
+</html>

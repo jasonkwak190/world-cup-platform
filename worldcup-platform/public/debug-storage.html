@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Storage</title>
+</head>
+<body>
+    <h1>WorldCup Storage Debug</h1>
+    <div id="output"></div>
+    
+    <script>
+        function debugStorage() {
+            const output = document.getElementById('output');
+            
+            try {
+                const stored = localStorage.getItem('worldcups');
+                if (!stored) {
+                    output.innerHTML = '<p>No worldcups found in localStorage</p>';
+                    return;
+                }
+                
+                const worldcups = JSON.parse(stored);
+                output.innerHTML = `<h2>Found ${worldcups.length} worldcups:</h2>`;
+                
+                worldcups.forEach((wc, index) => {
+                    const div = document.createElement('div');
+                    div.style.border = '1px solid #ccc';
+                    div.style.margin = '10px';
+                    div.style.padding = '10px';
+                    
+                    div.innerHTML = `
+                        <h3>${wc.title || 'No title'}</h3>
+                        <p><strong>ID:</strong> ${wc.id}</p>
+                        <p><strong>Items count:</strong> ${wc.items ? wc.items.length : 0}</p>
+                        <p><strong>Has thumbnail:</strong> ${!!wc.thumbnail}</p>
+                        <p><strong>Thumbnail type:</strong> ${typeof wc.thumbnail}</p>
+                        <p><strong>Thumbnail length:</strong> ${wc.thumbnail ? wc.thumbnail.length : 0}</p>
+                        <p><strong>Starts with data:</strong> ${wc.thumbnail ? wc.thumbnail.startsWith('data:') : false}</p>
+                        ${wc.thumbnail ? `<p><strong>Thumbnail preview:</strong> ${wc.thumbnail.substring(0, 100)}...</p>` : ''}
+                        ${wc.thumbnail && wc.thumbnail.startsWith('data:image/') ? `
+                            <img src="${wc.thumbnail}" style="max-width: 200px; border: 1px solid #000;" />
+                        ` : '<p>No valid thumbnail to display</p>'}
+                    `;
+                    
+                    output.appendChild(div);
+                });
+                
+            } catch (error) {
+                output.innerHTML = `<p>Error: ${error.message}</p>`;
+                console.error('Debug error:', error);
+            }
+        }
+        
+        // Auto-run on load
+        window.onload = debugStorage;
+    </script>
+    
+    <button onclick="debugStorage()">Refresh Debug</button>
+</body>
+</html>

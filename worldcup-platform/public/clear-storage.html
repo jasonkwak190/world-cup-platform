@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear localStorage</title>
+    <script>
+        function clearStorage() {
+            console.log('Before clearing:', localStorage.getItem('worldcups'));
+            localStorage.removeItem('worldcups');
+            localStorage.clear(); // Clear everything
+            console.log('After clearing:', localStorage.getItem('worldcups'));
+            
+            // Also clear IndexedDB
+            try {
+                const deleteReq = indexedDB.deleteDatabase('WorldCupPlatform');
+                deleteReq.onsuccess = () => console.log('IndexedDB cleared');
+                deleteReq.onerror = (e) => console.log('Failed to clear IndexedDB:', e);
+            } catch (e) {
+                console.log('Error clearing IndexedDB:', e);
+            }
+            
+            document.getElementById('status').innerHTML = 'localStorage and IndexedDB cleared successfully!<br><a href="/">Go to App</a>';
+        }
+        
+        // Auto-clear on load
+        window.onload = clearStorage;
+    </script>
+</head>
+<body>
+    <h1>Clear Storage</h1>
+    <div id="status">Clearing storage...</div>
+    <button onclick="clearStorage()">Clear Again</button>
+</body>
+</html>

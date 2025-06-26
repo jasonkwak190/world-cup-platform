@@ -1,0 +1,86 @@
+/* 커스텀 애니메이션 클래스 */
+
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 3s linear infinite;
+}
+
+/* 무지개 테두리 효과 */
+.border-rainbow {
+  border-image: linear-gradient(45deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3) 1;
+  border-style: solid;
+  border-width: 4px;
+}
+
+/* 그라디언트 펄스 효과 */
+@keyframes gradient-pulse {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.bg-gradient-pulse {
+  background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+  background-size: 400% 400%;
+  animation: gradient-pulse 4s ease infinite;
+}
+
+/* 반짝이는 효과 */
+@keyframes twinkle {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+.animate-twinkle {
+  animation: twinkle 2s ease-in-out infinite;
+}
+
+/* 폭발 효과 */
+@keyframes explode {
+  0% {
+    transform: scale(0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(2) rotate(180deg);
+    opacity: 0;
+  }
+}
+
+.animate-explode {
+  animation: explode 1s ease-out forwards;
+}
+
+/* 바운스 확대 */
+@keyframes bounce-scale {
+  0%, 20%, 50%, 80%, 100% {
+    transform: translateY(0) scale(1);
+  }
+  40% {
+    transform: translateY(-30px) scale(1.1);
+  }
+  60% {
+    transform: translateY(-15px) scale(1.05);
+  }
+}
+
+.animate-bounce-scale {
+  animation: bounce-scale 2s infinite;
+}
