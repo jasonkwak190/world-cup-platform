@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { X, User, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { signup, login } from '@/utils/auth';
+import { signUpWithSupabase, signInWithSupabase } from '@/utils/supabaseAuth';
 import type { SignupData, LoginData, User as UserType } from '@/types/user';
 
 interface AuthModalProps {
@@ -40,26 +41,51 @@ export default function AuthModal({
 
     try {
       if (mode === 'signup') {
-        const result = signup(formData as SignupData);
-        if (result.success && result.user) {
-          onSuccess(result.user);
+        // Supabase 회원가입 먼저 시도
+        const supabaseResult = await signUpWithSupabase(formData as SignupData);
+        if (supabaseResult.success && supabaseResult.user) {
+          onSuccess(supabaseResult.user);
+          onClose();
+          return;
+        }
+        
+        // Supabase 실패시 localStorage fallback
+        const localResult = signup(formData as SignupData);
+        if (localResult.success && localResult.user) {
+          onSuccess(localResult.user);
           onClose();
         } else {
-          setError(result.error || '회원가입에 실패했습니다.');
+          setError(supabaseResult.error || localResult.error || '회원가입에 실패했습니다.');
         }
       } else {
-        const result = login({
+        // Supabase 로그인 먼저 시도
+        console.log('🔐 Attempting Supabase login with:', { email: formData.email });
+        const supabaseResult = await signInWithSupabase({
           email: formData.email,
           password: formData.password,
         } as LoginData);
-        if (result.success && result.user) {
-          onSuccess(result.user);
+        console.log('🔐 Supabase login result:', supabaseResult);
+        if (supabaseResult.success && supabaseResult.user) {
+          console.log('✅ Supabase login successful, calling onSuccess');
+          onSuccess(supabaseResult.user);
+          onClose();
+          return;
+        }
+        
+        // Supabase 실패시 localStorage fallback
+        const localResult = login({
+          email: formData.email,
+          password: formData.password,
+        } as LoginData);
+        if (localResult.success && localResult.user) {
+          onSuccess(localResult.user);
           onClose();
         } else {
-          setError(result.error || '로그인에 실패했습니다.');
+          setError(supabaseResult.error || localResult.error || '로그인에 실패했습니다.');
         }
       }
-    } catch {
+    } catch (error) {
+      console.error('Auth error:', error);
       setError('오류가 발생했습니다. 다시 시도해주세요.');
     } finally {
       setIsLoading(false);

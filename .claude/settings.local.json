@@ -20,7 +20,8 @@
       "mcp__ide__getDiagnostics",
       "Bash(open:*)",
       "Bash(curl:*)",
-      "Bash(osascript:*)"
+      "Bash(osascript:*)",
+      "Bash(npm start)"
     ],
     "deny": []
   }
