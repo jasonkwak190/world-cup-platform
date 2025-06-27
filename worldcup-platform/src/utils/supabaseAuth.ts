@@ -3,15 +3,15 @@ import { supabase } from '@/lib/supabase';
 import type { SupabaseUser, SupabaseUserInsert, SupabaseUserUpdate } from '@/types/supabase';
 
 // 회원가입
-export async function signUpWithSupabase(email: string, password: string, username: string) {
+export async function signUpWithSupabase(signupData: { email: string; password: string; username: string }) {
   try {
     // 1. Supabase Auth로 사용자 생성
     const { data: authData, error: authError } = await supabase.auth.signUp({
-      email,
-      password,
+      email: signupData.email,
+      password: signupData.password,
       options: {
         data: {
-          username,
+          username: signupData.username,
         }
       }
     });
@@ -27,8 +27,8 @@ export async function signUpWithSupabase(email: string, password: string, userna
     // 2. users 테이블에 추가 정보 저장
     const userData: SupabaseUserInsert = {
       id: authData.user.id,
-      username,
-      email,
+      username: signupData.username,
+      email: signupData.email,
       role: 'user'
     };
 
@@ -52,36 +52,83 @@ export async function signUpWithSupabase(email: string, password: string, userna
 }
 
 // 로그인
-export async function signInWithSupabase(email: string, password: string) {
+export async function signInWithSupabase(loginData: { email: string; password: string }) {
   try {
+    console.log('🔐 Starting Supabase auth with:', loginData.email);
+    
     const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password
+      email: loginData.email,
+      password: loginData.password
+    });
+
+    console.log('🔐 Auth response received:', { 
+      hasUser: !!data?.user, 
+      hasSession: !!data?.session,
+      error: error?.message 
     });
 
     if (error) {
+      console.error('❌ Auth error:', error);
       return { success: false, error: error.message };
     }
 
     if (!data.user) {
+      console.error('❌ No user in auth response');
       return { success: false, error: '로그인에 실패했습니다.' };
     }
 
+    if (!data.session) {
+      console.error('❌ No session in auth response');
+      return { success: false, error: '세션 생성에 실패했습니다.' };
+    }
+
+    console.log('✅ Auth successful, user ID:', data.user.id);
+
+    // 세션은 이미 signInWithPassword에서 자동 설정됨 - 별도 설정 불필요
+    console.log('🔄 Session already set by signInWithPassword');
+
     // users 테이블에서 추가 정보 가져오기
+    console.log('🔍 Fetching user data from users table...');
+    
     const { data: userRecord, error: userError } = await supabase
       .from('users')
       .select('*')
       .eq('id', data.user.id)
-      .single();
+      .maybeSingle();
 
     if (userError) {
-      return { success: false, error: '사용자 정보를 불러올 수 없습니다.' };
+      console.error('❌ Users table fetch error:', userError);
     }
 
-    return { success: true, user: userRecord };
+    if (userRecord) {
+      console.log('✅ Found user in users table:', userRecord);
+      return { success: true, user: userRecord };
+    }
+
+    // users 테이블 조회 실패시 auth 정보로 기본 사용자 객체 생성
+    console.log('🔄 Using fallback user data...');
+    const fallbackUser = {
+      id: data.user.id,
+      email: data.user.email || '',
+      username: data.user.user_metadata?.username || data.user.email?.split('@')[0] || '사용자',
+      role: 'user' as const,
+      created_at: data.user.created_at,
+      updated_at: data.user.updated_at,
+      profile_image_url: null
+    };
+
+    // jason190@naver.com은 admin으로 설정
+    if (data.user.email === 'jason190@naver.com') {
+      fallbackUser.role = 'admin';
+      fallbackUser.username = 'jason';
+    }
+
+    console.log('✅ Fallback user created:', fallbackUser);
+    return { success: true, user: fallbackUser };
+    
   } catch (error) {
-    console.error('Login error:', error);
-    return { success: false, error: '로그인 중 오류가 발생했습니다.' };
+    console.error('❌ Unexpected login error:', error);
+    return { success: false, error: '로그인 중 예상치 못한 오류가 발생했습니다.' };
   }
 }
 
@@ -110,18 +157,49 @@ export async function getCurrentSupabaseUser(): Promise<SupabaseUser | null> {
       return null;
     }
 
+    // 세션이 있는지 확인
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session) {
+      console.log('No active session found');
+      return null;
+    }
+
+    // users 테이블에서 조회 시도 (maybeSingle 사용)
     const { data: userRecord, error } = await supabase
       .from('users')
       .select('*')
       .eq('id', authUser.id)
-      .single();
+      .maybeSingle();
 
     if (error) {
-      console.error('Error fetching user:', error);
-      return null;
+      console.error('Error fetching user from table:', error);
     }
 
-    return userRecord;
+    // users 테이블에 데이터가 있으면 반환, 없으면 fallback 사용
+    if (userRecord) {
+      return userRecord;
+    }
+
+    // fallback: auth 정보로 기본 사용자 객체 생성
+    console.log('Using fallback user data for:', authUser.email);
+    const fallbackUser = {
+      id: authUser.id,
+      email: authUser.email || '',
+      username: authUser.user_metadata?.username || authUser.email?.split('@')[0] || '사용자',
+      role: 'user' as const,
+      created_at: authUser.created_at,
+      updated_at: authUser.updated_at,
+      profile_image_url: null
+    };
+
+    // jason190@naver.com은 admin으로 설정
+    if (authUser.email === 'jason190@naver.com') {
+      fallbackUser.role = 'admin';
+      fallbackUser.username = 'jason';
+    }
+
+    return fallbackUser;
   } catch (error) {
     console.error('Error getting current user:', error);
     return null;
@@ -146,6 +224,57 @@ export async function updateSupabaseUserProfile(userId: string, updates: Supabas
   } catch (error) {
     console.error('Update profile error:', error);
     return { success: false, error: '프로필 업데이트 중 오류가 발생했습니다.' };
+  }
+}
+
+// OTP로 비밀번호 재설정 시작 (인증번호 발송)
+export async function sendPasswordResetOTP(email: string) {
+  try {
+    const { error } = await supabase.auth.signInWithOtp({
+      email: email,
+      options: {
+        shouldCreateUser: false // 기존 사용자만 허용
+      }
+    });
+    
+    if (error) {
+      return { success: false, error: error.message };
+    }
+    
+    return { success: true, message: '인증번호가 이메일로 발송되었습니다.' };
+  } catch (error) {
+    console.error('OTP send error:', error);
+    return { success: false, error: '인증번호 발송 중 오류가 발생했습니다.' };
+  }
+}
+
+// OTP 인증 및 새 비밀번호 설정
+export async function resetPasswordWithOTP(email: string, otp: string, newPassword: string) {
+  try {
+    // 1. OTP로 로그인 (세션 생성)
+    const { error: verifyError } = await supabase.auth.verifyOtp({
+      email: email,
+      token: otp,
+      type: 'email'
+    });
+    
+    if (verifyError) {
+      return { success: false, error: '인증번호가 잘못되었거나 만료되었습니다.' };
+    }
+    
+    // 2. 비밀번호 업데이트
+    const { error: updateError } = await supabase.auth.updateUser({
+      password: newPassword
+    });
+    
+    if (updateError) {
+      return { success: false, error: updateError.message };
+    }
+    
+    return { success: true, message: '비밀번호가 성공적으로 변경되었습니다.' };
+  } catch (error) {
+    console.error('Password reset with OTP error:', error);
+    return { success: false, error: '비밀번호 변경 중 오류가 발생했습니다.' };
   }
 }
 

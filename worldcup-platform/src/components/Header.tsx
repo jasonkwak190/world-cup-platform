@@ -3,15 +3,18 @@
 import { Search, Plus, User as UserIcon, LogOut } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import AuthModal from './AuthModal';
 import type { User } from '@/types/user';
 
 export default function Header() {
+  const router = useRouter();
   const { user, isAuthenticated, logout, login } = useAuth();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [isFromCreateButton, setIsFromCreateButton] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   // 외부 클릭 시 사용자 메뉴 닫기
@@ -33,6 +36,12 @@ export default function Header() {
     login(user); // AuthContext의 login 함수 호출
     setIsAuthModalOpen(false);
     console.log('✅ Auth modal closed, user should be logged in');
+    
+    // 로그인 성공 후 create 페이지로 이동 (만들기 버튼을 클릭했을 때만)
+    if (isFromCreateButton) {
+      setIsFromCreateButton(false);
+      router.push('/create');
+    }
   };
 
   const handleSwitchAuthMode = () => {
@@ -42,6 +51,21 @@ export default function Header() {
   const handleLogout = () => {
     logout();
     setShowUserMenu(false);
+  };
+
+  const handleCreateClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    
+    // 로그인되지 않은 경우 로그인 모달 표시
+    if (!isAuthenticated) {
+      setIsFromCreateButton(true);
+      setAuthMode('login');
+      setIsAuthModalOpen(true);
+      return;
+    }
+    
+    // 로그인된 경우 create 페이지로 이동
+    router.push('/create');
   };
 
   return (
@@ -72,13 +96,13 @@ export default function Header() {
 
             {/* Actions */}
             <div className="flex items-center space-x-4">
-              <Link 
-                href="/create"
+              <button 
+                onClick={handleCreateClick}
                 className="flex items-center space-x-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors"
               >
                 <Plus className="w-4 h-4" />
                 <span>만들기</span>
-              </Link>
+              </button>
 
               {/* Auth Section */}
               {isAuthenticated && user ? (
@@ -117,6 +141,7 @@ export default function Header() {
                 <div className="flex items-center space-x-2">
                   <button 
                     onClick={() => {
+                      setIsFromCreateButton(false);
                       setAuthMode('login');
                       setIsAuthModalOpen(true);
                     }}
@@ -126,6 +151,7 @@ export default function Header() {
                   </button>
                   <button 
                     onClick={() => {
+                      setIsFromCreateButton(false);
                       setAuthMode('signup');
                       setIsAuthModalOpen(true);
                     }}

@@ -1,13 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ArrowLeft, Upload, Image, Settings, Play } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import DragDropUpload from '@/components/DragDropUpload';
 import ImageCropper from '@/components/ImageCropper';
 import WorldCupPreview from '@/components/WorldCupPreview';
 import TournamentSettings from '@/components/TournamentSettings';
-import { saveWorldCup } from '@/utils/storage';
+import AuthModal from '@/components/AuthModal';
+// saveWorldCup imported but not used - using Supabase primarily
+import { saveWorldCupToSupabase } from '@/utils/supabaseWorldCup';
+import { supabase } from '@/lib/supabase';
 
 interface WorldCupItem {
   id: string;
@@ -29,6 +32,8 @@ export default function CreatePage() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(1);
   const [isPreviewGameActive, setIsPreviewGameActive] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const [worldCupData, setWorldCupData] = useState<WorldCupData>({
     title: '',
     description: '',
@@ -37,6 +42,50 @@ export default function CreatePage() {
     isPublic: true,
     thumbnail: undefined,
   });
+
+  // 인증 상태 확인
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser();
+        if (error) {
+          console.error('Auth check error:', error);
+          setIsAuthenticated(false);
+          setShowAuthModal(true);
+          return;
+        }
+        
+        setIsAuthenticated(!!user);
+        if (!user) {
+          setShowAuthModal(true);
+        }
+      } catch (error) {
+        console.error('Auth check failed:', error);
+        setIsAuthenticated(false);
+        setShowAuthModal(true);
+      }
+    };
+
+    checkAuth();
+
+    // 인증 상태 변경 감지
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        console.log('Auth state changed:', event, !!session?.user);
+        setIsAuthenticated(!!session?.user);
+        
+        if (event === 'SIGNED_IN') {
+          setShowAuthModal(false);
+        } else if (event === 'SIGNED_OUT') {
+          setShowAuthModal(true);
+        }
+      }
+    );
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   const steps = [
     { id: 1, title: '기본 정보', icon: Settings },
@@ -214,8 +263,33 @@ export default function CreatePage() {
     }
   };
 
+  // 인증 확인 중이면 로딩 화면 표시
+  if (isAuthenticated === null) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-500">인증 상태를 확인하고 있습니다...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Auth Modal */}
+      {showAuthModal && (
+        <AuthModal
+          isOpen={showAuthModal}
+          onClose={() => {
+            setShowAuthModal(false);
+            router.push('/');
+          }}
+          title="로그인이 필요합니다"
+          subtitle="월드컵을 만들려면 로그인해야 합니다."
+        />
+      )}
+
       {/* Header */}
       <div className="bg-white border-b">
         <div className="max-w-6xl mx-auto px-4 py-4">
@@ -328,17 +402,34 @@ export default function CreatePage() {
               ) : (
                 <button
                   onClick={async () => {
+                    // 인증 확인
+                    if (!isAuthenticated) {
+                      setShowAuthModal(true);
+                      return;
+                    }
+
                     try {
                       // 월드컵 생성 완료 로직
                       console.log('Creating worldcup:', worldCupData);
                       
-                      // LocalStorage에 저장
-                      await saveWorldCup(worldCupData);
+                      // Supabase에 저장
+                      const result = await saveWorldCupToSupabase(worldCupData);
+                      
+                      if (!result.success) {
+                        throw new Error(result.error);
+                      }
                       
                       alert('월드컵이 성공적으로 생성되었습니다!');
                       router.push('/');
                     } catch (error) {
                       console.error('Failed to create worldcup:', error);
+                      
+                      // 인증 오류인 경우 로그인 모달 표시
+                      if (error instanceof Error && error.message === '로그인이 필요합니다.') {
+                        setShowAuthModal(true);
+                        return;
+                      }
+                      
                       alert('월드컵 생성 중 오류가 발생했습니다. 다시 시도해주세요.');
                     }
                   }}

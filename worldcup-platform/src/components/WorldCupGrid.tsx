@@ -18,46 +18,81 @@ export default function WorldCupGrid({ category: _category, sortBy: _sortBy }: W
   const [storedWorldCups, setStoredWorldCups] = useState<StoredWorldCup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Supabase와 LocalStorage에서 월드컵 데이터 로드
+  // Supabase에서 월드컵 데이터 로드 (캐싱 최적화)
   useEffect(() => {
-    const loadWorldCups = async () => {
+    let isMounted = true;
+    let lastLoadTime = 0;
+    const CACHE_DURATION = 30000; // 30초 캐시
+    
+    const loadWorldCups = async (force = false) => {
+      // 캐시 확인 (강제 새로고침이 아닌 경우)
+      if (!force && Date.now() - lastLoadTime < CACHE_DURATION) {
+        return;
+      }
+      
       try {
         setIsLoading(true);
         
-        // 1. Supabase에서 데이터 가져오기
-        const supabaseWorldCups = await getSupabaseWorldCups();
-        console.log('📊 Supabase worldcups loaded:', supabaseWorldCups.length);
+        // 병렬로 데이터 로드
+        const [supabaseWorldCups, localWorldCups] = await Promise.all([
+          getSupabaseWorldCups(),
+          Promise.resolve(getStoredWorldCups())
+        ]);
         
-        // 2. localStorage에서 데이터 가져오기 (fallback)
-        const localWorldCups = getStoredWorldCups();
-        console.log('💾 localStorage worldcups loaded:', localWorldCups.length);
+        if (!isMounted) return; // 컴포넌트가 언마운트된 경우 중단
         
-        // 3. 데이터 합치기 (Supabase 우선, localStorage는 fallback)
-        const allWorldCups = supabaseWorldCups.length > 0 ? supabaseWorldCups : localWorldCups;
+        console.log('📊 Data loaded - Supabase:', supabaseWorldCups.length, 'Local:', localWorldCups.length);
         
+        // 중복 제거하여 데이터 합치기
+        const worldCupMap = new Map();
+        
+        // Supabase 데이터 우선 추가
+        supabaseWorldCups.forEach(wc => worldCupMap.set(wc.id, wc));
+        
+        // localStorage 데이터 추가 (중복되지 않는 것만)
+        localWorldCups.forEach(wc => {
+          if (!worldCupMap.has(wc.id)) {
+            worldCupMap.set(wc.id, wc);
+          }
+        });
+        
+        const allWorldCups = Array.from(worldCupMap.values());
         setStoredWorldCups(allWorldCups);
+        lastLoadTime = Date.now();
+        
         console.log('✅ Total worldcups loaded:', allWorldCups.length);
         
       } catch (error) {
         console.error('Failed to load worldcups:', error);
-        // 오류 발생시 localStorage fallback
-        const localWorldCups = getStoredWorldCups();
-        setStoredWorldCups(localWorldCups);
+        if (isMounted) {
+          // 에러 발생시 localStorage 데이터라도 표시
+          const localWorldCups = getStoredWorldCups();
+          setStoredWorldCups(localWorldCups);
+        }
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
 
+    // 초기 로드
     loadWorldCups();
 
-    // 페이지가 포커스를 받을 때마다 데이터 새로고침
+    // 페이지 포커스시 새로고침 (throttled)
+    let focusTimeout: NodeJS.Timeout;
     const handleFocus = () => {
-      loadWorldCups();
+      clearTimeout(focusTimeout);
+      focusTimeout = setTimeout(() => {
+        loadWorldCups(false); // 캐시 적용된 로드
+      }, 1000);
     };
     
     window.addEventListener('focus', handleFocus);
     
     return () => {
+      isMounted = false;
+      clearTimeout(focusTimeout);
       window.removeEventListener('focus', handleFocus);
     };
   }, []);
@@ -78,11 +113,8 @@ export default function WorldCupGrid({ category: _category, sortBy: _sortBy }: W
       if (storedWorldCup) {
         const newLikes = isLiking ? storedWorldCup.likes + 1 : Math.max(0, storedWorldCup.likes - 1);
         
-        // Supabase 업데이트
+        // Supabase 업데이트만 수행
         updateSupabaseStats(id, { likes: newLikes });
-        
-        // localStorage 업데이트 (fallback)
-        updateWorldCupStats(id, { likes: newLikes });
         
         // 로컬 상태도 업데이트
         setStoredWorldCups(prev => 
@@ -112,11 +144,8 @@ export default function WorldCupGrid({ category: _category, sortBy: _sortBy }: W
     if (storedWorldCup) {
       const newParticipants = storedWorldCup.participants + 1;
       
-      // Supabase 업데이트
+      // Supabase 업데이트만 수행
       updateSupabaseStats(id, { participants: newParticipants });
-      
-      // localStorage 업데이트 (fallback)
-      updateWorldCupStats(id, { participants: newParticipants });
       
       // 로컬 상태도 업데이트
       setStoredWorldCups(prev => 

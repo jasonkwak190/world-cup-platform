@@ -10,7 +10,10 @@ import TournamentSettings from '@/components/TournamentSettings';
 import TournamentCreationCelebration from '@/components/TournamentCreationCelebration';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { getWorldCupById } from '@/utils/storage';
+import { getWorldCupById as getSupabaseWorldCupById } from '@/utils/supabaseData';
 import { generateAutoThumbnail } from '@/utils/thumbnailGenerator';
+import { saveWorldCupToSupabase, updateWorldCupInSupabase } from '@/utils/supabaseWorldCup';
+import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { isAdmin } from '@/utils/auth';
 
@@ -50,44 +53,88 @@ function EditPageContent() {
 
   const worldcupId = params?.id as string;
 
-  // 월드컵 데이터 로드
+  // 월드컵 데이터 로드 (Supabase 우선, localStorage 대체)
   useEffect(() => {
-    if (worldcupId && user) {
+    const loadWorldCupData = async () => {
+      if (!worldcupId || !user) {
+        setIsLoading(false);
+        return;
+      }
+
       try {
-        const existingWorldCup = getWorldCupById(worldcupId);
+        console.log('🔍 Loading worldcup for editing:', worldcupId);
+        
+        // 1. Supabase에서 월드컵 데이터 가져오기 시도
+        let existingWorldCup = await getSupabaseWorldCupById(worldcupId);
+        let isFromSupabase = true;
+        
+        // 2. Supabase에서 못 찾으면 localStorage에서 시도
+        if (!existingWorldCup) {
+          console.log('📱 Trying localStorage...');
+          existingWorldCup = getWorldCupById(worldcupId);
+          isFromSupabase = false;
+        }
         
         if (!existingWorldCup) {
           setError('월드컵을 찾을 수 없습니다.');
           return;
         }
 
-        // 권한 확인 (본인이 만든 것이거나 관리자인지)
-        if (existingWorldCup.author !== user.username && !isAdmin(user)) {
+        console.log('✅ Found worldcup:', {
+          title: existingWorldCup.title,
+          author: existingWorldCup.author,
+          source: isFromSupabase ? 'Supabase' : 'localStorage'
+        });
+
+        // 3. 권한 확인 (본인이 만든 것이거나 관리자인지)
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        
+        // Supabase 데이터인 경우 author_id로 확인, localStorage인 경우 username으로 확인
+        let hasPermission = false;
+        if (isFromSupabase && authUser) {
+          // Supabase 월드컵의 경우 현재 로그인된 사용자 ID와 비교
+          const { data: worldcupDetail } = await supabase
+            .from('worldcups')
+            .select('author_id')
+            .eq('id', worldcupId)
+            .single();
+          
+          hasPermission = worldcupDetail?.author_id === authUser.id || isAdmin(user);
+        } else {
+          // localStorage 월드컵의 경우 username으로 비교
+          hasPermission = existingWorldCup.author === user.username || isAdmin(user);
+        }
+
+        if (!hasPermission) {
           setError('이 월드컵을 수정할 권한이 없습니다.');
           return;
         }
 
-        // 기존 데이터를 편집 가능한 형태로 변환
+        // 4. 기존 데이터를 편집 가능한 형태로 변환
         setWorldCupData({
           title: existingWorldCup.title,
-          description: existingWorldCup.description,
-          category: existingWorldCup.category,
+          description: existingWorldCup.description || '',
+          category: existingWorldCup.category || 'entertainment',
           items: existingWorldCup.items.map(item => ({
             id: item.id,
             title: item.title,
-            image: item.image, // 이미 base64 문자열
-            description: item.description,
+            image: item.image || '', // 이미지 URL 또는 base64
+            description: item.description || '',
           })),
-          isPublic: existingWorldCup.isPublic,
+          isPublic: existingWorldCup.isPublic !== false,
           thumbnail: existingWorldCup.thumbnail,
         });
 
         setIsLoading(false);
+        
       } catch (error) {
-        console.error('Failed to load worldcup:', error);
+        console.error('❌ Failed to load worldcup:', error);
         setError('월드컵 데이터를 불러오는 중 오류가 발생했습니다.');
+        setIsLoading(false);
       }
-    }
+    };
+
+    loadWorldCupData();
   }, [worldcupId, user]);
 
   const steps = [
@@ -348,48 +395,114 @@ function EditPageContent() {
                 <button
                   onClick={async () => {
                     try {
+                      console.log('💾 Starting worldcup update...');
+                      
                       // 월드컵 수정 완료 로직
                       const finalWorldCupData = { ...worldCupData };
                       
-                      // 썸네일이 설정되지 않았을 때 자동 생성
-                      if (!worldCupData.thumbnail && worldCupData.items.length >= 2) {
+                      // 썸네일이 설정되지 않았거나 삭제되었을 때 자동 생성
+                      if ((!worldCupData.thumbnail || worldCupData.thumbnail === null || worldCupData.thumbnail === '') && worldCupData.items.length >= 2) {
                         try {
+                          console.log('🎨 Generating auto thumbnail (thumbnail was deleted or empty)...');
                           const autoThumbnail = await generateAutoThumbnail(worldCupData.items);
-                          finalWorldCupData.thumbnail = autoThumbnail;
+                          if (autoThumbnail) {
+                            finalWorldCupData.thumbnail = autoThumbnail;
+                            console.log('✅ Auto thumbnail generated successfully');
+                          }
                         } catch (error) {
-                          console.warn('자동 썸네일 생성 실패:', error);
+                          console.warn('⚠️ 자동 썸네일 생성 실패:', error);
                         }
                       }
                       
-                      // 기존 월드컵 데이터 업데이트 (ID 유지)
-                      const existingWorldCup = getWorldCupById(worldcupId);
-                      if (existingWorldCup) {
-                        const updatedWorldCup = {
-                          ...existingWorldCup,
-                          title: finalWorldCupData.title,
-                          description: finalWorldCupData.description,
-                          category: finalWorldCupData.category,
-                          items: finalWorldCupData.items.map(item => ({
-                            id: item.id,
-                            title: item.title,
-                            image: typeof item.image === 'string' ? item.image : '', // File은 이미 base64로 변환되어야 함
-                            description: item.description,
-                          })),
-                          isPublic: finalWorldCupData.isPublic,
-                          thumbnail: typeof finalWorldCupData.thumbnail === 'string' ? finalWorldCupData.thumbnail : '',
-                        };
+                      // 1. Supabase에서 업데이트 시도
+                      const { data: { user: authUser } } = await supabase.auth.getUser();
+                      let supabaseUpdateSuccess = false;
+                      
+                      if (authUser) {
+                        try {
+                          console.log('📡 Checking if worldcup exists in Supabase...');
+                          
+                          // Supabase에 해당 월드컵이 있는지 확인
+                          const { data: existingSupabaseWorldCup } = await supabase
+                            .from('worldcups')
+                            .select('id, author_id')
+                            .eq('id', worldcupId)
+                            .single();
 
-                        // storage에서 기존 데이터 삭제 후 새로 저장
-                        const allWorldCups = JSON.parse(localStorage.getItem('worldcups') || '[]');
-                        const filteredWorldCups = allWorldCups.filter((wc: { id: string }) => wc.id !== worldcupId);
-                        filteredWorldCups.push(updatedWorldCup);
-                        localStorage.setItem('worldcups', JSON.stringify(filteredWorldCups));
+                          if (existingSupabaseWorldCup && existingSupabaseWorldCup.author_id === authUser.id) {
+                            console.log('🔄 Updating existing Supabase worldcup with full update...');
+                            
+                            // 완전한 업데이트 (이미지 포함)
+                            const updateResult = await updateWorldCupInSupabase(worldcupId, finalWorldCupData);
+                            
+                            if (updateResult.success) {
+                              console.log('✅ Supabase worldcup fully updated');
+                              supabaseUpdateSuccess = true;
+                            } else {
+                              console.error('❌ Supabase full update failed:', updateResult.error);
+                            }
+                          } else {
+                            console.log('📱 Worldcup not in Supabase or no permission, trying to create new...');
+                            
+                            // Supabase에 새로 저장 (localStorage에서 마이그레이션)
+                            const saveResult = await saveWorldCupToSupabase({
+                              ...finalWorldCupData,
+                              id: worldcupId // 기존 ID 유지
+                            });
+                            
+                            if (saveResult.success) {
+                              console.log('✅ Successfully migrated to Supabase');
+                              supabaseUpdateSuccess = true;
+                            }
+                          }
+                          
+                        } catch (error) {
+                          console.error('❌ Supabase update/create failed:', error);
+                        }
+                      }
+
+                      // 2. localStorage 업데이트 (Supabase 실패시 또는 백업용)
+                      try {
+                        const existingWorldCup = getWorldCupById(worldcupId);
+                        if (existingWorldCup) {
+                          const updatedWorldCup = {
+                            ...existingWorldCup,
+                            title: finalWorldCupData.title,
+                            description: finalWorldCupData.description,
+                            category: finalWorldCupData.category,
+                            items: finalWorldCupData.items.map(item => ({
+                              id: item.id,
+                              title: item.title,
+                              image: typeof item.image === 'string' ? item.image : '',
+                              description: item.description,
+                            })),
+                            isPublic: finalWorldCupData.isPublic,
+                            thumbnail: typeof finalWorldCupData.thumbnail === 'string' ? finalWorldCupData.thumbnail : '',
+                            updatedAt: new Date().toISOString()
+                          };
+
+                          // localStorage에서 기존 데이터 삭제 후 새로 저장
+                          const allWorldCups = JSON.parse(localStorage.getItem('worldcups') || '[]');
+                          const filteredWorldCups = allWorldCups.filter((wc: { id: string }) => wc.id !== worldcupId);
+                          filteredWorldCups.push(updatedWorldCup);
+                          localStorage.setItem('worldcups', JSON.stringify(filteredWorldCups));
+                          
+                          console.log('✅ localStorage updated');
+                        }
+                      } catch (error) {
+                        console.warn('⚠️ localStorage update failed:', error);
+                      }
+                      
+                      if (supabaseUpdateSuccess) {
+                        console.log('🎉 Worldcup update completed successfully!');
+                      } else {
+                        console.log('📱 Worldcup updated in localStorage only');
                       }
                       
                       // 축하 모달 표시
                       setShowCelebration(true);
                     } catch (error) {
-                      console.error('Failed to update worldcup:', error);
+                      console.error('❌ Failed to update worldcup:', error);
                       alert('월드컵 수정 중 오류가 발생했습니다. 다시 시도해주세요.');
                     }
                   }}

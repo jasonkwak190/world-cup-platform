@@ -5,6 +5,8 @@ import { ArrowLeft, User, Mail, Calendar, Crown, Trash2, Edit3, Copy, Download, 
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { getStoredWorldCups, deleteWorldCup, type StoredWorldCup } from '@/utils/storage';
+import { getUserWorldCups } from '@/utils/supabaseData';
+import { supabase } from '@/lib/supabase';
 import { isAdmin, updateUserProfile } from '@/utils/auth';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import DeleteConfirmModal from '@/components/DeleteConfirmModal';
@@ -14,6 +16,7 @@ function SettingsContent() {
   const router = useRouter();
   const { user, logout, setUser } = useAuth();
   const [myWorldCups, setMyWorldCups] = useState<StoredWorldCup[]>([]);
+  const [loading, setLoading] = useState(true);
   const [deleteModal, setDeleteModal] = useState<{ 
     isOpen: boolean; 
     worldcupId: string; 
@@ -25,15 +28,69 @@ function SettingsContent() {
   });
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // 내가 만든 월드컵 목록 가져오기
+  // 내가 만든 월드컵 목록 가져오기 (Supabase + localStorage 통합)
   useEffect(() => {
-    if (user) {
-      const allWorldCups = getStoredWorldCups();
-      const userWorldCups = allWorldCups.filter(wc => 
-        wc.author === user.username || isAdmin(user)
-      );
-      setMyWorldCups(userWorldCups);
-    }
+    const loadUserWorldCups = async () => {
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        console.log('🔍 Loading user worldcups for:', user.username);
+        
+        // 1. Supabase에서 현재 로그인된 사용자의 월드컵 가져오기
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        let supabaseWorldCups: StoredWorldCup[] = [];
+        
+        if (authUser) {
+          console.log('📡 Fetching from Supabase for user ID:', authUser.id);
+          supabaseWorldCups = await getUserWorldCups(authUser.id);
+          console.log('✅ Found Supabase worldcups:', supabaseWorldCups.length);
+        }
+
+        // 2. localStorage에서 사용자의 월드컵 가져오기 (이전 데이터)
+        const localWorldCups = getStoredWorldCups();
+        const userLocalWorldCups = localWorldCups.filter(wc => 
+          wc.author === user.username || isAdmin(user)
+        );
+        console.log('📱 Found localStorage worldcups:', userLocalWorldCups.length);
+
+        // 3. 중복 제거하면서 통합 (Supabase 우선)
+        const allWorldCups = [...supabaseWorldCups];
+        
+        // localStorage 월드컵 중에서 Supabase에 없는 것만 추가
+        userLocalWorldCups.forEach(localWc => {
+          const existsInSupabase = supabaseWorldCups.some(supabaseWc => 
+            supabaseWc.id === localWc.id || supabaseWc.title === localWc.title
+          );
+          
+          if (!existsInSupabase) {
+            allWorldCups.push(localWc);
+          }
+        });
+
+        // 최신 순으로 정렬
+        allWorldCups.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        
+        console.log('🎯 Final worldcups count:', allWorldCups.length);
+        setMyWorldCups(allWorldCups);
+        
+      } catch (error) {
+        console.error('❌ Error loading user worldcups:', error);
+        
+        // 에러 발생시 localStorage 데이터라도 보여주기
+        const localWorldCups = getStoredWorldCups();
+        const userLocalWorldCups = localWorldCups.filter(wc => 
+          wc.author === user.username || isAdmin(user)
+        );
+        setMyWorldCups(userLocalWorldCups);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadUserWorldCups();
   }, [user]);
 
   const handleDeleteWorldCup = (worldcup: StoredWorldCup) => {
@@ -44,11 +101,35 @@ function SettingsContent() {
     });
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     try {
-      deleteWorldCup(deleteModal.worldcupId);
+      console.log('🗑️ Deleting worldcup:', deleteModal.worldcupId);
+      
+      // 1. Supabase에서 삭제 시도
+      const { error: supabaseError } = await supabase
+        .from('worldcups')
+        .delete()
+        .eq('id', deleteModal.worldcupId);
+      
+      if (supabaseError) {
+        console.warn('⚠️ Supabase deletion failed:', supabaseError.message);
+        // Supabase 삭제 실패시 localStorage에서 삭제 시도
+        deleteWorldCup(deleteModal.worldcupId);
+      } else {
+        console.log('✅ Successfully deleted from Supabase');
+      }
+      
+      // 2. localStorage에서도 삭제 (중복 방지)
+      try {
+        deleteWorldCup(deleteModal.worldcupId);
+      } catch (error) {
+        console.warn('localStorage deletion failed:', error);
+      }
+
+      // 3. UI 업데이트
       setMyWorldCups(prev => prev.filter(wc => wc.id !== deleteModal.worldcupId));
       setDeleteModal({ isOpen: false, worldcupId: '', title: '' });
+      
     } catch (error) {
       console.error('Failed to delete worldcup:', error);
       alert('월드컵 삭제 중 오류가 발생했습니다.');
@@ -210,7 +291,12 @@ function SettingsContent() {
               내가 만든 월드컵 ({myWorldCups.length}개)
             </h2>
             
-            {myWorldCups.length === 0 ? (
+            {loading ? (
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600 mx-auto mb-4"></div>
+                <p className="text-gray-500">월드컵을 불러오는 중...</p>
+              </div>
+            ) : myWorldCups.length === 0 ? (
               <div className="text-center py-12">
                 <div className="text-4xl mb-4">🏆</div>
                 <p className="text-gray-500 mb-4">아직 만든 월드컵이 없습니다.</p>

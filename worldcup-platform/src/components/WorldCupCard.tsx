@@ -35,7 +35,7 @@ export default function WorldCupCard({
   onBookmark,
   onShare,
 }: WorldCupCardProps) {
-  // 이미지 URL 처리 함수 (WorldCupPreview와 동일한 로직)
+  // 이미지 URL 처리 함수 - Supabase URLs와 Base64 모두 지원
   const getImageUrl = (image: string | File | Blob | undefined | null): string => {
     try {
       if (!image) {
@@ -48,20 +48,28 @@ export default function WorldCupCard({
           return '';
         }
         
+        // Supabase Storage URL 처리
+        if (image.startsWith('https://') && image.includes('supabase')) {
+          return image;
+        }
+        
         // Base64 이미지 유효성 검증
         if (image.startsWith('data:image/')) {
-          // Base64 형식이 올바른지 확인
           const base64Data = image.split(',')[1];
           if (base64Data && base64Data.length > 100) {
-            console.log('✅ Valid base64 image detected, length:', base64Data.length);
             return image;
           } else {
-            console.error('❌ Invalid base64 image data');
+            console.warn('❌ Invalid base64 image data');
             return '';
           }
         }
         
-        return image;
+        // 기타 URL 형식
+        if (image.startsWith('http') || image.startsWith('/') || image.startsWith('blob:')) {
+          return image;
+        }
+        
+        return '';
       }
       
       if (image instanceof File) {
@@ -72,7 +80,6 @@ export default function WorldCupCard({
         return URL.createObjectURL(image);
       }
       
-      console.error('Invalid image type:', typeof image, image);
       return '';
     } catch (error) {
       console.error('Error creating image URL:', error);
@@ -83,16 +90,20 @@ export default function WorldCupCard({
   // 처리된 썸네일 URL 생성
   const thumbnailUrl = getImageUrl(thumbnail);
   
-  // 디버깅을 위한 로그
-  console.log('=== WorldCupCard Debug ===');
-  console.log('ID:', _id);
-  console.log('Title:', title);
-  console.log('Original thumbnail:', thumbnail);
-  console.log('Thumbnail type:', typeof thumbnail);
-  console.log('Processed thumbnailUrl:', thumbnailUrl);
-  console.log('ThumbnailUrl length:', thumbnailUrl?.length || 0);
-  console.log('ThumbnailUrl starts with data:', thumbnailUrl?.startsWith('data:'));
-  console.log('=== End WorldCupCard Debug ===');
+  // 간단한 디버깅 로그 (개발 환경에서만)
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🖼️ WorldCupCard:', {
+      id: _id,
+      title: title.substring(0, 30) + '...',
+      thumbnailType: typeof thumbnail,
+      thumbnailRaw: thumbnail?.toString().substring(0, 100) + (thumbnail?.toString().length > 100 ? '...' : ''),
+      thumbnailProcessed: thumbnailUrl?.substring(0, 100) + (thumbnailUrl?.length > 100 ? '...' : ''),
+      thumbnailValid: !!thumbnailUrl && thumbnailUrl.length > 10,
+      isSupabaseUrl: thumbnailUrl?.includes('supabase'),
+      isBase64: thumbnailUrl?.startsWith('data:image/'),
+      isPlaceholder: thumbnailUrl === '/placeholder.svg'
+    });
+  }
   
   return (
     <div className="bg-white rounded-lg shadow-sm border hover:shadow-md transition-shadow duration-200 overflow-hidden group">
@@ -110,16 +121,19 @@ export default function WorldCupCard({
                 zIndex: 1
               }}
               onError={(e) => {
-                console.error('❌ Thumbnail onError triggered:', {
-                  thumbnailUrl: thumbnailUrl.substring(0, 100) + '...',
-                  naturalWidth: e.currentTarget.naturalWidth,
-                  naturalHeight: e.currentTarget.naturalHeight,
-                  complete: e.currentTarget.complete
-                });
+                if (process.env.NODE_ENV === 'development') {
+                  console.warn('❌ Thumbnail failed to load:', {
+                    url: thumbnailUrl.substring(0, 100) + '...',
+                    isSupabase: thumbnailUrl.includes('supabase'),
+                    isBase64: thumbnailUrl.startsWith('data:image/')
+                  });
+                }
                 
-                // Base64 이미지인 경우 에러를 무시 (브라우저 버그일 수 있음)
+                // Base64 이미지인 경우 에러를 무시 (브라우저 호환성 문제일 수 있음)
                 if (thumbnailUrl.startsWith('data:image/') && thumbnailUrl.length > 1000) {
-                  console.log('🔄 Base64 image with onError - ignoring error and keeping visible');
+                  if (process.env.NODE_ENV === 'development') {
+                    console.log('🔄 Base64 image error ignored - keeping visible');
+                  }
                   e.currentTarget.style.display = 'block';
                   e.currentTarget.style.visibility = 'visible';
                   e.currentTarget.style.opacity = '1';
@@ -127,7 +141,6 @@ export default function WorldCupCard({
                 }
                 
                 // 진짜 에러인 경우에만 fallback 표시
-                console.log('📝 Showing fallback for invalid thumbnail');
                 e.currentTarget.style.display = 'none';
                 const parent = e.currentTarget.parentElement;
                 if (parent) {
@@ -138,22 +151,17 @@ export default function WorldCupCard({
                 }
               }}
               onLoad={(e) => {
-                console.log('✅ Thumbnail image loaded successfully:', {
-                  naturalWidth: e.currentTarget.naturalWidth,
-                  naturalHeight: e.currentTarget.naturalHeight,
-                  src: e.currentTarget.src.substring(0, 50) + '...',
-                  display: e.currentTarget.style.display,
-                  opacity: e.currentTarget.style.opacity,
-                  zIndex: e.currentTarget.style.zIndex
-                });
+                if (process.env.NODE_ENV === 'development') {
+                  console.log('✅ Thumbnail loaded successfully:', {
+                    naturalWidth: e.currentTarget.naturalWidth,
+                    naturalHeight: e.currentTarget.naturalHeight,
+                    isSupabase: e.currentTarget.src.includes('supabase')
+                  });
+                }
                 
-                // 강제로 이미지를 최상위로 올리기
-                e.currentTarget.style.zIndex = '100';
-                e.currentTarget.style.position = 'relative';
+                // 이미지가 성공적으로 로드되면 표시 보장
                 e.currentTarget.style.display = 'block';
                 e.currentTarget.style.opacity = '1';
-                
-                console.log('🔧 Image forced to top layer');
               }}
             />
             <div className="fallback-placeholder hidden absolute inset-0 flex items-center justify-center bg-gray-900" style={{ zIndex: 5 }}>
@@ -175,14 +183,7 @@ export default function WorldCupCard({
             </div>
           </div>
         )}
-        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 flex items-center justify-center z-50">
-          <button
-            onClick={onPlay}
-            className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full p-3 shadow-lg"
-          >
-            <Play className="w-6 h-6 ml-1" />
-          </button>
-        </div>
+        {/* 플레이 버튼 오버레이 제거 - 썸네일이 잘 보이도록 */}
       </div>
 
       {/* Content */}

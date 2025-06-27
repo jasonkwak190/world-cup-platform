@@ -414,7 +414,7 @@ export default function ImageCropper({ items, onItemUpdate, thumbnail, onThumbna
       const deltaX = ((e.clientX - resizeStart.x) / rect.width) * 100;
       const deltaY = ((e.clientY - resizeStart.y) / rect.height) * 100;
       
-      let newCropArea = { ...cropArea };
+      const newCropArea = { ...cropArea };
       
       switch (resizeHandle) {
         case 'nw': // 왼쪽 위

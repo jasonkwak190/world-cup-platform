@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Match, WorldCupItem } from '@/types/game';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getRoundStyle, getRoundBorderStyle, getRoundCheckmarkStyle } from '@/utils/tournament';
@@ -12,7 +12,7 @@ interface GameScreenProps {
   onChoice: (winner: WorldCupItem) => void;
 }
 
-export default function GameScreen({ match, roundName, round, totalRounds, onChoice }: GameScreenProps) {
+export default function GameScreen({ match, round, totalRounds, onChoice }: GameScreenProps) {
   const [selectedItem, setSelectedItem] = useState<WorldCupItem | null>(null);
   const [isChoosing, setIsChoosing] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -112,9 +112,28 @@ export default function GameScreen({ match, roundName, round, totalRounds, onCho
                   alt={match.item1.title}
                   className="w-full h-full object-cover"
                   onError={(e) => {
-                    // 이미지 로딩 실패 시 플레이스홀더 표시
+                    if (process.env.NODE_ENV === 'development') {
+                      console.warn('❌ Game image failed to load:', {
+                        src: e.currentTarget.src.substring(0, 100) + '...',
+                        isSupabase: e.currentTarget.src.includes('supabase'),
+                        isBase64: e.currentTarget.src.startsWith('data:image/')
+                      });
+                    }
+                    
+                    // Base64 이미지인 경우 에러를 무시 (브라우저 호환성 문제일 수 있음)
+                    if (e.currentTarget.src.startsWith('data:image/') && e.currentTarget.src.length > 1000) {
+                      e.currentTarget.style.display = 'block';
+                      e.currentTarget.style.visibility = 'visible';
+                      e.currentTarget.style.opacity = '1';
+                      return;
+                    }
+                    
+                    // 진짜 에러인 경우에만 플레이스홀더 표시
                     e.currentTarget.style.display = 'none';
-                    e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                    const nextElement = e.currentTarget.nextElementSibling as HTMLElement;
+                    if (nextElement) {
+                      nextElement.classList.remove('hidden');
+                    }
                   }}
                 />
               ) : null}
@@ -207,9 +226,28 @@ export default function GameScreen({ match, roundName, round, totalRounds, onCho
                   alt={match.item2.title}
                   className="w-full h-full object-cover"
                   onError={(e) => {
-                    // 이미지 로딩 실패 시 플레이스홀더 표시
+                    if (process.env.NODE_ENV === 'development') {
+                      console.warn('❌ Game image failed to load:', {
+                        src: e.currentTarget.src.substring(0, 100) + '...',
+                        isSupabase: e.currentTarget.src.includes('supabase'),
+                        isBase64: e.currentTarget.src.startsWith('data:image/')
+                      });
+                    }
+                    
+                    // Base64 이미지인 경우 에러를 무시 (브라우저 호환성 문제일 수 있음)
+                    if (e.currentTarget.src.startsWith('data:image/') && e.currentTarget.src.length > 1000) {
+                      e.currentTarget.style.display = 'block';
+                      e.currentTarget.style.visibility = 'visible';
+                      e.currentTarget.style.opacity = '1';
+                      return;
+                    }
+                    
+                    // 진짜 에러인 경우에만 플레이스홀더 표시
                     e.currentTarget.style.display = 'none';
-                    e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                    const nextElement = e.currentTarget.nextElementSibling as HTMLElement;
+                    if (nextElement) {
+                      nextElement.classList.remove('hidden');
+                    }
                   }}
                 />
               ) : null}

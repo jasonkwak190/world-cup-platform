@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { WorldCupItem, GameState } from '@/types/game';
 import { createTournament, getCurrentMatch, selectWinner, getRoundName, getTournamentProgress, undoLastMatch } from '@/utils/tournament';
 import { getWorldCupById } from '@/utils/storage';
+import { getWorldCupById as getSupabaseWorldCupById } from '@/utils/supabaseData';
 import GameScreen from '@/components/GameScreen';
 import GameProgress from '@/components/GameProgress';
 import GameResult from '@/components/GameResult';
@@ -105,29 +106,51 @@ export default function PlayPage({ params }: PlayPageProps) {
         const id = resolvedParams.id;
         setWorldcupId(id);
         
-        // localStorage에서 생성된 월드컵 찾기
-        const storedWorldCup = getWorldCupById(id);
+        // 1. Supabase에서 월드컵 찾기
+        console.log('🔍 Loading worldcup from Supabase:', id);
+        const supabaseWorldCup = await getSupabaseWorldCupById(id);
         
-        if (storedWorldCup) {
-          // 저장된 월드컵 데이터를 게임용 형식으로 변환
+        if (supabaseWorldCup && supabaseWorldCup.items.length > 0) {
+          // Supabase 월드컵 데이터를 게임용 형식으로 변환
           const gameData = {
-            id: storedWorldCup.id,
-            title: storedWorldCup.title,
-            description: storedWorldCup.description,
-            items: storedWorldCup.items.map(item => ({
+            id: supabaseWorldCup.id,
+            title: supabaseWorldCup.title,
+            description: supabaseWorldCup.description,
+            items: supabaseWorldCup.items.map(item => ({
               id: item.id,
               title: item.title,
               description: item.description,
-              image: item.image, // Base64 이미지 포함
+              image: item.image, // Supabase Storage URL
             })) as WorldCupItem[]
           };
           
-          console.log('Loaded stored worldcup for play:', gameData);
+          console.log('✅ Loaded Supabase worldcup for play:', gameData);
           setWorldcupData(gameData);
         } else {
-          // 목 데이터에서 찾기 (기존 하드코딩된 월드컵들)
-          console.log('Using mock data for worldcup ID:', id);
-          setWorldcupData(mockWorldCupData);
+          // 2. localStorage에서 찾기 (fallback)
+          console.log('🔍 Fallback to localStorage:', id);
+          const storedWorldCup = getWorldCupById(id);
+          
+          if (storedWorldCup) {
+            const gameData = {
+              id: storedWorldCup.id,
+              title: storedWorldCup.title,
+              description: storedWorldCup.description,
+              items: storedWorldCup.items.map(item => ({
+                id: item.id,
+                title: item.title,
+                description: item.description,
+                image: item.image, // Base64 이미지 포함
+              })) as WorldCupItem[]
+            };
+            
+            console.log('✅ Loaded localStorage worldcup for play:', gameData);
+            setWorldcupData(gameData);
+          } else {
+            // 3. Mock 데이터 사용 (최후의 수단)
+            console.log('⚠️ Using mock data for worldcup ID:', id);
+            setWorldcupData(mockWorldCupData);
+          }
         }
         
         setShowTournamentSelector(true);

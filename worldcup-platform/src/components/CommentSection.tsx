@@ -6,78 +6,15 @@ import { ThumbsUp, ThumbsDown, MessageCircle, Clock, TrendingUp } from 'lucide-r
 import { Comment } from '@/types/game';
 
 interface CommentSectionProps {
-  worldcupTitle: string;
   winnerName: string;
   worldcupId?: string; // 월드컵 ID 추가
 }
 
-// Mock comments data
-const mockComments: Comment[] = [
-  {
-    id: '1',
-    username: '케이팝러버',
-    content: '태민이 우승이라니! 역시 춤신춤왕 👑 완전 예상했어요',
-    likes: 142,
-    dislikes: 3,
-    createdAt: new Date('2024-06-24T10:30:00'),
-    isLiked: false,
-    isDisliked: false
-  },
-  {
-    id: '2',
-    username: '아이돌마니아',
-    content: '이번 토너먼트 진짜 치열했다... 마지막에 태민 vs 백현 진짜 고민많이 했는데',
-    likes: 89,
-    dislikes: 1,
-    createdAt: new Date('2024-06-24T10:25:00'),
-    isLiked: true,
-    isDisliked: false
-  },
-  {
-    id: '3',
-    username: '샤이니월드',
-    content: '우리 태민이 ㅠㅠ 진짜 자랑스럽다 💎✨',
-    likes: 67,
-    dislikes: 0,
-    createdAt: new Date('2024-06-24T10:20:00'),
-    isLiked: false,
-    isDisliked: false
-  },
-  {
-    id: '4',
-    username: '무명소녀',
-    content: '32강부터 봤는데 태민이 계속 이기더라 ㅋㅋ 역시 실력파',
-    likes: 45,
-    dislikes: 2,
-    createdAt: new Date('2024-06-24T10:15:00'),
-    isLiked: false,
-    isDisliked: false
-  },
-  {
-    id: '5',
-    username: '댄스킹',
-    content: '춤으로는 태민이 최고지... 인정한다',
-    likes: 34,
-    dislikes: 8,
-    createdAt: new Date('2024-06-24T10:10:00'),
-    isLiked: false,
-    isDisliked: false
-  },
-  {
-    id: '6',
-    username: '올라운더',
-    content: '솔직히 백현이 이길줄 알았는데 ㅋㅋ',
-    likes: 23,
-    dislikes: 15,
-    createdAt: new Date('2024-06-24T10:05:00'),
-    isLiked: false,
-    isDisliked: false
-  }
-];
+// Removed mock comments - using localStorage-based comments instead
 
 type SortType = 'popular' | 'recent';
 
-export default function CommentSection({ worldcupTitle, winnerName, worldcupId }: CommentSectionProps) {
+export default function CommentSection({ winnerName, worldcupId }: CommentSectionProps) {
   // localStorage에서 월드컵별 댓글 로드
   const getCommentsKey = (id: string) => `comments_${id}`;
   
@@ -86,7 +23,14 @@ export default function CommentSection({ worldcupTitle, winnerName, worldcupId }
     
     try {
       const stored = localStorage.getItem(getCommentsKey(worldcupId));
-      return stored ? JSON.parse(stored) : [];
+      if (!stored) return [];
+      
+      const parsed = JSON.parse(stored);
+      // localStorage에서 불러온 댓글의 createdAt을 Date 객체로 변환
+      return parsed.map((comment: Omit<Comment, 'createdAt'> & { createdAt: string }) => ({
+        ...comment,
+        createdAt: new Date(comment.createdAt)
+      }));
     } catch (error) {
       console.error('Failed to load comments:', error);
       return [];
@@ -166,18 +110,38 @@ export default function CommentSection({ worldcupTitle, winnerName, worldcupId }
       const bScore = b.likes - b.dislikes;
       return bScore - aScore;
     } else {
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      // 안전한 날짜 처리
+      try {
+        const aDate = typeof a.createdAt === 'string' ? new Date(a.createdAt) : a.createdAt;
+        const bDate = typeof b.createdAt === 'string' ? new Date(b.createdAt) : b.createdAt;
+        return bDate.getTime() - aDate.getTime();
+      } catch (error) {
+        console.warn('Date sorting error:', error);
+        return 0;
+      }
     }
   });
 
-  const formatTimeAgo = (date: Date) => {
-    const now = new Date();
-    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
-    
-    if (diffInMinutes < 1) return '방금 전';
-    if (diffInMinutes < 60) return `${diffInMinutes}분 전`;
-    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}시간 전`;
-    return `${Math.floor(diffInMinutes / 1440)}일 전`;
+  const formatTimeAgo = (date: Date | string) => {
+    try {
+      const now = new Date();
+      const targetDate = typeof date === 'string' ? new Date(date) : date;
+      
+      // 유효한 날짜인지 확인
+      if (isNaN(targetDate.getTime())) {
+        return '시간 정보 없음';
+      }
+      
+      const diffInMinutes = Math.floor((now.getTime() - targetDate.getTime()) / (1000 * 60));
+      
+      if (diffInMinutes < 1) return '방금 전';
+      if (diffInMinutes < 60) return `${diffInMinutes}분 전`;
+      if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}시간 전`;
+      return `${Math.floor(diffInMinutes / 1440)}일 전`;
+    } catch (error) {
+      console.warn('Date formatting error:', error);
+      return '시간 정보 없음';
+    }
   };
 
   return (

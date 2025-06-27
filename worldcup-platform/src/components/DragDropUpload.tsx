@@ -295,15 +295,15 @@ export default function DragDropUpload({ items, onItemsUpload, onItemDelete, thu
     }
   };
 
-  const getImageUrl = (image: string | File): string => {
+  const getImageUrl = (image: string | File): string | null => {
     try {
       if (typeof image === 'string') {
         // Accept all string URLs including blob: URLs
         if (image.trim() === '') {
           console.warn('Empty URL string');
-          return '';
+          return null;
         }
-        return image;
+        return image.trim();
       }
       
       if (image instanceof File) {
@@ -311,10 +311,10 @@ export default function DragDropUpload({ items, onItemsUpload, onItemDelete, thu
       }
       
       console.error('Invalid image type:', typeof image);
-      return '';
+      return null;
     } catch (error) {
       console.error('Error creating image URL:', error);
-      return '';
+      return null;
     }
   };
 
@@ -364,12 +364,24 @@ export default function DragDropUpload({ items, onItemsUpload, onItemDelete, thu
         {thumbnail ? (
           <div className="flex items-start space-x-4">
             <div className="w-32 h-24 bg-gray-100 rounded-lg overflow-hidden">
-              <img
-                src={getImageUrl(thumbnail)}
-                alt="썸네일"
-                className="w-full h-full object-cover"
-                onError={handleImageError}
-              />
+              {(() => {
+                const thumbnailUrl = getImageUrl(thumbnail);
+                return thumbnailUrl ? (
+                  <img
+                    src={thumbnailUrl}
+                    alt="썸네일"
+                    className="w-full h-full object-cover"
+                    onError={handleImageError}
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-gray-200 text-gray-500">
+                    <div className="text-center p-2">
+                      <div className="text-lg mb-1">🖼️</div>
+                      <div className="text-xs">썸네일 없음</div>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
             <div className="flex-1">
               <p className="text-sm text-green-700 font-medium mb-2">✅ 썸네일이 설정되었습니다</p>
@@ -624,13 +636,25 @@ export default function DragDropUpload({ items, onItemsUpload, onItemDelete, thu
             {items.map((item) => (
               <div key={item.id} className="relative group">
                 <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden">
-                  <img
-                    src={getImageUrl(item.image)}
-                    alt={item.title}
-                    className="w-full h-full object-cover"
-                    onError={handleImageError}
-                    loading="lazy"
-                  />
+                  {(() => {
+                    const imageUrl = getImageUrl(item.image);
+                    return imageUrl ? (
+                      <img
+                        src={imageUrl}
+                        alt={item.title}
+                        className="w-full h-full object-cover"
+                        onError={handleImageError}
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gray-200 text-gray-500">
+                        <div className="text-center p-2">
+                          <div className="text-2xl mb-1">🖼️</div>
+                          <div className="text-xs">이미지 없음</div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
                 <button
                   onClick={() => onItemDelete(item.id)}
