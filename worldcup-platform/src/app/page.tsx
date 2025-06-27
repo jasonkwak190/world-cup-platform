@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import React from 'react';
 import Header from '@/components/Header';
 import CategoryFilter from '@/components/CategoryFilter';
@@ -9,12 +9,72 @@ import TrendingRanking from '@/components/TrendingRanking';
 import RecentComments from '@/components/RecentComments';
 import Pagination from '@/components/Pagination';
 import QuickActions from '@/components/QuickActions';
+import { getStoredWorldCups } from '@/utils/storage';
+import { getWorldCups as getSupabaseWorldCups } from '@/utils/supabaseData';
 
 export default function Home() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedSort, setSelectedSort] = useState('popular');
   const [currentPage, setCurrentPage] = useState(1);
+  const [categoryCounts, setCategoryCounts] = useState<{ [key: string]: number }>({});
   const totalPages = 16; // Mock total pages
+
+  // 카테고리별 월드컵 개수 계산
+  useEffect(() => {
+    const calculateCategoryCounts = async () => {
+      try {
+        // 캐시에서 먼저 확인
+        const cached = sessionStorage.getItem('worldcups_cache');
+        let allWorldCups = [];
+        
+        if (cached) {
+          const { data, timestamp } = JSON.parse(cached);
+          if (Date.now() - timestamp < 60000) { // 1분 캐시
+            allWorldCups = data;
+          }
+        }
+        
+        // 캐시가 없거나 만료된 경우 새로 로드
+        if (allWorldCups.length === 0) {
+          const [supabaseWorldCups, localWorldCups] = await Promise.all([
+            getSupabaseWorldCups(),
+            Promise.resolve(getStoredWorldCups())
+          ]);
+          
+          // 중복 제거
+          const worldCupMap = new Map();
+          supabaseWorldCups.forEach(wc => worldCupMap.set(wc.id, wc));
+          localWorldCups.forEach(wc => {
+            if (!worldCupMap.has(wc.id)) {
+              worldCupMap.set(wc.id, wc);
+            }
+          });
+          
+          allWorldCups = Array.from(worldCupMap.values());
+        }
+        
+        // 카테고리별 개수 계산
+        const counts: { [key: string]: number } = {
+          all: allWorldCups.length,
+        };
+        
+        allWorldCups.forEach(worldcup => {
+          const category = worldcup.category || 'entertainment';
+          counts[category] = (counts[category] || 0) + 1;
+        });
+        
+        console.log('📊 Category counts calculated:', counts);
+        setCategoryCounts(counts);
+        
+      } catch (error) {
+        console.error('Failed to calculate category counts:', error);
+        // 에러 발생시 기본값 설정
+        setCategoryCounts({ all: 0 });
+      }
+    };
+
+    calculateCategoryCounts();
+  }, []);
 
   // 데이터 초기화 시에만 localStorage 정리 (주석 처리)
   // React.useEffect(() => {
@@ -61,6 +121,7 @@ export default function Home() {
         selectedSort={selectedSort}
         onCategoryChange={setSelectedCategory}
         onSortChange={setSelectedSort}
+        categoryCounts={categoryCounts}
       />
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

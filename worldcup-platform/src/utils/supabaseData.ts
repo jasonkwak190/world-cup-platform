@@ -7,6 +7,7 @@ export async function getWorldCups() {
   try {
     console.log('🔍 Fetching worldcups from Supabase...');
     
+    // 단계별 로딩으로 성능 개선
     const { data, error } = await supabase
       .from('worldcups')
       .select(`
@@ -20,20 +21,59 @@ export async function getWorldCups() {
         likes,
         category,
         is_public,
-        author:users(username),
-        worldcup_items(id, title, image_url, description)
+        author_id
       `)
       .eq('is_public', true)
       .order('created_at', { ascending: false })
-      .limit(50); // 한 번에 최대 50개만 로드
+      .limit(30); // 개수 줄임
 
     if (error) {
       console.error('Error fetching worldcups:', error);
       return [];
     }
 
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`✅ Found ${data.length} worldcups:`, data.map(w => w.title));
+    if (!data || data.length === 0) {
+      console.log('📭 No worldcups found in Supabase');
+      return [];
+    }
+
+    console.log(`✅ Found ${data.length} worldcups`);
+
+    // 사용자 정보와 아이템 정보를 별도로 가져오기 (병렬 처리)
+    const authorIds = [...new Set(data.map(w => w.author_id).filter(Boolean))];
+    const worldcupIds = data.map(w => w.id);
+
+    const [authorsData, itemsData] = await Promise.all([
+      // 사용자 정보 가져오기
+      supabase
+        .from('users')
+        .select('id, username')
+        .in('id', authorIds),
+      // 월드컵 아이템 가져오기 (제한적으로)
+      supabase
+        .from('worldcup_items')
+        .select('worldcup_id, id, title, image_url')
+        .in('worldcup_id', worldcupIds)
+        .limit(200) // 아이템 총 개수 제한
+    ]);
+
+    // 사용자 맵 생성
+    const authorsMap = new Map();
+    if (authorsData.data) {
+      authorsData.data.forEach(author => {
+        authorsMap.set(author.id, author.username);
+      });
+    }
+
+    // 아이템 맵 생성
+    const itemsMap = new Map();
+    if (itemsData.data) {
+      itemsData.data.forEach(item => {
+        if (!itemsMap.has(item.worldcup_id)) {
+          itemsMap.set(item.worldcup_id, []);
+        }
+        itemsMap.get(item.worldcup_id).push(item);
+      });
     }
 
     // localStorage 형식으로 변환
@@ -51,29 +91,21 @@ export async function getWorldCups() {
         }
       }
 
-      if (process.env.NODE_ENV === 'development') {
-        console.log('🖼️ Processing thumbnail:', {
-          id: worldcup.id,
-          title: worldcup.title,
-          originalUrl: worldcup.thumbnail_url,
-          processedUrl: thumbnailUrl.substring(0, 100) + (thumbnailUrl.length > 100 ? '...' : ''),
-          thumbnailValid: !!thumbnailUrl && thumbnailUrl !== '/placeholder.svg'
-        });
-      }
-
+      const worldcupItems = itemsMap.get(worldcup.id) || [];
+      
       return {
         id: worldcup.id,
         title: worldcup.title,
         description: worldcup.description || '',
         thumbnail: thumbnailUrl,
-        author: worldcup.author?.username || 'Unknown',
+        author: authorsMap.get(worldcup.author_id) || 'Unknown',
         createdAt: new Date(worldcup.created_at).toISOString().split('T')[0],
-        participants: worldcup.participants,
-        comments: worldcup.comments,
-        likes: worldcup.likes,
-        category: worldcup.category,
+        participants: worldcup.participants || 0,
+        comments: worldcup.comments || 0,
+        likes: worldcup.likes || 0,
+        category: worldcup.category || 'entertainment',
         isPublic: worldcup.is_public,
-        items: worldcup.worldcup_items?.map((item: any) => {
+        items: worldcupItems.map((item: any) => {
           let imageUrl = null;
           
           if (item.image_url) {
@@ -90,9 +122,9 @@ export async function getWorldCups() {
             id: item.id,
             title: item.title,
             image: imageUrl,
-            description: item.description
+            description: item.description || ''
           };
-        }) || []
+        })
       };
     });
 
@@ -220,20 +252,56 @@ export async function getWorldCupById(id: string) {
 // 사용자별 월드컵 가져오기
 export async function getUserWorldCups(userId: string) {
   try {
+    console.log('🔍 getUserWorldCups called for user:', userId);
+    
+    if (!userId) {
+      console.log('❌ No userId provided');
+      return [];
+    }
+
+    // 먼저 월드컵 기본 정보만 가져오기 (성능 최적화)
     const { data, error } = await supabase
       .from('worldcups')
       .select(`
-        *,
-        author:users(id, username, profile_image_url),
-        worldcup_items(id, title, image_url, description, order_index)
+        id,
+        title,
+        description,
+        thumbnail_url,
+        created_at,
+        participants,
+        comments,
+        likes,
+        category,
+        is_public
       `)
       .eq('author_id', userId)
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('Error fetching user worldcups:', error);
+      console.error('❌ Error fetching user worldcups:', error);
       return [];
     }
+
+    if (!data || data.length === 0) {
+      console.log('📭 No worldcups found for user');
+      return [];
+    }
+
+    console.log(`✅ Found ${data.length} worldcups for user`);
+
+    // 각 월드컵에 대해 아이템 개수만 가져오기 (빠른 로딩을 위해)
+    const worldcupIds = data.map(w => w.id);
+    const { data: itemCounts } = await supabase
+      .from('worldcup_items')
+      .select('worldcup_id')
+      .in('worldcup_id', worldcupIds);
+
+    // 아이템 개수 맵 생성
+    const itemCountMap = new Map();
+    itemCounts?.forEach(item => {
+      const current = itemCountMap.get(item.worldcup_id) || 0;
+      itemCountMap.set(item.worldcup_id, current + 1);
+    });
 
     // localStorage 형식으로 변환
     return data.map(worldcup => {
@@ -255,38 +323,24 @@ export async function getUserWorldCups(userId: string) {
         title: worldcup.title,
         description: worldcup.description || '',
         thumbnail: thumbnailUrl,
-        author: worldcup.author?.username || 'Unknown',
+        author: 'You', // 사용자 자신의 월드컵이므로 'You'로 표시
         createdAt: new Date(worldcup.created_at).toISOString().split('T')[0],
         participants: worldcup.participants,
         comments: worldcup.comments,
         likes: worldcup.likes,
         category: worldcup.category,
         isPublic: worldcup.is_public,
-        items: worldcup.worldcup_items?.map((item: any) => {
-          let imageUrl = null;
-          
-          if (item.image_url) {
-            // 이미 완전한 URL인 경우 그대로 사용
-            if (item.image_url.startsWith('http')) {
-              imageUrl = item.image_url;
-            } else {
-              // 상대 경로인 경우에만 Supabase URL 생성
-              imageUrl = getSupabaseImageUrl(item.image_url, 'worldcup-images');
-            }
-          }
-
-          return {
-            id: item.id,
-            title: item.title,
-            image: imageUrl,
-            description: item.description
-          };
-        }) || []
+        items: Array(itemCountMap.get(worldcup.id) || 0).fill(null).map((_, index) => ({
+          id: `placeholder-${index}`,
+          title: `Item ${index + 1}`,
+          image: null,
+          description: ''
+        })) // 실제 아이템은 필요할 때만 로드
       };
     });
 
   } catch (error) {
-    console.error('Error in getUserWorldCups:', error);
+    console.error('❌ Error in getUserWorldCups:', error);
     return [];
   }
 }

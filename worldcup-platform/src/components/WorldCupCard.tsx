@@ -12,6 +12,7 @@ interface WorldCupCardProps {
   likes: number;
   isLiked?: boolean;
   isBookmarked?: boolean;
+  isLoggedIn?: boolean; // 로그인 상태 추가
   onPlay: () => void;
   onLike: () => void;
   onBookmark: () => void;
@@ -30,6 +31,7 @@ export default function WorldCupCard({
   likes,
   isLiked = false,
   isBookmarked = false,
+  isLoggedIn = false,
   onPlay,
   onLike,
   onBookmark,
@@ -245,8 +247,12 @@ export default function WorldCupCard({
           </button>
           <button
             onClick={onBookmark}
+            disabled={!isLoggedIn}
+            title={!isLoggedIn ? '북마크는 로그인 후 이용할 수 있습니다' : ''}
             className={`p-2.5 rounded-lg transition-colors w-[40px] h-[40px] flex items-center justify-center ${
-              isBookmarked
+              !isLoggedIn
+                ? 'text-gray-300 bg-gray-50 cursor-not-allowed'
+                : isBookmarked
                 ? 'text-emerald-500 bg-emerald-50 hover:bg-emerald-100'
                 : 'text-gray-400 hover:text-emerald-500 hover:bg-emerald-50'
             }`}

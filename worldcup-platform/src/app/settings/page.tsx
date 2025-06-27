@@ -31,23 +31,21 @@ function SettingsContent() {
   // 내가 만든 월드컵 목록 가져오기 (Supabase + localStorage 통합)
   useEffect(() => {
     const loadUserWorldCups = async () => {
-      if (!user) {
+      if (!user || !user.id) {
+        console.log('❌ No valid user found, skipping worldcup load');
         setLoading(false);
         return;
       }
 
       try {
-        console.log('🔍 Loading user worldcups for:', user.username);
+        console.log('🔍 Loading user worldcups for:', user.username, 'ID:', user.id);
         
         // 1. Supabase에서 현재 로그인된 사용자의 월드컵 가져오기
-        const { data: { user: authUser } } = await supabase.auth.getUser();
         let supabaseWorldCups: StoredWorldCup[] = [];
         
-        if (authUser) {
-          console.log('📡 Fetching from Supabase for user ID:', authUser.id);
-          supabaseWorldCups = await getUserWorldCups(authUser.id);
-          console.log('✅ Found Supabase worldcups:', supabaseWorldCups.length);
-        }
+        console.log('📡 Fetching from Supabase for user ID:', user.id);
+        supabaseWorldCups = await getUserWorldCups(user.id);
+        console.log('✅ Found Supabase worldcups:', supabaseWorldCups.length);
 
         // 2. localStorage에서 사용자의 월드컵 가져오기 (이전 데이터)
         const localWorldCups = getStoredWorldCups();
@@ -91,7 +89,7 @@ function SettingsContent() {
     };
 
     loadUserWorldCups();
-  }, [user]);
+  }, [user?.id, user?.username]); // user 전체가 아닌 필요한 속성만 의존성으로 추가
 
   const handleDeleteWorldCup = (worldcup: StoredWorldCup) => {
     setDeleteModal({

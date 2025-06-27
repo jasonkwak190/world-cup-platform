@@ -1,12 +1,16 @@
-const categories = [
-  { id: 'all', name: '전체', count: 1284 },
-  { id: 'celebrity', name: '연예인', count: 342 },
-  { id: 'food', name: '음식', count: 156 },
-  { id: 'travel', name: '여행', count: 89 },
-  { id: 'anime', name: '애니메이션', count: 234 },
-  { id: 'game', name: '게임', count: 167 },
-  { id: 'movie', name: '영화', count: 98 },
-  { id: 'music', name: '음악', count: 76 },
+// 카테고리 정의 (개수는 동적으로 계산)
+const categoryDefinitions = [
+  { id: 'all', name: '전체' },
+  { id: 'celebrity', name: '연예인' },
+  { id: 'food', name: '음식' },
+  { id: 'travel', name: '여행' },
+  { id: 'anime', name: '애니메이션' },
+  { id: 'game', name: '게임' },
+  { id: 'movie', name: '영화' },
+  { id: 'music', name: '음악' },
+  { id: 'entertainment', name: '엔터테인먼트' },
+  { id: 'sports', name: '스포츠' },
+  { id: 'other', name: '기타' },
 ];
 
 const sortOptions = [
@@ -21,6 +25,7 @@ interface CategoryFilterProps {
   selectedSort: string;
   onCategoryChange: (category: string) => void;
   onSortChange: (sort: string) => void;
+  categoryCounts?: { [key: string]: number }; // 카테고리별 개수
 }
 
 export default function CategoryFilter({
@@ -28,7 +33,18 @@ export default function CategoryFilter({
   selectedSort,
   onCategoryChange,
   onSortChange,
+  categoryCounts = {},
 }: CategoryFilterProps) {
+  
+  // 카테고리 정의와 실제 개수를 합쳐서 categories 배열 생성
+  const categories = categoryDefinitions.map(category => ({
+    ...category,
+    count: categoryCounts[category.id] || 0
+  })).filter(category => 
+    // 개수가 0인 카테고리는 숨기지만, '전체'는 항상 표시
+    category.id === 'all' || category.count > 0
+  );
+
   return (
     <div className="bg-white border-b">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -46,7 +62,7 @@ export default function CategoryFilter({
             >
               <span className="font-medium">{category.name}</span>
               <span className="ml-2 text-sm bg-gray-100 px-2 py-1 rounded-full">
-                {category.count}
+                {category.count.toLocaleString()}
               </span>
             </button>
           ))}
@@ -70,7 +86,7 @@ export default function CategoryFilter({
             ))}
           </div>
           <div className="text-sm text-gray-500">
-            총 {categories.find(c => c.id === selectedCategory)?.count || 0}개
+            총 {(categories.find(c => c.id === selectedCategory)?.count || 0).toLocaleString()}개
           </div>
         </div>
       </div>

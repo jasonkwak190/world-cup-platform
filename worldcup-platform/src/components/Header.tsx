@@ -48,9 +48,15 @@ export default function Header() {
     setAuthMode(authMode === 'login' ? 'signup' : 'login');
   };
 
-  const handleLogout = () => {
-    logout();
-    setShowUserMenu(false);
+  const handleLogout = async () => {
+    try {
+      console.log('🔓 Starting logout process...');
+      await logout();
+      setShowUserMenu(false);
+      console.log('✅ Logout completed successfully');
+    } catch (error) {
+      console.error('❌ Logout failed:', error);
+    }
   };
 
   const handleCreateClick = (e: React.MouseEvent) => {
