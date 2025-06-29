@@ -21,7 +21,13 @@
       "Bash(open:*)",
       "Bash(curl:*)",
       "Bash(osascript:*)",
-      "Bash(npm start)"
+      "Bash(npm start)",
+      "Bash(npm install:*)",
+      "Bash(touch:*)",
+      "Bash(rg:*)",
+      "Bash(find:*)",
+      "Bash(lsof:*)",
+      "Bash(grep:*)"
     ],
     "deny": []
   }

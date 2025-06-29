@@ -94,12 +94,13 @@ export async function POST(request: NextRequest) {
         migrationResults.log.push(`✅ 사용자 생성 성공: ${localUser.email}`);
 
       } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         migrationResults.userResults.push({
           email: localUser.email,
           success: false,
-          error: error.message
+          error: errorMessage
         });
-        migrationResults.log.push(`❌ 예외 발생: ${localUser.email} - ${error.message}`);
+        migrationResults.log.push(`❌ 예외 발생: ${localUser.email} - ${errorMessage}`);
       }
     }
 

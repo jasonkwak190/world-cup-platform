@@ -106,32 +106,61 @@ export default function PlayPage({ params }: PlayPageProps) {
         const id = resolvedParams.id;
         setWorldcupId(id);
         
-        // 1. Supabase에서 월드컵 찾기
+        // 1. Supabase에서 먼저 찾기 (메인 소스)
         console.log('🔍 Loading worldcup from Supabase:', id);
-        const supabaseWorldCup = await getSupabaseWorldCupById(id);
         
-        if (supabaseWorldCup && supabaseWorldCup.items.length > 0) {
-          // Supabase 월드컵 데이터를 게임용 형식으로 변환
-          const gameData = {
-            id: supabaseWorldCup.id,
-            title: supabaseWorldCup.title,
-            description: supabaseWorldCup.description,
-            items: supabaseWorldCup.items.map(item => ({
-              id: item.id,
-              title: item.title,
-              description: item.description,
-              image: item.image, // Supabase Storage URL
-            })) as WorldCupItem[]
-          };
+        try {
+          const supabaseWorldCup = await getSupabaseWorldCupById(id);
           
-          console.log('✅ Loaded Supabase worldcup for play:', gameData);
-          setWorldcupData(gameData);
-        } else {
-          // 2. localStorage에서 찾기 (fallback)
-          console.log('🔍 Fallback to localStorage:', id);
+          console.log('📊 Supabase worldcup result:', {
+            found: !!supabaseWorldCup,
+            hasItems: supabaseWorldCup?.items?.length || 0
+          });
+          
+          if (supabaseWorldCup && supabaseWorldCup.items && supabaseWorldCup.items.length > 0) {
+            // Supabase 월드컵 데이터를 게임용 형식으로 변환
+            const gameData = {
+              id: supabaseWorldCup.id,
+              title: supabaseWorldCup.title,
+              description: supabaseWorldCup.description,
+              items: supabaseWorldCup.items.map((item, index) => {
+                // 이미지 URL 검증 및 로깅
+                console.log(`🖼️ Processing item ${index + 1}:`, {
+                  title: item.title,
+                  originalImage: item.image,
+                  isSupabaseUrl: item.image?.includes('supabase'),
+                  isHttpUrl: item.image?.startsWith('http')
+                });
+                
+                return {
+                  id: item.id,
+                  title: item.title,
+                  description: item.description || '',
+                  image: item.image, // Supabase Storage URL
+                };
+              }) as WorldCupItem[]
+            };
+            
+            console.log('✅ Loaded Supabase worldcup for play:', {
+              id: gameData.id,
+              title: gameData.title,
+              itemsCount: gameData.items.length
+            });
+            setWorldcupData(gameData);
+            setShowTournamentSelector(true);
+            setIsLoading(false);
+            return;
+          }
+        } catch (supabaseError) {
+          console.error('❌ Supabase error:', supabaseError);
+        }
+        
+        // 2. localStorage에서 찾기 (fallback)
+        console.log('🔍 Fallback to localStorage:', id);
+        try {
           const storedWorldCup = getWorldCupById(id);
           
-          if (storedWorldCup) {
+          if (storedWorldCup && storedWorldCup.items && storedWorldCup.items.length > 0) {
             const gameData = {
               id: storedWorldCup.id,
               title: storedWorldCup.title,
@@ -139,25 +168,32 @@ export default function PlayPage({ params }: PlayPageProps) {
               items: storedWorldCup.items.map(item => ({
                 id: item.id,
                 title: item.title,
-                description: item.description,
-                image: item.image, // Base64 이미지 포함
+                description: item.description || '',
+                image: item.image,
               })) as WorldCupItem[]
             };
             
-            console.log('✅ Loaded localStorage worldcup for play:', gameData);
+            console.log('✅ Loaded localStorage worldcup for play');
             setWorldcupData(gameData);
-          } else {
-            // 3. Mock 데이터 사용 (최후의 수단)
-            console.log('⚠️ Using mock data for worldcup ID:', id);
-            setWorldcupData(mockWorldCupData);
+            setShowTournamentSelector(true);
+            setIsLoading(false);
+            return;
           }
+        } catch (localStorageError) {
+          console.error('❌ localStorage error:', localStorageError);
         }
         
-        setShowTournamentSelector(true);
+        // 3. 월드컵을 찾을 수 없는 경우
+        console.warn('⚠️ No worldcup found, redirecting to home');
+        setIsLoading(false);
+        router.push('/');
+        return;
       } catch (error) {
-        console.error('Failed to load world cup:', error);
+        console.error('❌ Failed to load world cup:', error);
+        setIsLoading(false);
         router.push('/');
       } finally {
+        console.log('🏁 Finally block reached - setting isLoading to false');
         setIsLoading(false);
       }
     };
@@ -238,6 +274,7 @@ export default function PlayPage({ params }: PlayPageProps) {
   };
 
   if (isLoading) {
+    console.log('🔄 Rendering loading screen - isLoading:', isLoading);
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-center">
@@ -248,7 +285,16 @@ export default function PlayPage({ params }: PlayPageProps) {
     );
   }
 
+  console.log('🎯 Render check:', {
+    isLoading,
+    showTournamentSelector,
+    hasWorldcupData: !!worldcupData,
+    worldcupDataId: worldcupData?.id,
+    gameState: !!gameState
+  });
+
   if (showTournamentSelector && worldcupData) {
+    console.log('🎯 Rendering TournamentSelector');
     return (
       <TournamentSelector
         worldcupTitle={worldcupData.title}
@@ -260,6 +306,7 @@ export default function PlayPage({ params }: PlayPageProps) {
   }
 
   if (!gameState) {
+    console.log('🎯 Rendering no game state screen');
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-center text-white">

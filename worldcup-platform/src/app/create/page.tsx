@@ -10,6 +10,7 @@ import TournamentSettings from '@/components/TournamentSettings';
 import AuthModal from '@/components/AuthModal';
 // saveWorldCup imported but not used - using Supabase primarily
 import { saveWorldCupToSupabase } from '@/utils/supabaseWorldCup';
+import { getUserWorldCups } from '@/utils/supabaseData';
 import { supabase } from '@/lib/supabase';
 
 interface WorldCupItem {
@@ -34,6 +35,9 @@ export default function CreatePage() {
   const [isPreviewGameActive, setIsPreviewGameActive] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [creationProgress, setCreationProgress] = useState(0);
+  const [creationStatus, setCreationStatus] = useState('');
   const [worldCupData, setWorldCupData] = useState<WorldCupData>({
     title: '',
     description: '',
@@ -43,7 +47,7 @@ export default function CreatePage() {
     thumbnail: undefined,
   });
 
-  // 인증 상태 확인
+  // 인증 상태 및 월드컵 개수 제한 확인
   useEffect(() => {
     const checkAuth = async () => {
       try {
@@ -58,7 +62,21 @@ export default function CreatePage() {
         setIsAuthenticated(!!user);
         if (!user) {
           setShowAuthModal(true);
+          return;
         }
+
+        // 사용자 월드컵 개수 확인
+        try {
+          const userWorldCups = await getUserWorldCups(user.id);
+          if (userWorldCups.length >= 10) {
+            alert('최대 10개까지만 월드컵을 만들 수 있습니다.\n마이페이지에서 기존 월드컵을 삭제한 후 새로 만들어주세요.');
+            router.push('/my');
+            return;
+          }
+        } catch (error) {
+          console.error('Failed to check user worldcup count:', error);
+        }
+        
       } catch (error) {
         console.error('Auth check failed:', error);
         setIsAuthenticated(false);
@@ -409,20 +427,53 @@ export default function CreatePage() {
                     }
 
                     try {
+                      setIsCreating(true);
+                      setCreationProgress(0);
+                      setCreationStatus('월드컵 생성을 시작합니다...');
+                      
+                      // 🚨 DEBUG: Log image types before saving to catch blob URL issues
+                      console.log('🔍 DEBUG - Analyzing worldCupData before save:');
+                      console.log('Total items:', worldCupData.items.length);
+                      worldCupData.items.forEach((item, index) => {
+                        console.log(`Item ${index + 1}:`, {
+                          id: item.id,
+                          title: item.title,
+                          imageType: typeof item.image,
+                          isFile: item.image instanceof File,
+                          isString: typeof item.image === 'string',
+                          imageValue: typeof item.image === 'string' ? item.image.substring(0, 100) + '...' : 'File object',
+                          startsWithBlob: typeof item.image === 'string' && item.image.startsWith('blob:'),
+                          includesLocalhost: typeof item.image === 'string' && item.image.includes('localhost')
+                        });
+                      });
+
                       // 월드컵 생성 완료 로직
                       console.log('Creating worldcup:', worldCupData);
                       
-                      // Supabase에 저장
-                      const result = await saveWorldCupToSupabase(worldCupData);
+                      // Supabase에 저장 (진행률 콜백 포함)
+                      const result = await saveWorldCupToSupabase(worldCupData, (progress, status) => {
+                        setCreationProgress(progress);
+                        setCreationStatus(status);
+                      });
                       
                       if (!result.success) {
                         throw new Error(result.error);
                       }
                       
-                      alert('월드컵이 성공적으로 생성되었습니다!');
-                      router.push('/');
+                      setCreationProgress(100);
+                      setCreationStatus('월드컵 생성이 완료되었습니다!');
+                      
+                      // 잠시 완료 메시지 표시 후 자동으로 메인화면 이동
+                      setTimeout(() => {
+                        setIsCreating(false);
+                        router.push('/');
+                      }, 1500);
+                      
                     } catch (error) {
                       console.error('Failed to create worldcup:', error);
+                      setIsCreating(false);
+                      setCreationProgress(0);
+                      setCreationStatus('');
                       
                       // 인증 오류인 경우 로그인 모달 표시
                       if (error instanceof Error && error.message === '로그인이 필요합니다.') {
@@ -433,20 +484,53 @@ export default function CreatePage() {
                       alert('월드컵 생성 중 오류가 발생했습니다. 다시 시도해주세요.');
                     }
                   }}
-                  disabled={!canProceed()}
+                  disabled={!canProceed() || isCreating}
                   className={`px-8 py-2 rounded-lg font-medium transition-colors ${
-                    canProceed()
+                    canProceed() && !isCreating
                       ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
                       : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                   }`}
                 >
-                  월드컵 만들기
+                  {isCreating ? (
+                    <div className="flex items-center space-x-2">
+                      <div className="w-4 h-4 border-2 border-gray-300 border-t-transparent rounded-full animate-spin"></div>
+                      <span>생성 중...</span>
+                    </div>
+                  ) : (
+                    '월드컵 만들기'
+                  )}
                 </button>
               )}
             </div>
           </div>
         </div>
       </div>
+
+      {/* 생성 진행률 모달 */}
+      {isCreating && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4">
+            <div className="text-center">
+              <div className="w-16 h-16 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">월드컵 생성 중</h3>
+              <p className="text-gray-600 mb-4">{creationStatus}</p>
+              
+              {/* 진행률 바 */}
+              <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
+                <div 
+                  className="bg-emerald-600 h-2 rounded-full transition-all duration-500"
+                  style={{ width: `${creationProgress}%` }}
+                ></div>
+              </div>
+              <p className="text-sm text-gray-500">{creationProgress}% 완료</p>
+              
+              <div className="mt-4 text-xs text-gray-400">
+                잠시만 기다려주세요. 이미지를 처리하고 있습니다...
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

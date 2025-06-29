@@ -1,6 +1,6 @@
 'use client';
 
-import { Search, Plus, User as UserIcon, LogOut } from 'lucide-react';
+import { Search, Plus, User as UserIcon, LogOut, Home, Settings as SettingsIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
@@ -8,7 +8,13 @@ import { useAuth } from '@/contexts/AuthContext';
 import AuthModal from './AuthModal';
 import type { User } from '@/types/user';
 
-export default function Header() {
+interface HeaderProps {
+  searchQuery?: string;
+  onSearchChange?: (query: string) => void;
+  userWorldCupCount?: number;
+}
+
+export default function Header({ searchQuery = '', onSearchChange, userWorldCupCount = 0 }: HeaderProps) {
   const router = useRouter();
   const { user, isAuthenticated, logout, login } = useAuth();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -25,9 +31,19 @@ export default function Header() {
       }
     };
 
+    // 커스텀 이벤트 리스너 - 다른 컴포넌트에서 로그인 모달 열기 요청
+    const handleOpenLoginModal = () => {
+      setIsFromCreateButton(false);
+      setAuthMode('login');
+      setIsAuthModalOpen(true);
+    };
+
     document.addEventListener('mousedown', handleClickOutside);
+    window.addEventListener('openLoginModal', handleOpenLoginModal);
+    
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('openLoginModal', handleOpenLoginModal);
     };
   }, []);
 
@@ -54,6 +70,11 @@ export default function Header() {
       await logout();
       setShowUserMenu(false);
       console.log('✅ Logout completed successfully');
+      
+      // 강제 새로고침으로 상태 초기화 (임시 해결책)
+      setTimeout(() => {
+        window.location.reload();
+      }, 100);
     } catch (error) {
       console.error('❌ Logout failed:', error);
     }
@@ -67,6 +88,12 @@ export default function Header() {
       setIsFromCreateButton(true);
       setAuthMode('login');
       setIsAuthModalOpen(true);
+      return;
+    }
+    
+    // 월드컵 개수 제한 확인
+    if (userWorldCupCount >= 10) {
+      alert('최대 10개까지만 월드컵을 만들 수 있습니다.\n마이페이지에서 기존 월드컵을 삭제한 후 새로 만들어주세요.');
       return;
     }
     
@@ -95,6 +122,8 @@ export default function Header() {
                 <input
                   type="text"
                   placeholder="월드컵 검색..."
+                  value={searchQuery}
+                  onChange={(e) => onSearchChange?.(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-gray-900"
                 />
               </div>
@@ -126,11 +155,20 @@ export default function Header() {
                     <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border z-50">
                       <div className="py-1">
                         <Link 
-                          href="/settings" 
-                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                          href="/my" 
+                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
                           onClick={() => setShowUserMenu(false)}
                         >
-                          설정
+                          <UserIcon className="w-4 h-4" />
+                          <span>마이 페이지</span>
+                        </Link>
+                        <Link 
+                          href="/settings" 
+                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+                          onClick={() => setShowUserMenu(false)}
+                        >
+                          <SettingsIcon className="w-4 h-4" />
+                          <span>설정</span>
                         </Link>
                         <button 
                           onClick={handleLogout}
@@ -146,6 +184,7 @@ export default function Header() {
               ) : (
                 <div className="flex items-center space-x-2">
                   <button 
+                    data-login-button
                     onClick={() => {
                       setIsFromCreateButton(false);
                       setAuthMode('login');

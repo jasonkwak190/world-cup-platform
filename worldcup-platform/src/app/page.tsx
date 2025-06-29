@@ -8,15 +8,18 @@ import WorldCupGrid from '@/components/WorldCupGrid';
 import TrendingRanking from '@/components/TrendingRanking';
 import RecentComments from '@/components/RecentComments';
 import Pagination from '@/components/Pagination';
-import QuickActions from '@/components/QuickActions';
 import { getStoredWorldCups } from '@/utils/storage';
-import { getWorldCups as getSupabaseWorldCups } from '@/utils/supabaseData';
+import { getWorldCups as getSupabaseWorldCups, getUserWorldCups } from '@/utils/supabaseData';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function Home() {
+  const { user } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedSort, setSelectedSort] = useState('popular');
   const [currentPage, setCurrentPage] = useState(1);
   const [categoryCounts, setCategoryCounts] = useState<{ [key: string]: number }>({});
+  const [searchQuery, setSearchQuery] = useState('');
+  const [userWorldCupCount, setUserWorldCupCount] = useState(0);
   const totalPages = 16; // Mock total pages
 
   // 카테고리별 월드컵 개수 계산
@@ -36,21 +39,60 @@ export default function Home() {
         
         // 캐시가 없거나 만료된 경우 새로 로드
         if (allWorldCups.length === 0) {
-          const [supabaseWorldCups, localWorldCups] = await Promise.all([
-            getSupabaseWorldCups(),
-            Promise.resolve(getStoredWorldCups())
+          console.log('💾 Loading fresh data from sources...');
+          
+          // 타임아웃으로 각 소스를 제한
+          const timeoutPromise = (ms: number) => new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Data loading timeout')), ms)
+          );
+          
+          const [supabaseWorldCups, localWorldCups] = await Promise.allSettled([
+            Promise.race([getSupabaseWorldCups(), timeoutPromise(10000)]),
+            Promise.race([Promise.resolve(getStoredWorldCups()), timeoutPromise(5000)])
           ]);
+          
+          // 결과 처리
+          const supabaseData = supabaseWorldCups.status === 'fulfilled' ? supabaseWorldCups.value : [];
+          const localData = localWorldCups.status === 'fulfilled' ? localWorldCups.value : [];
+          
+          if (supabaseWorldCups.status === 'rejected') {
+            console.warn('⚠️ Supabase data loading failed:', supabaseWorldCups.reason);
+            
+            // 타임아웃으로 실패한 경우 자동 새로고침
+            if (supabaseWorldCups.reason?.message === 'Data loading timeout') {
+              console.log('🔄 10초 타임아웃 발생, 3초 후 자동 새로고침...');
+              setTimeout(() => {
+                window.location.reload();
+              }, 3000);
+              return;
+            }
+          }
+          if (localWorldCups.status === 'rejected') {
+            console.warn('⚠️ Local data loading failed:', localWorldCups.reason);
+          }
+          
+          console.log(`📊 Data loaded - Supabase: ${supabaseData.length}, Local: ${localData.length}`);
           
           // 중복 제거
           const worldCupMap = new Map();
-          supabaseWorldCups.forEach(wc => worldCupMap.set(wc.id, wc));
-          localWorldCups.forEach(wc => {
+          supabaseData.forEach(wc => worldCupMap.set(wc.id, wc));
+          localData.forEach(wc => {
             if (!worldCupMap.has(wc.id)) {
               worldCupMap.set(wc.id, wc);
             }
           });
           
           allWorldCups = Array.from(worldCupMap.values());
+          
+          // 캐시에 저장
+          try {
+            sessionStorage.setItem('worldcups_cache', JSON.stringify({
+              data: allWorldCups,
+              timestamp: Date.now()
+            }));
+          } catch (error) {
+            console.warn('⚠️ Failed to cache data:', error);
+          }
         }
         
         // 카테고리별 개수 계산
@@ -76,6 +118,24 @@ export default function Home() {
     calculateCategoryCounts();
   }, []);
 
+  // 사용자 월드컵 개수 가져오기
+  useEffect(() => {
+    const loadUserWorldCupCount = async () => {
+      if (user && user.id) {
+        try {
+          const userWorldCups = await getUserWorldCups(user.id);
+          setUserWorldCupCount(userWorldCups.length);
+        } catch (error) {
+          console.error('Failed to load user worldcup count:', error);
+        }
+      } else {
+        setUserWorldCupCount(0);
+      }
+    };
+
+    loadUserWorldCupCount();
+  }, [user]);
+
   // 데이터 초기화 시에만 localStorage 정리 (주석 처리)
   // React.useEffect(() => {
   //   const cleanupLocalStorage = () => {
@@ -92,30 +152,18 @@ export default function Home() {
   //   cleanupLocalStorage();
   // }, []);
 
-  const handleQuickPlay = () => {
-    // TODO: Implement random worldcup selection
-    console.log('Random play initiated');
-  };
-
-  const handleClearFilters = () => {
-    setSelectedCategory('all');
-    setSelectedSort('popular');
-    setCurrentPage(1);
-  };
-
-  const handleShowBookmarks = () => {
-    // TODO: Show bookmarked worldcups
-    console.log('Show bookmarks');
-  };
-
-  const handleDarkModeToggle = () => {
-    // TODO: Implement dark mode
-    console.log('Dark mode toggled');
+  const handleSearchChange = (query: string) => {
+    setSearchQuery(query);
+    setCurrentPage(1); // 첫 페이지로 리셋
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header />
+      <Header 
+        searchQuery={searchQuery} 
+        onSearchChange={handleSearchChange} 
+        userWorldCupCount={userWorldCupCount}
+      />
       <CategoryFilter
         selectedCategory={selectedCategory}
         selectedSort={selectedSort}
@@ -128,7 +176,7 @@ export default function Home() {
         <div className="flex gap-8">
           {/* Main Content */}
           <div className="flex-1">
-            <WorldCupGrid category={selectedCategory} sortBy={selectedSort} />
+            <WorldCupGrid category={selectedCategory} sortBy={selectedSort} searchQuery={searchQuery} />
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
@@ -143,14 +191,6 @@ export default function Home() {
           </div>
         </div>
       </div>
-
-      {/* Quick Actions */}
-      <QuickActions
-        onQuickPlay={handleQuickPlay}
-        onClearFilters={handleClearFilters}
-        onShowBookmarks={handleShowBookmarks}
-        onDarkModeToggle={handleDarkModeToggle}
-      />
     </div>
   );
 }

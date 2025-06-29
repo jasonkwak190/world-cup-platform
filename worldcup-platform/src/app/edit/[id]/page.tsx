@@ -154,7 +154,7 @@ function EditPageContent() {
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
     } else {
-      router.push('/settings'); // 설정 페이지로 돌아가기
+      router.push('/my'); // 마이 페이지로 돌아가기
     }
   };
 
@@ -270,10 +270,10 @@ function EditPageContent() {
           <h1 className="text-2xl font-bold text-gray-900 mb-2">오류가 발생했습니다</h1>
           <p className="text-gray-600 mb-6">{error}</p>
           <button
-            onClick={() => router.push('/settings')}
+            onClick={() => router.push('/my')}
             className="px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium"
           >
-            설정으로 돌아가기
+            마이 페이지로 돌아가기
           </button>
         </div>
       </div>
@@ -374,22 +374,24 @@ function EditPageContent() {
           <div className="flex items-center justify-between">
             <button
               onClick={handleBack}
-              className="px-6 py-2 text-gray-600 hover:text-gray-900 transition-colors"
+              className="flex items-center space-x-2 px-6 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 hover:text-blue-800 rounded-lg border border-blue-200 hover:border-blue-300 transition-colors font-medium"
             >
-              {currentStep === 1 ? '설정으로' : isPreviewGameActive ? '미리보기 종료' : '이전'}
+              <ArrowLeft className="w-4 h-4" />
+              <span>{currentStep === 1 ? '마이페이지로' : isPreviewGameActive ? '미리보기 종료' : '이전'}</span>
             </button>
             <div className="flex space-x-3">
               {currentStep < steps.length ? (
                 <button
                   onClick={handleNext}
                   disabled={!canProceed()}
-                  className={`px-8 py-2 rounded-lg font-medium transition-colors ${
+                  className={`flex items-center space-x-2 px-8 py-2 rounded-lg font-medium transition-all duration-200 border ${
                     canProceed()
-                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600 shadow-lg hover:shadow-xl transform hover:scale-105'
+                      : 'bg-gray-200 text-gray-400 cursor-not-allowed border-gray-200'
                   }`}
                 >
-                  다음
+                  <span>다음</span>
+                  <ArrowLeft className="w-4 h-4 rotate-180" />
                 </button>
               ) : (
                 <button
@@ -507,13 +509,14 @@ function EditPageContent() {
                     }
                   }}
                   disabled={!canProceed()}
-                  className={`px-8 py-2 rounded-lg font-medium transition-colors ${
+                  className={`flex items-center space-x-2 px-8 py-2 rounded-lg font-medium transition-all duration-200 border ${
                     canProceed()
-                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white border-emerald-600 shadow-lg hover:shadow-xl transform hover:scale-105'
+                      : 'bg-gray-200 text-gray-400 cursor-not-allowed border-gray-200'
                   }`}
                 >
-                  수정 완료
+                  <span>수정 완료</span>
+                  <Settings className="w-4 h-4" />
                 </button>
               )}
             </div>
@@ -527,7 +530,7 @@ function EditPageContent() {
         worldCupData={worldCupData}
         onComplete={() => {
           setShowCelebration(false);
-          router.push('/settings');
+          router.push('/my');
         }}
       />
     </div>

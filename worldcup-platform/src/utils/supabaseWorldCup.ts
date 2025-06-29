@@ -2,12 +2,14 @@
 import { supabase } from '@/lib/supabase';
 import { uploadWorldCupThumbnail, uploadWorldCupItemImage, base64ToFile } from '@/utils/supabaseStorage';
 import { generateAutoThumbnail } from '@/utils/thumbnailGenerator';
+import { urlToFile, base64ToFile as convertBase64ToFile, isValidImageUrl, testImageLoad } from '@/utils/imageConverter';
 import type { SupabaseWorldCupInsert, SupabaseWorldCupItemInsert } from '@/types/supabase';
 
 // 월드컵을 Supabase에 직접 저장
-export async function saveWorldCupToSupabase(worldCupData: any) {
+export async function saveWorldCupToSupabase(worldCupData: any, onProgress?: (progress: number, status: string) => void) {
   try {
     console.log('🚀 Saving worldcup to Supabase:', worldCupData.title);
+    onProgress?.(5, '사용자 인증을 확인하고 있습니다...');
     
     // 현재 로그인된 사용자 확인
     const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -15,6 +17,8 @@ export async function saveWorldCupToSupabase(worldCupData: any) {
       throw new Error('로그인이 필요합니다.');
     }
 
+    onProgress?.(10, '월드컵 기본 정보를 생성하고 있습니다...');
+    
     // 1. 월드컵 기본 정보 생성
     const worldCupInsert: SupabaseWorldCupInsert = {
       title: worldCupData.title,
@@ -40,6 +44,7 @@ export async function saveWorldCupToSupabase(worldCupData: any) {
     }
 
     console.log('✅ WorldCup created:', worldCup.id);
+    onProgress?.(20, '썸네일을 처리하고 있습니다...');
 
     // 2. 썸네일 처리 - 수동 설정 vs 자동 생성 분기
     let thumbnailToUpload = worldCupData.thumbnail;
@@ -82,48 +87,88 @@ export async function saveWorldCupToSupabase(worldCupData: any) {
         // 다양한 썸네일 형태 처리
         if (thumbnailToUpload instanceof File) {
           thumbnailFile = thumbnailToUpload;
-        } else if (typeof thumbnailToUpload === 'string' && thumbnailToUpload.startsWith('data:image/')) {
-          // Base64 이미지를 File로 변환
-          const arr = thumbnailToUpload.split(',');
-          const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
-          const bstr = atob(arr[1]);
-          let n = bstr.length;
-          const u8arr = new Uint8Array(n);
-          
-          while (n--) {
-            u8arr[n] = bstr.charCodeAt(n);
+          console.log('📁 Using File object for thumbnail');
+        } else if (typeof thumbnailToUpload === 'string') {
+          if (thumbnailToUpload.startsWith('data:image/')) {
+            // Base64 이미지를 File로 변환
+            console.log('🔤 Converting base64 thumbnail to file');
+            thumbnailFile = convertBase64ToFile(thumbnailToUpload, 'thumbnail.jpg');
+          } else if (isValidImageUrl(thumbnailToUpload)) {
+            // URL 썸네일인 경우
+            console.log('🌐 Converting URL thumbnail to file:', thumbnailToUpload.substring(0, 50) + '...');
+            try {
+              // 이미지 로드 테스트
+              const canLoad = await testImageLoad(thumbnailToUpload);
+              if (!canLoad) {
+                throw new Error('Cannot load thumbnail image from URL');
+              }
+              
+              thumbnailFile = await urlToFile(thumbnailToUpload, 'thumbnail.jpg');
+            } catch (urlError) {
+              console.warn('⚠️ Failed to convert URL thumbnail:', urlError);
+              
+              // CORS 실패 시 원본 URL 그대로 저장 시도
+              if (urlError instanceof Error && urlError.message.includes('CORS_BLOCKED')) {
+                console.log('💾 Storing original thumbnail URL due to CORS block');
+                try {
+                  await supabase
+                    .from('worldcups')
+                    .update({ thumbnail_url: thumbnailToUpload })
+                    .eq('id', worldCup.id);
+                  console.log('✅ Thumbnail URL stored directly');
+                  // 썸네일 처리 완료, continue 대신 return으로 처리를 끝냄
+                  thumbnailFile = null; // 업로드 스킵 플래그
+                } catch (updateError) {
+                  console.error('❌ Failed to store thumbnail URL:', updateError);
+                  thumbnailFile = null;
+                }
+              } else {
+                // URL 썸네일 실패 시 자동 생성으로 대체
+                if (worldCupData.items && worldCupData.items.length >= 2) {
+                  console.log('🎨 Generating auto thumbnail as fallback...');
+                  const autoThumbnail = await generateAutoThumbnail(worldCupData.items);
+                  if (autoThumbnail) {
+                    thumbnailFile = convertBase64ToFile(autoThumbnail, 'auto_thumbnail.jpg');
+                  } else {
+                    throw new Error('Failed to generate fallback thumbnail');
+                  }
+                } else {
+                  throw new Error('No fallback thumbnail available');
+                }
+              }
+            }
+          } else {
+            throw new Error('Invalid thumbnail format: not a valid URL or base64');
           }
-          
-          thumbnailFile = new File([u8arr], 'thumbnail.jpg', { type: mime });
         } else {
-          console.warn('⚠️ Unsupported thumbnail format:', typeof thumbnailToUpload);
-          return {
-            success: true,
-            worldCupId: worldCup.id,
-            message: '월드컵이 생성되었지만 썸네일 업로드를 건너뜁니다.'
-          };
+          throw new Error('Unsupported thumbnail type: ' + typeof thumbnailToUpload);
         }
         
-        console.log('📤 Uploading thumbnail file:', {
-          name: thumbnailFile.name,
-          size: thumbnailFile.size,
-          type: thumbnailFile.type
-        });
-        
-        const thumbnailResult = await uploadWorldCupThumbnail(thumbnailFile, worldCup.id);
-        if (thumbnailResult.success) {
-          const updateResult = await supabase
-            .from('worldcups')
-            .update({ thumbnail_url: thumbnailResult.url })
-            .eq('id', worldCup.id);
-            
-          if (updateResult.error) {
-            console.error('❌ Failed to update thumbnail_url:', updateResult.error);
+        // thumbnailFile이 null이면 이미 URL이 저장된 상태이므로 업로드 스킵
+        if (thumbnailFile) {
+          console.log('📤 Uploading thumbnail file:', {
+            name: thumbnailFile.name,
+            size: thumbnailFile.size,
+            type: thumbnailFile.type
+          });
+          
+          const thumbnailResult = await uploadWorldCupThumbnail(thumbnailFile, worldCup.id);
+          if (thumbnailResult.success) {
+            const updateResult = await supabase
+              .from('worldcups')
+              .update({ thumbnail_url: thumbnailResult.url })
+              .eq('id', worldCup.id);
+              
+            if (updateResult.error) {
+              console.error('❌ Failed to update thumbnail_url:', updateResult.error);
+            } else {
+              console.log('✅ Thumbnail uploaded and URL saved:', thumbnailResult.url);
+            }
           } else {
-            console.log('✅ Thumbnail uploaded and URL saved:', thumbnailResult.url);
+            console.error('❌ Thumbnail upload failed:', thumbnailResult.error);
           }
         } else {
-          console.error('❌ Thumbnail upload failed:', thumbnailResult.error);
+          console.log('ℹ️ Thumbnail upload skipped (URL already stored)');
         }
       } catch (error) {
         console.error('❌ Thumbnail upload error:', error);
@@ -132,6 +177,8 @@ export async function saveWorldCupToSupabase(worldCupData: any) {
       console.log('ℹ️ No thumbnail provided for worldcup:', worldCup.id);
     }
 
+    onProgress?.(30, '월드컵 아이템들을 생성하고 있습니다...');
+    
     // 4. 월드컵 아이템들 생성
     if (worldCupData.items && worldCupData.items.length > 0) {
       const itemInserts: SupabaseWorldCupItemInsert[] = worldCupData.items.map((item: any, index: number) => ({
@@ -154,28 +201,126 @@ export async function saveWorldCupToSupabase(worldCupData: any) {
 
       console.log(`✅ ${items.length} items created`);
 
-      // 5. 아이템 이미지들 업로드
+      // 5. 아이템 이미지들 업로드 (향상된 처리)
+      onProgress?.(40, `이미지를 업로드하고 있습니다... (0/${worldCupData.items.length})`);
+      
       for (let i = 0; i < worldCupData.items.length; i++) {
         try {
           const item = worldCupData.items[i];
           const itemRecord = items[i];
           
-          if (item.image && typeof item.image === 'object') {
-            const imageResult = await uploadWorldCupItemImage(item.image, worldCup.id, itemRecord.id);
-            if (imageResult.success) {
-              await supabase
-                .from('worldcup_items')
-                .update({ image_url: imageResult.url })
-                .eq('id', itemRecord.id);
-              console.log(`✅ Item ${i + 1} image uploaded`);
+          console.log(`🖼️ Processing item ${i + 1}/${worldCupData.items.length}: ${item.title}`);
+          
+          // 진행률 업데이트 (40% ~ 90% 사이에서 이미지 개수에 따라 분배)
+          const imageProgress = 40 + Math.floor((i / worldCupData.items.length) * 50);
+          onProgress?.(imageProgress, `이미지를 업로드하고 있습니다... (${i + 1}/${worldCupData.items.length})`);
+          
+          let imageFile: File | null = null;
+          
+          if (item.image) {
+            // 🚨 DEBUG: Log the image type and value for debugging localhost issue
+            console.log(`🔍 DEBUG - Item ${i + 1} image details:`, {
+              type: typeof item.image,
+              isFile: item.image instanceof File,
+              isString: typeof item.image === 'string',
+              value: typeof item.image === 'string' ? item.image : 'File object',
+              startsWithBlob: typeof item.image === 'string' && item.image.startsWith('blob:'),
+              includesLocalhost: typeof item.image === 'string' && item.image.includes('localhost')
+            });
+
+            if (item.image instanceof File) {
+              // 이미 File 객체인 경우
+              imageFile = item.image;
+              console.log(`📁 Using File object for item ${i + 1}`);
+            } else if (typeof item.image === 'string') {
+              // 🚨 CRITICAL: Check for blob URLs that might be causing localhost issues
+              if (item.image.startsWith('blob:')) {
+                console.error(`❌ FOUND BLOB URL IN SAVE PROCESS for item ${i + 1}: ${item.image}`);
+                console.error('❌ This should not happen - blob URLs should not reach the save process');
+                console.error('❌ Blob URLs are for display only and should be converted to File objects');
+                // Skip this item to prevent storing blob URLs
+                console.warn(`⚠️ Skipping item ${i + 1} due to blob URL`);
+                continue;
+              }
+
+              if (item.image.includes('localhost')) {
+                console.error(`❌ FOUND LOCALHOST URL IN SAVE PROCESS for item ${i + 1}: ${item.image}`);
+                console.error('❌ This should not happen - localhost URLs should not be in the data');
+                // Skip this item to prevent storing localhost URLs
+                console.warn(`⚠️ Skipping item ${i + 1} due to localhost URL`);
+                continue;
+              }
+
+              if (item.image.startsWith('data:image/')) {
+                // Base64 이미지인 경우
+                console.log(`🔤 Converting base64 to file for item ${i + 1}`);
+                imageFile = convertBase64ToFile(item.image, `item_${i + 1}.jpg`);
+              } else if (isValidImageUrl(item.image)) {
+                // URL 이미지인 경우 - 먼저 Supabase Storage 업로드 시도, 실패하면 URL 그대로 저장
+                console.log(`🌐 Processing URL for item ${i + 1}: ${item.image.substring(0, 50)}...`);
+                
+                try {
+                  // 이미지 로드 테스트
+                  const canLoad = await testImageLoad(item.image);
+                  if (!canLoad) {
+                    console.warn(`⚠️ Cannot load image from URL for item ${i + 1}, storing URL directly...`);
+                    // URL 그대로 저장
+                    await supabase
+                      .from('worldcup_items')
+                      .update({ image_url: item.image })
+                      .eq('id', itemRecord.id);
+                    console.log(`💾 Item ${i + 1} URL stored directly`);
+                    continue;
+                  }
+                  
+                  imageFile = await urlToFile(item.image, `item_${i + 1}.jpg`);
+                } catch (urlError) {
+                  console.warn(`⚠️ Failed to convert URL for item ${i + 1}:`, urlError);
+                  
+                  // CORS 블록되거나 다른 이유로 실패한 경우 URL 그대로 저장
+                  console.log(`💾 Storing original URL for item ${i + 1} due to conversion failure`);
+                  await supabase
+                    .from('worldcup_items')
+                    .update({ image_url: item.image })
+                    .eq('id', itemRecord.id);
+                  console.log(`✅ Item ${i + 1} URL stored directly (fallback)`);
+                  continue;
+                }
+              } else {
+                console.warn(`⚠️ Invalid image format for item ${i + 1}: ${typeof item.image}`);
+                continue;
+              }
             }
+            
+            if (imageFile) {
+              console.log(`📤 Uploading image for item ${i + 1}:`, {
+                name: imageFile.name,
+                size: imageFile.size,
+                type: imageFile.type
+              });
+              
+              const imageResult = await uploadWorldCupItemImage(imageFile, worldCup.id, itemRecord.id);
+              if (imageResult.success) {
+                await supabase
+                  .from('worldcup_items')
+                  .update({ image_url: imageResult.url })
+                  .eq('id', itemRecord.id);
+                console.log(`✅ Item ${i + 1} image uploaded successfully`);
+              } else {
+                console.error(`❌ Item ${i + 1} image upload failed:`, imageResult.error);
+              }
+            }
+          } else {
+            console.log(`ℹ️ No image provided for item ${i + 1}`);
           }
         } catch (error) {
-          console.warn(`Item ${i + 1} image upload warning:`, error);
+          console.error(`❌ Item ${i + 1} image processing error:`, error);
+          // 개별 이미지 실패는 전체 프로세스를 중단하지 않음
         }
       }
     }
 
+    onProgress?.(95, '월드컵 생성을 완료하고 있습니다...');
     console.log('🎉 WorldCup saved successfully to Supabase!');
     
     return {

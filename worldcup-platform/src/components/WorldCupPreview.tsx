@@ -222,11 +222,11 @@ export default function WorldCupPreview({ data, onGameStateChange }: WorldCupPre
                       <div className="text-white text-lg font-medium mb-4">
                         썸네일이 설정되지 않았습니다
                       </div>
-                      <p className="text-gray-400 text-sm">
-                        이전 단계에서 썸네일을 설정하거나 월드컵 생성 시 자동으로 생성됩니다.
+                      <p className="text-yellow-400 text-xs mt-2">
+                        썸네일은 직접 설정하거나,
                       </p>
                       <p className="text-yellow-400 text-xs mt-2">
-                        디버그: data.thumbnail = {String(data.thumbnail)}
+                        업로드된 이미지 중 무작위 2장을 조합해 자동 생성됩니다.
                       </p>
                     </div>
                   </div>
@@ -274,14 +274,15 @@ export default function WorldCupPreview({ data, onGameStateChange }: WorldCupPre
                 <div className="flex items-center gap-2">
                   <button
                     onClick={startPreview}
-                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 px-4 rounded-lg transition-colors font-medium flex items-center justify-center min-h-[40px]"
+                    className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white py-2.5 px-4 rounded-lg transition-all duration-200 font-medium flex items-center justify-center space-x-2 min-h-[40px] border border-purple-600 shadow-lg hover:shadow-xl transform hover:scale-105"
                   >
-                    미리보기
+                    <Play className="w-4 h-4" />
+                    <span>미리보기</span>
                   </button>
-                  <button className="p-2.5 rounded-lg transition-colors min-h-[40px] min-w-[40px] flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50">
+                  <button className="p-2.5 rounded-lg transition-all duration-200 min-h-[40px] min-w-[40px] flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 border border-gray-200 hover:border-red-300 hover:shadow-md transform hover:scale-110">
                     <Heart className="w-4 h-4" />
                   </button>
-                  <button className="p-2.5 rounded-lg transition-colors min-h-[40px] min-w-[40px] flex items-center justify-center text-gray-400 hover:text-blue-500 hover:bg-blue-50">
+                  <button className="p-2.5 rounded-lg transition-all duration-200 min-h-[40px] min-w-[40px] flex items-center justify-center text-gray-400 hover:text-blue-500 hover:bg-blue-50 border border-gray-200 hover:border-blue-300 hover:shadow-md transform hover:scale-110">
                     <Share2 className="w-4 h-4" />
                   </button>
                 </div>
@@ -300,23 +301,23 @@ export default function WorldCupPreview({ data, onGameStateChange }: WorldCupPre
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-600">참가 항목</span>
-                  <span className="font-medium">{data.items.length}개</span>
+                  <span className="font-medium text-blue-500">{data.items.length}개</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">토너먼트 크기</span>
-                  <span className="font-medium">{tournamentSize}강</span>
+                  <span className="font-medium text-blue-500">{tournamentSize}강</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">총 라운드</span>
-                  <span className="font-medium">{totalRounds}라운드</span>
+                  <span className="font-medium text-blue-500">{totalRounds}라운드</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">예상 소요시간</span>
-                  <span className="font-medium">{Math.ceil(tournamentSize / 4)}분</span>
+                  <span className="font-medium text-blue-500">{Math.ceil(tournamentSize / 4)}분</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">공개 설정</span>
-                  <span className="font-medium">{data.isPublic ? '공개' : '비공개'}</span>
+                  <span className="font-medium text-blue-500">{data.isPublic ? '공개' : '비공개'}</span>
                 </div>
               </div>
             </div>
@@ -335,7 +336,7 @@ export default function WorldCupPreview({ data, onGameStateChange }: WorldCupPre
                   
                   return (
                     <div key={roundNum} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <span className="text-sm font-medium">{roundName}</span>
+                      <span className="text-sm font-medium text-blue-500">{roundName}</span>
                       <span className="text-xs text-gray-500">{matches}경기</span>
                     </div>
                   );

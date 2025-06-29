@@ -1,4 +1,5 @@
 import { Heart, MessageCircle, Share2, Play, Bookmark } from 'lucide-react';
+import Link from 'next/link';
 
 interface WorldCupCardProps {
   id: string;
@@ -20,7 +21,7 @@ interface WorldCupCardProps {
 }
 
 export default function WorldCupCard({
-  id: _id,
+  id,
   title,
   description,
   thumbnail,
@@ -95,8 +96,11 @@ export default function WorldCupCard({
   // 간단한 디버깅 로그 (개발 환경에서만)
   if (process.env.NODE_ENV === 'development') {
     console.log('🖼️ WorldCupCard:', {
-      id: _id,
+      id: id,
       title: title.substring(0, 30) + '...',
+      comments: comments,  // 댓글 수 로깅 추가
+      participants: participants,
+      likes: likes,
       thumbnailType: typeof thumbnail,
       thumbnailRaw: thumbnail?.toString().substring(0, 100) + (thumbnail?.toString().length > 100 ? '...' : ''),
       thumbnailProcessed: thumbnailUrl?.substring(0, 100) + (thumbnailUrl?.length > 100 ? '...' : ''),
@@ -116,7 +120,7 @@ export default function WorldCupCard({
             <img 
               src={thumbnailUrl} 
               alt={title}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-contain bg-gray-50"
               style={{ 
                 display: 'block',
                 position: 'relative',
@@ -191,9 +195,11 @@ export default function WorldCupCard({
       {/* Content */}
       <div className="p-4">
         {/* Title */}
-        <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2 leading-snug">
-          {title}
-        </h3>
+        <Link href={`/worldcup/${id}`}>
+          <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2 leading-snug hover:text-emerald-600 transition-colors cursor-pointer">
+            {title}
+          </h3>
+        </Link>
         
         {/* Description */}
         {description && (
@@ -216,10 +222,12 @@ export default function WorldCupCard({
               <Play className="w-4 h-4 mr-1" />
               {participants.toLocaleString()}
             </span>
-            <span className="flex items-center">
-              <MessageCircle className="w-4 h-4 mr-1" />
-              {comments}
-            </span>
+            <Link href={`/worldcup/${id}#comments`}>
+              <span className="flex items-center hover:text-blue-600 transition-colors cursor-pointer">
+                <MessageCircle className="w-4 h-4 mr-1" />
+                {comments}
+              </span>
+            </Link>
           </div>
           <div className="flex items-center">
             <Heart className={`w-4 h-4 mr-1 ${isLiked ? 'text-red-500 fill-current' : ''}`} />
@@ -260,7 +268,10 @@ export default function WorldCupCard({
             <Bookmark className={`w-4 h-4 ${isBookmarked ? 'fill-current' : ''}`} />
           </button>
           <button
-            onClick={onShare}
+            onClick={() => {
+              console.log('🔗 Share button clicked for worldcup:', id);
+              onShare();
+            }}
             className="p-2.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors w-[40px] h-[40px] flex items-center justify-center"
           >
             <Share2 className="w-4 h-4" />

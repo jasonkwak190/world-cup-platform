@@ -115,25 +115,39 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // 로그아웃 처리 (Supabase + localStorage)
   const handleLogout = async () => {
     try {
-      // Supabase 로그아웃
+      console.log('🔓 Starting comprehensive logout...');
+      
+      // 1. Supabase 로그아웃
       await signOutFromSupabase();
       
-      // localStorage 로그아웃 (fallback)
+      // 2. localStorage 로그아웃 (fallback)
       logout();
       
+      // 3. 모든 localStorage 클리어 (옵션)
+      try {
+        localStorage.removeItem('supabase.auth.token');
+        localStorage.removeItem('sb-' + process.env.NEXT_PUBLIC_SUPABASE_URL?.split('//')[1]?.split('.')[0] + '-auth-token');
+      } catch (storageError) {
+        console.warn('Failed to clear some localStorage items:', storageError);
+      }
+      
+      // 4. 상태 초기화
       setAuthState({
         user: null,
         isAuthenticated: false,
         isLoading: false,
       });
+      
+      console.log('✅ Logout completed successfully');
     } catch (error) {
       console.error('Logout error:', error);
-      // 오류가 발생해도 로컬 상태는 초기화
+      // 오류가 발생해도 로컬 상태는 강제 초기화
       setAuthState({
         user: null,
         isAuthenticated: false,
         isLoading: false,
       });
+      console.log('⚠️ Forced logout due to error');
     }
   };
 

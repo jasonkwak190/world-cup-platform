@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import { Upload, X, FileImage, Plus, Link } from 'lucide-react';
+import { Upload, X, FileImage, Plus } from 'lucide-react';
+import ImageUploadGuide from './ImageUploadGuide';
 
 interface WorldCupItem {
   id: string;
@@ -20,10 +21,6 @@ interface DragDropUploadProps {
 
 export default function DragDropUpload({ items, onItemsUpload, onItemDelete, thumbnail, onThumbnailUpload }: DragDropUploadProps) {
   const [isDragOver, setIsDragOver] = useState(false);
-  const [showUrlInput, setShowUrlInput] = useState(false);
-  const [urlInputs, setUrlInputs] = useState<string[]>(['']);
-  const [showThumbnailUpload, setShowThumbnailUpload] = useState(false);
-  const [thumbnailUrl, setThumbnailUrl] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
 
@@ -58,70 +55,20 @@ export default function DragDropUpload({ items, onItemsUpload, onItemDelete, thu
     const item = {
       id: generateId(),
       title: file.name.replace(/\.[^/.]+$/, ''), // Remove file extension
-      image: file, // Keep original File object
+      image: file, // 🚨 CRITICAL: Keep original File object - NEVER convert to blob URL
     };
-    console.log('Created item from file:', {
+    console.log('✅ Created item from file (preserving File object):', {
       id: item.id,
       title: item.title,
       fileName: file.name,
       fileType: file.type,
-      fileSize: file.size
+      fileSize: file.size,
+      imageIsFile: item.image instanceof File
     });
     return item;
   };
 
-  const createItemFromUrl = (url: string, title: string): WorldCupItem => {
-    // URL 유효성 검사
-    if (!url || typeof url !== 'string' || url.trim() === '') {
-      throw new Error('유효하지 않은 URL입니다');
-    }
-    
-    const trimmedUrl = url.trim();
-    
-    // 기본적인 URL 형식 검사
-    try {
-      new URL(trimmedUrl);
-    } catch {
-      throw new Error('올바른 URL 형식이 아닙니다');
-    }
-    
-    // 이미지 URL인지 확인 (확장자 기반)
-    const imageExtensions = /\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?.*)?$/i;
-    if (!imageExtensions.test(trimmedUrl)) {
-      console.warn('URL이 이미지 확장자를 포함하지 않습니다:', trimmedUrl);
-    }
-    
-    const item = {
-      id: generateId(),
-      title: title?.trim() || '새 항목',
-      image: trimmedUrl,
-    };
-    console.log('Created item from URL:', {
-      id: item.id,
-      title: item.title,
-      originalUrl: url,
-      finalUrl: item.image
-    });
-    return item;
-  };
 
-  const isGoogleImageUrl = (url: string): boolean => {
-    return url.includes('googleusercontent.com') || 
-           url.includes('images.google.com') || 
-           url.includes('encrypted-tbn') ||
-           url.includes('gstatic.com');
-  };
-
-  const extractImageUrl = (url: string): string => {
-    // Try to extract direct image URL from Google image search URLs
-    if (url.includes('imgres?imgurl=')) {
-      const match = url.match(/imgurl=([^&]+)/);
-      if (match) {
-        return decodeURIComponent(match[1]);
-      }
-    }
-    return url;
-  };
 
   const handleFiles = useCallback((files: FileList) => {
     const newItems: WorldCupItem[] = [];
@@ -176,65 +123,7 @@ export default function DragDropUpload({ items, onItemsUpload, onItemDelete, thu
     }
   };
 
-  const handleUrlSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const validUrls = urlInputs.filter(url => url.trim() !== '');
-    
-    if (validUrls.length === 0) {
-      alert('최소 하나의 URL을 입력해주세요.');
-      return;
-    }
-    
-    const newItems: WorldCupItem[] = [];
-    const errors: string[] = [];
-    
-    validUrls.forEach(url => {
-      try {
-        const cleanUrl = url.trim();
-        const processedUrl = extractImageUrl(cleanUrl);
-        const filename = processedUrl.split('/').pop()?.split('.')[0] || 'New Item';
-        
-        // Show warning for Google image URLs
-        if (isGoogleImageUrl(cleanUrl)) {
-          console.warn('Google image URL detected. This may not work due to CORS policies.');
-          errors.push(`${cleanUrl}: 구글 이미지 URL은 정상적으로 작동하지 않을 수 있습니다`);
-        }
-        
-        newItems.push(createItemFromUrl(processedUrl, filename));
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류';
-        errors.push(`${url}: ${errorMessage}`);
-        console.error('URL processing error:', error);
-      }
-    });
-    
-    // 에러가 있으면 사용자에게 알림
-    if (errors.length > 0) {
-      alert(`다음 URL들에 문제가 있습니다:\n\n${errors.join('\n')}`);
-    }
-    
-    if (newItems.length > 0) {
-      onItemsUpload(newItems);
-      setUrlInputs(['']);
-      setShowUrlInput(false);
-    }
-  };
 
-  const addUrlInput = () => {
-    setUrlInputs([...urlInputs, '']);
-  };
-
-  const removeUrlInput = (index: number) => {
-    if (urlInputs.length > 1) {
-      setUrlInputs(urlInputs.filter((_, i) => i !== index));
-    }
-  };
-
-  const updateUrlInput = (index: number, value: string) => {
-    const newInputs = [...urlInputs];
-    newInputs[index] = value;
-    setUrlInputs(newInputs);
-  };
 
   // 썸네일 파일 업로드 핸들러
   const handleThumbnailFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -271,29 +160,6 @@ export default function DragDropUpload({ items, onItemsUpload, onItemDelete, thu
     }
   };
 
-  // 썸네일 URL 업로드 핸들러
-  const handleThumbnailUrlSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!thumbnailUrl.trim()) {
-      alert('URL을 입력해주세요.');
-      return;
-    }
-    
-    try {
-      // URL 유효성 검사
-      new URL(thumbnailUrl.trim());
-      
-      if (onThumbnailUpload) {
-        onThumbnailUpload(thumbnailUrl.trim());
-        setThumbnailUrl('');
-        setShowThumbnailUpload(false);
-      }
-    } catch (error) {
-      console.error('Invalid thumbnail URL:', error);
-      alert('올바른 URL 형식이 아닙니다.');
-    }
-  };
 
   const getImageUrl = (image: string | File): string | null => {
     try {
@@ -370,7 +236,7 @@ export default function DragDropUpload({ items, onItemsUpload, onItemDelete, thu
                   <img
                     src={thumbnailUrl}
                     alt="썸네일"
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-contain bg-gray-50"
                     onError={handleImageError}
                   />
                 ) : (
@@ -393,12 +259,6 @@ export default function DragDropUpload({ items, onItemsUpload, onItemDelete, thu
                   변경
                 </button>
                 <button
-                  onClick={() => setShowThumbnailUpload(true)}
-                  className="px-3 py-1.5 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
-                >
-                  URL 변경
-                </button>
-                <button
                   onClick={() => onThumbnailUpload && onThumbnailUpload('')}
                   className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded transition-colors"
                 >
@@ -417,13 +277,6 @@ export default function DragDropUpload({ items, onItemsUpload, onItemDelete, thu
                 <Upload className="w-4 h-4" />
                 <span>파일 업로드</span>
               </button>
-              <button
-                onClick={() => setShowThumbnailUpload(true)}
-                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center space-x-2"
-              >
-                <Link className="w-4 h-4" />
-                <span>URL 입력</span>
-              </button>
             </div>
           </div>
         )}
@@ -437,45 +290,26 @@ export default function DragDropUpload({ items, onItemsUpload, onItemDelete, thu
         />
       </div>
 
-      {/* Thumbnail URL Input Modal */}
-      {showThumbnailUpload && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4">썸네일 URL 입력</h3>
-            <form onSubmit={handleThumbnailUrlSubmit}>
-              <div className="mb-4">
-                <input
-                  type="url"
-                  value={thumbnailUrl}
-                  onChange={(e) => setThumbnailUrl(e.target.value)}
-                  placeholder="https://example.com/thumbnail.jpg"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
-                  autoFocus
-                />
-              </div>
-              <div className="flex justify-end space-x-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowThumbnailUpload(false);
-                    setThumbnailUrl('');
-                  }}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
-                >
-                  취소
-                </button>
-                <button
-                  type="submit"
-                  disabled={!thumbnailUrl.trim()}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
-                >
-                  설정
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+
+      {/* Image Upload Guide */}
+      <div className="bg-gradient-to-br from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-6">
+        <h3 className="text-lg font-semibold text-purple-900 mb-4 flex items-center">
+          <span className="text-2xl mr-2">🎯</span>
+          게임에서 이미지가 어떻게 보일지 미리 확인해보세요
+        </h3>
+        <p className="text-sm text-purple-700 mb-4">
+          이미지 업로드 전에 미리보기로 게임 화면에서 어떻게 표시될지 확인하고, 잘리지 않는 최적의 이미지를 선택하세요.
+        </p>
+        <ImageUploadGuide
+          onImageSelect={(file) => {
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            handleFiles(dt.files);
+          }}
+          recommendedRatio="4:3"
+          showPreview={true}
+        />
+      </div>
 
       {/* Main Upload Area */}
       <div
@@ -519,111 +353,10 @@ export default function DragDropUpload({ items, onItemsUpload, onItemDelete, thu
               <FileImage className="w-4 h-4" />
               <span>파일 선택</span>
             </button>
-            
-            <button
-              onClick={() => setShowUrlInput(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
-            >
-              <Link className="w-4 h-4" />
-              <span>URL 추가</span>
-            </button>
           </div>
         </div>
       </div>
 
-      {/* URL Input Modal */}
-      {showUrlInput && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-auto">
-            <h3 className="text-lg font-semibold mb-4">이미지 URL 추가</h3>
-            <p className="text-sm text-gray-600 mb-4">
-              여러 개의 이미지 URL을 한 번에 추가할 수 있습니다. 각 줄에 하나씩 입력하세요.
-            </p>
-            <form onSubmit={handleUrlSubmit}>
-              <div className="space-y-3 mb-4">
-                {urlInputs.map((url, index) => (
-                  <div key={index} className="flex items-center space-x-2">
-                    <input
-                      type="url"
-                      value={url}
-                      onChange={(e) => updateUrlInput(index, e.target.value)}
-                      placeholder={`https://example.com/image${index + 1}.jpg`}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-gray-900"
-                      autoFocus={index === 0}
-                    />
-                    {urlInputs.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeUrlInput(index)}
-                        className="p-2 text-red-500 hover:bg-red-50 rounded"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-              
-              <button
-                type="button"
-                onClick={addUrlInput}
-                className="flex items-center space-x-2 text-emerald-600 hover:text-emerald-700 mb-4"
-              >
-                <Plus className="w-4 h-4" />
-                <span>URL 추가</span>
-              </button>
-
-              <div className="space-y-3 mb-4">
-                <div className="bg-blue-50 border border-blue-200 rounded p-3">
-                  <p className="text-sm text-blue-700 font-medium mb-2">💡 이미지 URL 사용 팁:</p>
-                  <ul className="text-sm text-blue-600 space-y-1">
-                    <li>• 직접 이미지 파일 URL을 사용하세요 (.jpg, .png, .gif 등)</li>
-                    <li>• 이미지에 마우스 우클릭 → &quot;이미지 주소 복사&quot;를 사용하세요</li>
-                  </ul>
-                </div>
-                
-                <div className="bg-amber-50 border border-amber-200 rounded p-3">
-                  <p className="text-sm text-amber-700 font-medium mb-2">⚠️ 주의사항:</p>
-                  <ul className="text-sm text-amber-600 space-y-1">
-                    <li>• 구글 이미지 검색 결과 URL은 작동하지 않을 수 있습니다</li>
-                    <li>• 일부 사이트는 외부 참조를 차단할 수 있습니다</li>
-                    <li>• 가능하면 파일 업로드를 권장합니다</li>
-                  </ul>
-                </div>
-                
-                <div className="bg-green-50 border border-green-200 rounded p-3">
-                  <p className="text-sm text-green-700 font-medium mb-2">✅ 권장 이미지 사이트:</p>
-                  <ul className="text-sm text-green-600 space-y-1">
-                    <li>• Imgur, Dropbox, Google Drive (공개 링크)</li>
-                    <li>• GitHub, 개인 웹사이트</li>
-                    <li>• 직접 업로드한 클라우드 스토리지</li>
-                  </ul>
-                </div>
-              </div>
-              
-              <div className="flex justify-end space-x-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowUrlInput(false);
-                    setUrlInputs(['']);
-                  }}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
-                >
-                  취소
-                </button>
-                <button
-                  type="submit"
-                  disabled={!urlInputs.some(url => url.trim())}
-                  className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
-                >
-                  {urlInputs.filter(url => url.trim()).length}개 추가
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
 
       {/* Items Grid */}
@@ -642,7 +375,7 @@ export default function DragDropUpload({ items, onItemsUpload, onItemDelete, thu
                       <img
                         src={imageUrl}
                         alt={item.title}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-contain bg-gray-50"
                         onError={handleImageError}
                         loading="lazy"
                       />
@@ -698,30 +431,14 @@ export default function DragDropUpload({ items, onItemsUpload, onItemDelete, thu
               <ul className="text-sm text-blue-700 space-y-1">
                 <li>• 최소 4개 이상의 이미지가 필요합니다</li>
                 <li>• 권장: 8, 16, 32, 64개 (토너먼트 형식에 맞춤)</li>
-                <li>• 이미지 크기는 자동으로 조정됩니다</li>
+                <li>• 가로가 더 긴 이미지(4:3 비율)가 가장 적합합니다</li>
+                <li>• 중요한 내용은 이미지 중앙에 배치하세요</li>
                 <li>• 지원 형식: JPG, PNG, GIF, WebP</li>
               </ul>
             </div>
           </div>
         </div>
 
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-          <div className="flex items-start space-x-3">
-            <div className="flex-shrink-0">
-              <div className="w-5 h-5 bg-amber-100 rounded-full flex items-center justify-center">
-                <span className="text-xs text-amber-600 font-medium">⚠</span>
-              </div>
-            </div>
-            <div>
-              <h4 className="text-sm font-medium text-amber-800 mb-1">구글 이미지 사용 시 주의</h4>
-              <ul className="text-sm text-amber-700 space-y-1">
-                <li>• 구글 이미지 검색에서 복사한 URL은 작동하지 않을 수 있습니다</li>
-                <li>• 이미지에 직접 우클릭 → &quot;이미지 주소 복사&quot;를 사용하세요</li>
-                <li>• 가능하면 컴퓨터에서 파일을 직접 업로드하는 것을 권장합니다</li>
-              </ul>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

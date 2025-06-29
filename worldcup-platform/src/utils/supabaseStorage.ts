@@ -1,8 +1,14 @@
 // Supabase Storage 관련 유틸리티 함수
 import { supabase } from '@/lib/supabase';
 
-// 이미지 압축 함수
+// 이미지 압축 함수 (GIF는 압축하지 않음)
 async function compressImage(file: File, maxWidth = 800, maxHeight = 600, quality = 0.7): Promise<File> {
+  // GIF 파일은 압축하지 않고 원본 그대로 반환
+  if (file.type === 'image/gif') {
+    console.log('🎬 GIF detected, skipping compression:', file.name);
+    return file;
+  }
+
   return new Promise((resolve) => {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
@@ -16,17 +22,25 @@ async function compressImage(file: File, maxWidth = 800, maxHeight = 600, qualit
 
       ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
 
+      // 원본 형식 유지 (JPEG, PNG 등)
+      const outputType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+      
       canvas.toBlob((blob) => {
         if (blob) {
-          const compressedFile = new File([blob], file.name, {
-            type: 'image/webp',
+          // 원본 확장자 유지
+          const originalExt = file.name.split('.').pop()?.toLowerCase();
+          const newExt = outputType === 'image/png' ? 'png' : 'jpg';
+          const newName = file.name.replace(/\.[^/.]+$/, `.${originalExt || newExt}`);
+          
+          const compressedFile = new File([blob], newName, {
+            type: outputType,
             lastModified: Date.now(),
           });
           resolve(compressedFile);
         } else {
           resolve(file);
         }
-      }, 'image/webp', quality);
+      }, outputType, quality);
     };
 
     img.src = URL.createObjectURL(file);
@@ -106,7 +120,11 @@ export async function uploadWorldCupItemImage(file: File, worldcupId: string, it
   try {
     const compressedFile = await compressImage(file, 800, 600, 0.7);
     
-    const fileExt = 'webp';
+    // 원본 확장자 유지 (GIF 등을 위해)
+    const originalExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+    const fileExt = file.type === 'image/gif' ? 'gif' : 
+                   file.type === 'image/png' ? 'png' : 
+                   file.type === 'image/webp' ? 'webp' : 'jpg';
     const fileName = `${worldcupId}/items/${itemId}.${fileExt}`;
 
     const { data, error } = await supabase.storage
@@ -200,8 +218,17 @@ export async function deleteImage(bucket: string, path: string) {
 // 월드컵 관련 모든 이미지 삭제
 export async function deleteWorldCupImages(worldcupId: string) {
   try {
-    // 썸네일 삭제
-    await deleteImage('worldcup-thumbnails', `${worldcupId}/thumbnail.webp`);
+    console.log('🗑️ Deleting worldcup images for:', worldcupId);
+    
+    // 썸네일 삭제 (다양한 확장자 시도)
+    const thumbnailExtensions = ['webp', 'jpg', 'jpeg', 'png', 'gif'];
+    for (const ext of thumbnailExtensions) {
+      try {
+        await deleteImage('worldcup-thumbnails', `${worldcupId}/thumbnail.${ext}`);
+      } catch (error) {
+        // 파일이 없는 경우 무시
+      }
+    }
     
     // 아이템 이미지들 삭제
     const { data: files } = await supabase.storage
@@ -210,9 +237,15 @@ export async function deleteWorldCupImages(worldcupId: string) {
 
     if (files && files.length > 0) {
       const filePaths = files.map(file => `${worldcupId}/items/${file.name}`);
-      await supabase.storage
+      const { error: deleteError } = await supabase.storage
         .from('worldcup-images')
         .remove(filePaths);
+      
+      if (deleteError) {
+        console.warn('⚠️ Some item images could not be deleted:', deleteError);
+      } else {
+        console.log(`✅ Deleted ${filePaths.length} item images`);
+      }
     }
 
     return { success: true };

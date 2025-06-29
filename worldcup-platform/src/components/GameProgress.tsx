@@ -57,9 +57,14 @@ export default function GameProgress({
               <Home className="w-6 h-6" />
             </button>
             <div>
-              <h1 className="text-xl font-bold text-white">
-                {tournament.title}
-              </h1>
+              <div className="flex items-center space-x-3">
+                <h1 className="text-xl font-bold text-white">
+                  {tournament.title}
+                </h1>
+                <span className="px-3 py-1 rounded-full text-sm font-bold bg-gradient-to-r from-emerald-500 to-blue-500 text-white">
+                  {getRoundName(tournament.currentRound, tournament.totalRounds)}
+                </span>
+              </div>
               <div className="flex items-center space-x-4">
                 {matchesLeft > 0 && (
                   <div className="flex items-center space-x-1 bg-blue-600/20 backdrop-blur-sm px-2 py-1 rounded-full">

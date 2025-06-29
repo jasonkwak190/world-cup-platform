@@ -69,7 +69,18 @@ export async function signInWithSupabase(loginData: { email: string; password: s
 
     if (error) {
       console.error('❌ Auth error:', error);
-      return { success: false, error: error.message };
+      // 로그인 에러 메시지를 한국어로 변환
+      let errorMessage = '로그인에 실패했습니다.';
+      
+      if (error.message === 'Invalid login credentials') {
+        errorMessage = '아이디나 비밀번호가 잘못되었습니다.';
+      } else if (error.message.includes('Email not confirmed')) {
+        errorMessage = '이메일 인증이 완료되지 않았습니다.';
+      } else if (error.message.includes('Too many requests')) {
+        errorMessage = '너무 많은 로그인 시도입니다. 잠시 후 다시 시도해주세요.';
+      }
+      
+      return { success: false, error: errorMessage };
     }
 
     if (!data.user) {

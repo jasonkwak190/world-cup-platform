@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>댓글 수 디버깅</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <h1>실시간 댓글 수 디버깅</h1>
+    <div id="results"></div>
+    
+    <script>
+        // Supabase 클라이언트 초기화
+        const { createClient } = supabase;
+        const supabaseClient = createClient(
+            'https://rctoxfcyzzsiikopbsne.supabase.co',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjdG94ZmN5enpzaWlrb3Bic25lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA5NTAwMDksImV4cCI6MjA2NjUyNjAwOX0.moYSDe7kRAkbnhPr_9V5nE_t_TvGAtBy6Uk3O7aXep4'
+        );
+
+        async function checkCommentCounts() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<p>데이터 확인 중...</p>';
+            
+            try {
+                // 1. 월드컵 데이터 가져오기
+                const { data: worldcups, error: worldcupsError } = await supabaseClient
+                    .from('worldcups')
+                    .select('id, title, comments')
+                    .order('created_at', { ascending: false });
+                
+                if (worldcupsError) {
+                    resultsDiv.innerHTML = `<p>에러: ${worldcupsError.message}</p>`;
+                    return;
+                }
+                
+                let html = '<h2>월드컵별 댓글 수 현황</h2><table border="1" style="border-collapse: collapse;"><tr><th>제목</th><th>저장된 댓글 수</th><th>실제 댓글 수</th><th>상태</th></tr>';
+                
+                for (const worldcup of worldcups) {
+                    // 2. 각 월드컵의 실제 댓글 수 확인
+                    const { data: comments, error: commentsError } = await supabaseClient
+                        .from('worldcup_comments')
+                        .select('id')
+                        .eq('worldcup_id', worldcup.id);
+                    
+                    const actualCount = comments?.length || 0;
+                    const storedCount = worldcup.comments || 0;
+                    const status = actualCount === storedCount ? '✅ 일치' : '❌ 불일치';
+                    
+                    html += `<tr>
+                        <td>${worldcup.title}</td>
+                        <td>${storedCount}</td>
+                        <td>${actualCount}</td>
+                        <td>${status}</td>
+                    </tr>`;
+                }
+                
+                html += '</table>';
+                
+                // 3. 특별히 "133" 월드컵 상세 정보
+                const worldcup133 = worldcups.find(w => w.title === '133');
+                if (worldcup133) {
+                    html += `<h2>"133" 월드컵 상세 정보</h2>`;
+                    html += `<p><strong>ID:</strong> ${worldcup133.id}</p>`;
+                    html += `<p><strong>저장된 댓글 수:</strong> ${worldcup133.comments}</p>`;
+                    
+                    // 실제 댓글 목록 가져오기
+                    const { data: commentDetails } = await supabaseClient
+                        .from('worldcup_comments')
+                        .select('id, content, created_at, user_id, parent_id')
+                        .eq('worldcup_id', worldcup133.id)
+                        .order('created_at', { ascending: true });
+                    
+                    html += `<p><strong>실제 댓글 수:</strong> ${commentDetails?.length || 0}</p>`;
+                    html += `<h3>댓글 목록:</h3><ul>`;
+                    
+                    commentDetails?.forEach(comment => {
+                        html += `<li>${comment.content} (${comment.created_at})</li>`;
+                    });
+                    
+                    html += '</ul>';
+                }
+                
+                resultsDiv.innerHTML = html;
+                
+            } catch (error) {
+                resultsDiv.innerHTML = `<p>오류 발생: ${error.message}</p>`;
+                console.error('Error:', error);
+            }
+        }
+        
+        // 페이지 로드 시 실행
+        checkCommentCounts();
+        
+        // 5초마다 자동 새로고침
+        setInterval(checkCommentCounts, 5000);
+    </script>
+</body>
+</html>

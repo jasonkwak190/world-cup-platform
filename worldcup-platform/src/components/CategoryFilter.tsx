@@ -85,6 +85,7 @@ export default function CategoryFilter({
               </button>
             ))}
           </div>
+          
           <div className="text-sm text-gray-500">
             총 {(categories.find(c => c.id === selectedCategory)?.count || 0).toLocaleString()}개
           </div>

@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Tournament, WorldCupItem } from '@/types/game';
 import { motion } from 'framer-motion';
-import { Trophy, RotateCcw, Home, Share2, Download, BarChart3 } from 'lucide-react';
-import CommentSection from './CommentSection';
+import { Trophy, RotateCcw, Home, Share2, Download, BarChart3, List } from 'lucide-react';
+import CommentSystem from './CommentSystem';
 import TournamentRanking from './TournamentRanking';
 
 interface GameResultProps {
@@ -22,6 +22,7 @@ export default function GameResult({
 }: GameResultProps) {
   const [showRanking, setShowRanking] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
+  const [commentCount, setCommentCount] = useState(0);
   const formatTime = (ms: number) => {
     const seconds = Math.floor(ms / 1000);
     const minutes = Math.floor(seconds / 60);
@@ -142,7 +143,7 @@ export default function GameResult({
                 <img 
                   src={tournament.winner.image} 
                   alt={tournament.winner.title}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-contain bg-gray-50"
                   onError={(e) => {
                     // 이미지 로딩 실패 시 플레이스홀더 표시
                     e.currentTarget.style.display = 'none';
@@ -225,7 +226,7 @@ export default function GameResult({
               className="flex-1 bg-green-100 hover:bg-green-200 text-green-700 py-2 px-4 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2"
             >
               <BarChart3 className="w-4 h-4" />
-              <span>전체 랭킹 보기</span>
+              <span>게임 랭킹 보기</span>
             </button>
             <button
               onClick={handleShare}
@@ -257,12 +258,15 @@ export default function GameResult({
         </motion.div>
         </motion.div>
         
-        {/* Comment Section */}
-        <CommentSection 
-          worldcupTitle={tournament.title}
-          winnerName={tournament.winner?.title || ''}
-          worldcupId={worldcupId}
-        />
+        {/* Comment System */}
+        {worldcupId && (
+          <CommentSystem 
+            worldcupId={worldcupId}
+            initialCommentCount={0}
+            onCommentCountChange={setCommentCount}
+            onShowRanking={() => setShowRanking(true)}
+          />
+        )}
       </div>
 
       {/* Image Modal */}
