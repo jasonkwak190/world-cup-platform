@@ -3,8 +3,8 @@
 // 수정사항 테스트 스크립트
 const { createClient } = require('@supabase/supabase-js');
 
-const supabaseUrl = 'https://rctoxfcyzz5iikopbsne.supabase.co';
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjdG94ZmN5eno1aWlrb3Bic25lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDQ5Mzg4NDMsImV4cCI6MjAyMDUxNDg0M30.ZOykG1kqvSF3FQmxHLIK7kLSgYU8XVLSXJDGzW9bDu4';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
