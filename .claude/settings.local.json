@@ -27,7 +27,18 @@
       "Bash(rg:*)",
       "Bash(find:*)",
       "Bash(lsof:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(claude mcp add:*)",
+      "Bash(claude mcp:*)",
+      "Bash(claude config show)",
+      "Bash(mkdir:*)",
+      "Bash(npx tsc:*)",
+      "Bash(timeout 10s npm run dev:*)",
+      "Bash(npx gemini-mcp-tool:*)",
+      "Bash(ls:*)",
+      "Bash(cp:*)",
+      "Bash(gh repo view:*)",
+      "Bash(npm audit:*)"
     ],
     "deny": []
   }

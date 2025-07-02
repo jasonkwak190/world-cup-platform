@@ -3,12 +3,23 @@
 import { useState, useEffect } from 'react';
 import { ArrowLeft, Upload, Image, Settings, Play } from 'lucide-react';
 import { useRouter, useParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import DragDropUpload from '@/components/DragDropUpload';
-import ImageCropper from '@/components/ImageCropper';
 import WorldCupPreview from '@/components/WorldCupPreview';
 import TournamentSettings from '@/components/TournamentSettings';
 import TournamentCreationCelebration from '@/components/TournamentCreationCelebration';
 import ProtectedRoute from '@/components/ProtectedRoute';
+
+// Dynamic import for heavy components
+const ImageCropper = dynamic(() => import('@/components/ImageCropper'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center p-8">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
+      <span className="ml-3">이미지 편집기 로딩 중...</span>
+    </div>
+  ),
+});
 import { getWorldCupById } from '@/utils/storage';
 import { getWorldCupById as getSupabaseWorldCupById } from '@/utils/supabaseData';
 import { generateAutoThumbnail } from '@/utils/thumbnailGenerator';

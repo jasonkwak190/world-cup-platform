@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
         }
 
         // 2. users 테이블에 추가 정보 저장
-        const { data: userRecord, error: userError } = await supabaseAdmin
+        const { data: _userRecord, error: userError } = await supabaseAdmin
           .from('users')
           .insert({
             id: authUser.user.id,

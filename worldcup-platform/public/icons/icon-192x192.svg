@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
+  <defs>
+    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#10b981"/>
+      <stop offset="100%" style="stop-color:#059669"/>
+    </linearGradient>
+  </defs>
+  <rect width="192" height="192" rx="32" fill="url(#gradient)"/>
+  <text x="96" y="110" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="48" font-weight="bold">🏆</text>
+  <text x="96" y="140" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="14" font-weight="500">월드컵</text>
+</svg>

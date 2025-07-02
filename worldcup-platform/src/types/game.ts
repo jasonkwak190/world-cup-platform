@@ -4,7 +4,9 @@ export interface WorldCupItem {
   id: string;
   title: string;
   image?: string;
+  image_url?: string;
   description?: string;
+  is_bye?: boolean; // 부전승 항목 여부
 }
 
 export interface Match {

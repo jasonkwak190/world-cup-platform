@@ -1,5 +1,7 @@
 import { Heart, MessageCircle, Share2, Play, Bookmark } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
+import { RealtimeStatsCard } from './RealtimeStats';
 
 interface WorldCupCardProps {
   id: string;
@@ -117,15 +119,17 @@ export default function WorldCupCard({
       <div className="relative aspect-video overflow-hidden bg-gray-900">
         {thumbnailUrl && thumbnailUrl.trim() !== '' && thumbnailUrl.length > 10 ? (
           <>
-            <img 
+            {/* Optimized Image with Next.js Image component */}
+            <Image 
               src={thumbnailUrl} 
               alt={title}
-              className="w-full h-full object-contain bg-gray-50"
-              style={{ 
-                display: 'block',
-                position: 'relative',
-                zIndex: 1
-              }}
+              fill
+              className="object-cover group-hover:scale-105 transition-transform duration-300"
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
+              priority={false}
+              quality={85}
+              placeholder="blur"
+              blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k="
               onError={(e) => {
                 if (process.env.NODE_ENV === 'development') {
                   console.warn('❌ Thumbnail failed to load:', {
@@ -135,39 +139,20 @@ export default function WorldCupCard({
                   });
                 }
                 
-                // Base64 이미지인 경우 에러를 무시 (브라우저 호환성 문제일 수 있음)
-                if (thumbnailUrl.startsWith('data:image/') && thumbnailUrl.length > 1000) {
-                  if (process.env.NODE_ENV === 'development') {
-                    console.log('🔄 Base64 image error ignored - keeping visible');
-                  }
-                  e.currentTarget.style.display = 'block';
-                  e.currentTarget.style.visibility = 'visible';
-                  e.currentTarget.style.opacity = '1';
-                  return;
-                }
-                
-                // 진짜 에러인 경우에만 fallback 표시
-                e.currentTarget.style.display = 'none';
+                // Show fallback on error
                 const parent = e.currentTarget.parentElement;
                 if (parent) {
                   const fallback = parent.querySelector('.fallback-placeholder');
                   if (fallback) {
                     fallback.classList.remove('hidden');
                   }
+                  e.currentTarget.style.display = 'none';
                 }
               }}
               onLoad={(e) => {
                 if (process.env.NODE_ENV === 'development') {
-                  console.log('✅ Thumbnail loaded successfully:', {
-                    naturalWidth: e.currentTarget.naturalWidth,
-                    naturalHeight: e.currentTarget.naturalHeight,
-                    isSupabase: e.currentTarget.src.includes('supabase')
-                  });
+                  console.log('✅ Thumbnail loaded successfully with Next.js Image');
                 }
-                
-                // 이미지가 성공적으로 로드되면 표시 보장
-                e.currentTarget.style.display = 'block';
-                e.currentTarget.style.opacity = '1';
               }}
             />
             <div className="fallback-placeholder hidden absolute inset-0 flex items-center justify-center bg-gray-900" style={{ zIndex: 5 }}>
@@ -215,24 +200,16 @@ export default function WorldCupCard({
           <span>{createdAt}</span>
         </div>
 
-        {/* Stats */}
-        <div className="flex items-center justify-between text-sm text-gray-600 mb-3">
-          <div className="flex items-center space-x-4">
-            <span className="flex items-center">
-              <Play className="w-4 h-4 mr-1" />
-              {participants.toLocaleString()}
-            </span>
-            <Link href={`/worldcup/${id}#comments`}>
-              <span className="flex items-center hover:text-blue-600 transition-colors cursor-pointer">
-                <MessageCircle className="w-4 h-4 mr-1" />
-                {comments}
-              </span>
-            </Link>
-          </div>
-          <div className="flex items-center">
-            <Heart className={`w-4 h-4 mr-1 ${isLiked ? 'text-red-500 fill-current' : ''}`} />
-            {likes}
-          </div>
+        {/* Real-time Stats */}
+        <div className="mb-3">
+          <RealtimeStatsCard
+            worldcupId={id}
+            initialStats={{
+              participants,
+              comments,
+              likes
+            }}
+          />
         </div>
 
         {/* Actions */}

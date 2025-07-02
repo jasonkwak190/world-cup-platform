@@ -11,7 +11,7 @@ import {
   Sun, 
   Shield, 
   UserX, 
-  Mail,
+  // Mail,
   Eye,
   EyeOff,
   Save,

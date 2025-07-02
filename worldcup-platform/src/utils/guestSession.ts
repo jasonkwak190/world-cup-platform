@@ -48,7 +48,7 @@ export function unregisterGuestComment(commentId: string): void {
 
 // 세션 정리 (선택적)
 export function clearGuestSession(): void {
-  const sessionId = getGuestSessionId();
+  const _sessionId = getGuestSessionId();
   
   // 관련된 모든 localStorage 항목 찾아서 제거
   const keysToRemove: string[] = [];

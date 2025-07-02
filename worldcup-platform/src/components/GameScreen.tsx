@@ -3,20 +3,24 @@ import { Match, WorldCupItem } from '@/types/game';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getRoundStyle, getRoundBorderStyle, getRoundCheckmarkStyle } from '@/utils/tournament';
 import ParticleEffect from './ParticleEffect';
+import { useTouchGestures, useKeyboardShortcuts } from '@/hooks/useTouchGestures';
+import { LiveActivityIndicator } from './RealtimeStats';
 
 interface GameScreenProps {
   match: Match;
   roundName: string;
   round: number;
   totalRounds: number;
+  worldcupId?: string;
   onChoice: (winner: WorldCupItem) => void;
 }
 
-export default function GameScreen({ match, round, totalRounds, onChoice }: GameScreenProps) {
+export default function GameScreen({ match, round, totalRounds, worldcupId, onChoice }: GameScreenProps) {
   const [selectedItem, setSelectedItem] = useState<WorldCupItem | null>(null);
   const [isChoosing, setIsChoosing] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [animationPhase, setAnimationPhase] = useState<'initial' | 'center' | 'return' | 'showOther'>('initial');
+
 
   // 🚨 강력한 URL 정리 및 수정 함수
   const cleanAndFixImageUrl = (imageUrl: string | File): string => {
@@ -204,11 +208,53 @@ export default function GameScreen({ match, round, totalRounds, onChoice }: Game
     }, 800);
   };
 
+  // Touch gestures and keyboard shortcuts
+  const gestureRef = useTouchGestures({
+    onSwipeLeft: () => {
+      if (!isChoosing) {
+        handleChoice(cleanedMatch.item2); // Right item wins on swipe left
+      }
+    },
+    onSwipeRight: () => {
+      if (!isChoosing) {
+        handleChoice(cleanedMatch.item1); // Left item wins on swipe right
+      }
+    },
+  });
+
+  useKeyboardShortcuts({
+    onLeftArrow: () => {
+      if (!isChoosing) {
+        handleChoice(cleanedMatch.item1); // Left arrow selects left item
+      }
+    },
+    onRightArrow: () => {
+      if (!isChoosing) {
+        handleChoice(cleanedMatch.item2); // Right arrow selects right item
+      }
+    },
+  });
+
   return (
-    <div className="flex flex-col items-center justify-start min-h-screen">
+    <div 
+      ref={gestureRef}
+      className="flex flex-col items-center justify-start min-h-screen touch-manipulation"
+    >
       {/* Particle Effect */}
       <ParticleEffect count={roundStyle.particleCount} colors={particleColors} />
       
+      {/* Live Activity Indicator */}
+      {worldcupId && <LiveActivityIndicator worldcupId={worldcupId} />}
+      
+      {/* Controls Hint */}
+      <div className="fixed top-4 right-4 bg-black/50 text-white text-xs px-3 py-2 rounded-lg backdrop-blur-sm z-50">
+        <div className="hidden sm:block">
+          ← → 키보드로 선택
+        </div>
+        <div className="block sm:hidden">
+          👆 탭하거나 스와이프하세요
+        </div>
+      </div>
 
       {/* VS Section - PIKU style with overlapping VS */}
       <div className="relative flex items-center justify-center w-full max-w-none mx-auto px-4 mt-4 gap-4">

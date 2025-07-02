@@ -1,9 +1,18 @@
 import { WorldCupItem, Match, Tournament, TournamentSize } from '@/types/game';
 
+// 🎲 향상된 랜덤 셔플 함수 (시간 기반 시드 포함)
 export function shuffleArray<T>(array: T[]): T[] {
   const shuffled = [...array];
+  
+  // 현재 시간과 랜덤값을 조합한 시드로 더 강력한 랜덤성 확보
+  const timeSeed = Date.now() % 1000000;
+  const randomSeed = Math.random() * 1000000;
+  const combinedSeed = timeSeed + randomSeed;
+  
+  // Fisher-Yates 셔플 알고리즘에 시드 기반 랜덤성 추가
   for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const seedInfluence = (combinedSeed * (i + 1)) % 1;
+    const j = Math.floor((Math.random() + seedInfluence) * (i + 1)) % (i + 1);
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
   return shuffled;
@@ -21,13 +30,16 @@ export function getNextPowerOfTwo(num: number): TournamentSize {
 export function createInitialMatches(items: WorldCupItem[]): Match[] {
   const matches: Match[] = [];
   
-  for (let i = 0; i < items.length; i += 2) {
+  // 🎲 매치 생성시에도 추가 랜덤화 (항목들의 순서를 다시 한번 섞기)
+  const randomizedItems = shuffleArray([...items]);
+  
+  for (let i = 0; i < randomizedItems.length; i += 2) {
     const match: Match = {
       id: `match-1-${Math.floor(i / 2) + 1}`,
       round: 1,
       matchNumber: Math.floor(i / 2) + 1,
-      item1: items[i],
-      item2: items[i + 1],
+      item1: randomizedItems[i],
+      item2: randomizedItems[i + 1],
       isCompleted: false,
     };
     matches.push(match);
@@ -41,15 +53,27 @@ export function createTournament(
   items: WorldCupItem[],
   description?: string
 ): Tournament {
-  const shuffledItems = shuffleArray(items);
+  // 🎲 이중 랜덤 셔플로 더 강력한 무작위성 보장
+  console.log(`🎲 Creating tournament with ${items.length} items - applying double randomization`);
+  let shuffledItems = shuffleArray(items);
+  shuffledItems = shuffleArray(shuffledItems); // 두 번 섞어서 완전 랜덤화
+  
   const targetSize = getNextPowerOfTwo(items.length);
   
-  // 부족한 항목은 빈 항목으로 채우기 (실제로는 BYE 처리)
+  // 부족한 항목은 빈 캔버스로 채우기 (부전승 처리)
   while (shuffledItems.length < targetSize) {
     shuffledItems.push({
       id: `bye-${shuffledItems.length}`,
-      title: 'BYE',
-      description: 'Automatic advancement',
+      title: '부전승',
+      description: '자동 진출',
+      image_url: 'data:image/svg+xml;base64,' + btoa(`
+        <svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
+          <rect width="400" height="300" fill="#f3f4f6" stroke="#d1d5db" stroke-width="2" stroke-dasharray="10,5"/>
+          <text x="200" y="150" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" fill="#6b7280">부전승</text>
+          <text x="200" y="180" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" fill="#9ca3af">자동 진출</text>
+        </svg>
+      `),
+      is_bye: true, // BYE 여부를 나타내는 플래그 추가
     });
   }
   
@@ -75,6 +99,46 @@ export function getCurrentMatch(tournament: Tournament): Match | null {
   );
   
   return currentRoundMatches.find(match => !match.isCompleted) || null;
+}
+
+// 🏆 BYE 매치 감지 및 자동 승자 결정 함수
+export function isByeMatch(match: Match): { isBye: boolean; winner?: WorldCupItem } {
+  const item1IsBye = match.item1.is_bye || match.item1.title === 'BYE' || match.item1.title === '부전승';
+  const item2IsBye = match.item2.is_bye || match.item2.title === 'BYE' || match.item2.title === '부전승';
+  
+  if (item1IsBye && !item2IsBye) {
+    return { isBye: true, winner: match.item2 };
+  } else if (item2IsBye && !item1IsBye) {
+    return { isBye: true, winner: match.item1 };
+  } else if (item1IsBye && item2IsBye) {
+    // 둘 다 BYE인 경우 첫 번째를 승자로 (이런 경우는 거의 없음)
+    return { isBye: true, winner: match.item1 };
+  }
+  
+  return { isBye: false };
+}
+
+// 🚀 자동으로 BYE 매치들을 처리하는 함수
+export function autoAdvanceByes(tournament: Tournament): Tournament {
+  let updatedTournament = { ...tournament };
+  let foundBye = true;
+  
+  // BYE 매치가 더 이상 없을 때까지 반복
+  while (foundBye) {
+    foundBye = false;
+    const currentMatch = getCurrentMatch(updatedTournament);
+    
+    if (currentMatch) {
+      const byeResult = isByeMatch(currentMatch);
+      if (byeResult.isBye && byeResult.winner) {
+        console.log(`🏆 Auto-advancing BYE match: ${byeResult.winner.title} vs BYE`);
+        updatedTournament = selectWinner(updatedTournament, byeResult.winner);
+        foundBye = true;
+      }
+    }
+  }
+  
+  return updatedTournament;
 }
 
 export function selectWinner(
@@ -158,12 +222,17 @@ function createNextRound(tournament: Tournament): Tournament {
     match => match.round === tournament.currentRound && match.isCompleted
   );
   
-  const winners = currentRoundMatches
+  let winners = currentRoundMatches
     .map(match => match.winner!)
-    .filter(winner => winner.title !== 'BYE'); // BYE 제거
+    .filter(winner => !winner.is_bye && winner.title !== 'BYE' && winner.title !== '부전승'); // BYE 제거
+  
+  const nextRound = tournament.currentRound + 1;
+  
+  // 🎲 매 라운드마다 승자들을 다시 랜덤하게 섞어서 새로운 대진 생성
+  console.log(`🎲 Round ${nextRound} - Shuffling ${winners.length} winners for random matchups`);
+  winners = shuffleArray(winners);
   
   const nextRoundMatches: Match[] = [];
-  const nextRound = tournament.currentRound + 1;
   
   for (let i = 0; i < winners.length; i += 2) {
     if (i + 1 < winners.length) {

@@ -6,7 +6,7 @@ import { getUserWorldCups } from '@/utils/supabaseData';
 import { getUserBookmarks } from '@/utils/userInteractions';
 import { getWorldCupById } from '@/utils/supabaseData';
 import { supabase } from '@/lib/supabase';
-import WorldCupCard from '@/components/WorldCupCard';
+// import WorldCupCard from '@/components/WorldCupCard';
 import { User, BookmarkCheck, Trophy, Settings, Heart, ArrowLeft, Edit3, Trash2, Copy } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -104,22 +104,22 @@ export default function MyPage() {
     router.push(`/play/${id}`);
   };
 
-  const handleLike = (id: string) => {
-    // 좋아요 기능은 메인 페이지에서와 동일하게 구현
-    console.log('Like worldcup:', id);
-  };
+  // const handleLike = (id: string) => {
+  //   // 좋아요 기능은 메인 페이지에서와 동일하게 구현
+  //   console.log('Like worldcup:', id);
+  // };
 
   const handleBookmark = (id: string) => {
     // 북마크 토글 기능
     console.log('Toggle bookmark:', id);
   };
 
-  const handleShare = (id: string) => {
-    // 공유 기능
-    const shareUrl = `${window.location.origin}/play/${id}`;
-    navigator.clipboard.writeText(shareUrl);
-    // Toast 알림은 나중에 추가
-  };
+  // const handleShare = (id: string) => {
+  //   // 공유 기능
+  //   const shareUrl = `${window.location.origin}/play/${id}`;
+  //   navigator.clipboard.writeText(shareUrl);
+  //   // Toast 알림은 나중에 추가
+  // };
 
   const handleEdit = (id: string, title: string) => {
     if (confirm(`"${title}" 월드컵을 수정하시겠습니까?`)) {

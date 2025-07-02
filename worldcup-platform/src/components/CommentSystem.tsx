@@ -171,21 +171,10 @@ function CommentItem({
   );
 }
 
-export default function CommentSystem({ worldcupId, initialCommentCount = 0, onCommentCountChange, onShowRanking }: CommentSystemProps) {
+export default function CommentSystem({ worldcupId, initialCommentCount: _initialCommentCount = 0, onCommentCountChange, onShowRanking }: CommentSystemProps) {
   const { user, isLoading: authLoading } = useAuth();
-
-  // 로딩 중이면 대기
-  if (authLoading) {
-    return (
-      <div className="bg-gray-50 rounded-lg p-6">
-        <div className="text-center py-8">
-          <div className="w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-500">로딩 중...</p>
-        </div>
-      </div>
-    );
-  }
   
+  // All hooks must be called before any conditional returns
   const [comments, setComments] = useState<Comment[]>([]);
   const [likedComments, setLikedComments] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
@@ -197,6 +186,34 @@ export default function CommentSystem({ worldcupId, initialCommentCount = 0, onC
   const [editingComment, setEditingComment] = useState<Comment | null>(null);
   const [editContent, setEditContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Define functions before hooks
+  const loadComments = async () => {
+    try {
+      setIsLoading(true);
+      const fetchedComments = await getCommentsByWorldCupId(worldcupId);
+      setComments(fetchedComments);
+    } catch (error) {
+      console.error('Failed to load comments:', error);
+      showToast('댓글을 불러오는데 실패했습니다.', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadUserLikes = async () => {
+    if (!user) return;
+    
+    try {
+      const commentIds = comments.map(c => c.id);
+      if (commentIds.length === 0) return;
+      
+      const likedIds = await getUserLikedComments(user.id, commentIds);
+      setLikedComments(new Set(likedIds));
+    } catch (error) {
+      console.error('Failed to load user likes:', error);
+    }
+  };
 
   // user 상태 변화 감지하여 상태 초기화
   useEffect(() => {
@@ -225,42 +242,29 @@ export default function CommentSystem({ worldcupId, initialCommentCount = 0, onC
     }
   }, [user, comments]);
 
-  const loadComments = async () => {
-    try {
-      setIsLoading(true);
-      const fetchedComments = await getCommentsByWorldCupId(worldcupId);
-      setComments(fetchedComments);
-    } catch (error) {
-      console.error('Failed to load comments:', error);
-      showToast('댓글을 불러오는데 실패했습니다.', 'error');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // 총 댓글 수 계산
+  const totalComments = comments.reduce((total, comment) => {
+    return total + 1 + (comment.replies ? comment.replies.length : 0);
+  }, 0);
 
-  const loadUserLikes = async () => {
-    if (!user) return;
-
-    try {
-      const allCommentIds: string[] = [];
-      
-      const collectCommentIds = (commentList: Comment[]) => {
-        commentList.forEach(comment => {
-          allCommentIds.push(comment.id);
-          if (comment.replies) {
-            collectCommentIds(comment.replies);
-          }
-        });
-      };
-      
-      collectCommentIds(comments);
-      
-      const likedIds = await getUserCommentLikes(user.id, allCommentIds);
-      setLikedComments(new Set(likedIds));
-    } catch (error) {
-      console.error('Failed to load user likes:', error);
+  // 댓글 수 변경을 상위 컴포넌트에 알림
+  useEffect(() => {
+    if (onCommentCountChange) {
+      onCommentCountChange(totalComments);
     }
-  };
+  }, [totalComments, onCommentCountChange]);
+
+  // 로딩 중이면 대기
+  if (authLoading) {
+    return (
+      <div className="bg-gray-50 rounded-lg p-6">
+        <div className="text-center py-8">
+          <div className="w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-500">로딩 중...</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleSubmitComment = async () => {
     if (!newComment.trim()) {
@@ -534,17 +538,6 @@ export default function CommentSystem({ worldcupId, initialCommentCount = 0, onC
       showToast('댓글 삭제에 실패했습니다.', 'error');
     }
   };
-
-  const totalComments = comments.reduce((total, comment) => {
-    return total + 1 + (comment.replies ? comment.replies.length : 0);
-  }, 0);
-
-  // 댓글 수 변경을 상위 컴포넌트에 알림
-  useEffect(() => {
-    if (onCommentCountChange) {
-      onCommentCountChange(totalComments);
-    }
-  }, [totalComments, onCommentCountChange]);
 
   return (
     <div className="bg-gray-50 rounded-lg p-6">

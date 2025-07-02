@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { Comment, CommentLike, CreateCommentData, UpdateCommentData } from '@/types/comment';
+import { Comment, /* CommentLike, */ CreateCommentData, UpdateCommentData } from '@/types/comment';
 import { getGuestSessionId, registerGuestComment, unregisterGuestComment } from '@/utils/guestSession';
 import { updateWorldCupCommentCount } from '@/utils/updateCommentCounts';
 

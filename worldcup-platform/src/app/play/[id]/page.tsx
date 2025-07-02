@@ -2,17 +2,30 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { WorldCupItem, GameState } from '@/types/game';
-import { createTournament, getCurrentMatch, selectWinner, getRoundName, getTournamentProgress, undoLastMatch } from '@/utils/tournament';
+import { createTournament, getCurrentMatch, selectWinner, getRoundName, getTournamentProgress, undoLastMatch, shuffleArray, autoAdvanceByes, isByeMatch } from '@/utils/tournament';
 import { getWorldCupById } from '@/utils/storage';
 import { getWorldCupById as getSupabaseWorldCupById } from '@/utils/supabaseData';
-import GameScreen from '@/components/GameScreen';
 import GameProgress from '@/components/GameProgress';
 import GameResult from '@/components/GameResult';
 import TournamentSelector from '@/components/TournamentSelector';
 
+// Dynamic import for heavy GameScreen component
+const GameScreen = dynamic(() => import('@/components/GameScreen'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto mb-4"></div>
+        <p className="text-gray-600">게임 화면 로딩 중...</p>
+      </div>
+    </div>
+  ),
+});
+
 // Mock data for testing
-const mockWorldCupData = {
+const _mockWorldCupData = {
   id: '1',
   title: '남자 아이돌 / 보이그룹 이상형 월드컵',
   description: '인기 남자 아이돌들의 최강자를 가려보세요!',
@@ -207,7 +220,10 @@ export default function PlayPage({ params }: PlayPageProps) {
     const currentMatch = getCurrentMatch(gameState.tournament);
     if (!currentMatch) return;
 
-    const updatedTournament = selectWinner(gameState.tournament, winner);
+    let updatedTournament = selectWinner(gameState.tournament, winner);
+    
+    // 🚀 선택 후 자동으로 BYE 매치들을 처리
+    updatedTournament = autoAdvanceByes(updatedTournament);
     
     setGameState({
       ...gameState,
@@ -246,15 +262,18 @@ export default function PlayPage({ params }: PlayPageProps) {
   const handleTournamentSelect = (tournamentSize: number) => {
     if (!worldcupData) return;
     
-    // 선택된 토너먼트 크기에 맞게 아이템 수 조정
-    const shuffledItems = [...worldcupData.items].sort(() => Math.random() - 0.5);
+    // 🎲 완전 랜덤 셔플로 선택된 토너먼트 크기에 맞게 아이템 수 조정
+    const shuffledItems = shuffleArray([...worldcupData.items]);
     const selectedItems = shuffledItems.slice(0, tournamentSize);
     
-    const tournament = createTournament(
+    let tournament = createTournament(
       worldcupData.title,
       selectedItems,
       worldcupData.description
     );
+    
+    // 🚀 자동으로 BYE 매치들을 처리
+    tournament = autoAdvanceByes(tournament);
     
     setGameState({
       tournament,
@@ -321,6 +340,23 @@ export default function PlayPage({ params }: PlayPageProps) {
       </div>
     );
   }
+
+  // 🏆 현재 매치가 BYE 매치인 경우 자동 처리 (gameState가 있을 때만)
+  useEffect(() => {
+    if (!gameState) return;
+    
+    const currentMatch = getCurrentMatch(gameState.tournament);
+    if (currentMatch) {
+      const byeResult = isByeMatch(currentMatch);
+      if (byeResult.isBye && byeResult.winner) {
+        console.log(`🚀 Auto-processing BYE match: ${byeResult.winner.title}`);
+        // 짧은 지연 후 자동 진행 (사용자가 볼 수 있도록)
+        setTimeout(() => {
+          handleChoice(byeResult.winner!);
+        }, 1000);
+      }
+    }
+  }, [gameState?.tournament.id, gameState?.tournament.currentMatch]);
 
   const { tournament } = gameState;
   const currentMatch = getCurrentMatch(tournament);

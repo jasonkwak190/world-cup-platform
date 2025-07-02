@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { getWorldCupById } from '@/utils/supabaseData';
 import { StoredWorldCup } from '@/utils/storage';
-import { Play, Heart, Bookmark, Share2, User, Calendar, Trophy, MessageCircle, ArrowLeft, BarChart3 } from 'lucide-react';
+import { Play, Heart, Bookmark, Share2, User, Calendar, Trophy, /* MessageCircle, */ ArrowLeft, /* BarChart3 */ } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { 
   getUserLikes, 
@@ -152,7 +152,7 @@ export default function WorldCupDetailPage() {
 
     try {
       const shareUrl = `${window.location.origin}/worldcup/${worldcup.id}`;
-      const shareText = `${worldcup.title} - 이상형 월드컵에 참여해보세요!`;
+      // const shareText = `${worldcup.title} - 이상형 월드컵에 참여해보세요!`;
 
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(shareUrl);
@@ -359,7 +359,7 @@ export default function WorldCupDetailPage() {
           </h2>
           
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            {worldcup.items.slice(0, 12).map((item, index) => (
+            {worldcup.items.slice(0, 12).map((item, _index) => (
               <div key={item.id} className="bg-gray-50 rounded-lg p-3 text-center">
                 {item.image && (
                   <div className="aspect-square bg-gray-200 rounded-lg mb-2 overflow-hidden">
