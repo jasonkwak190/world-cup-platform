@@ -38,7 +38,11 @@
       "Bash(ls:*)",
       "Bash(cp:*)",
       "Bash(gh repo view:*)",
-      "Bash(npm audit:*)"
+      "Bash(npm audit:*)",
+      "mcp__gemini-cli__ask-gemini",
+      "Bash(claude --debug --mcp-debug)",
+      "mcp__gemini-cli__Ping",
+      "Bash(mv:*)"
     ],
     "deny": []
   }
