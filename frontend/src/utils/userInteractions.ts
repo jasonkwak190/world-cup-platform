@@ -10,16 +10,18 @@ export async function getUserBookmarks(userId: string) {
     }
 
     const { data, error } = await supabase
-      .from('user_bookmarks')
-      .select('worldcup_id')
-      .eq('user_id', userId);
+      .from('user_interactions')
+      .select('target_id')
+      .eq('user_id', userId)
+      .eq('target_type', 'worldcup')
+      .eq('interaction_type', 'bookmark');
 
     if (error) {
       console.error('Error fetching bookmarks:', error);
       return [];
     }
 
-    return data.map(item => item.worldcup_id);
+    return data.map(item => item.target_id);
   } catch (error) {
     console.error('Error in getUserBookmarks:', error);
     return [];
@@ -29,10 +31,12 @@ export async function getUserBookmarks(userId: string) {
 export async function addBookmark(userId: string, worldcupId: string) {
   try {
     const { error } = await supabase
-      .from('user_bookmarks')
+      .from('user_interactions')
       .insert({
         user_id: userId,
-        worldcup_id: worldcupId
+        target_type: 'worldcup',
+        target_id: worldcupId,
+        interaction_type: 'bookmark'
       });
 
     if (error) {
@@ -50,10 +54,12 @@ export async function addBookmark(userId: string, worldcupId: string) {
 export async function removeBookmark(userId: string, worldcupId: string) {
   try {
     const { error } = await supabase
-      .from('user_bookmarks')
+      .from('user_interactions')
       .delete()
       .eq('user_id', userId)
-      .eq('worldcup_id', worldcupId);
+      .eq('target_type', 'worldcup')
+      .eq('target_id', worldcupId)
+      .eq('interaction_type', 'bookmark');
 
     if (error) {
       console.error('Error removing bookmark:', error);
@@ -76,16 +82,18 @@ export async function getUserLikes(userId: string) {
     }
 
     const { data, error } = await supabase
-      .from('user_likes')
-      .select('worldcup_id')
-      .eq('user_id', userId);
+      .from('user_interactions')
+      .select('target_id')
+      .eq('user_id', userId)
+      .eq('target_type', 'worldcup')
+      .eq('interaction_type', 'like');
 
     if (error) {
       console.error('Error fetching likes:', error);
       return [];
     }
 
-    return data.map(item => item.worldcup_id);
+    return data.map(item => item.target_id);
   } catch (error) {
     console.error('Error in getUserLikes:', error);
     return [];
@@ -103,10 +111,12 @@ export async function addLike(userId: string, worldcupId: string) {
 
     // 중복 좋아요 확인
     const { data: existingLike, error: checkError } = await supabase
-      .from('user_likes')
+      .from('user_interactions')
       .select('id')
       .eq('user_id', userId)
-      .eq('worldcup_id', worldcupId)
+      .eq('target_type', 'worldcup')
+      .eq('target_id', worldcupId)
+      .eq('interaction_type', 'like')
       .single();
 
     if (checkError && checkError.code !== 'PGRST116') {
@@ -121,10 +131,12 @@ export async function addLike(userId: string, worldcupId: string) {
 
     // 좋아요 추가 (트리거가 자동으로 worldcups.likes 증가)
     const { data, error } = await supabase
-      .from('user_likes')
+      .from('user_interactions')
       .insert({
         user_id: userId,
-        worldcup_id: worldcupId
+        target_type: 'worldcup',
+        target_id: worldcupId,
+        interaction_type: 'like'
       })
       .select();
 
@@ -158,10 +170,12 @@ export async function removeLike(userId: string, worldcupId: string) {
 
     // 좋아요 삭제 (트리거가 자동으로 worldcups.likes 감소)
     const { error } = await supabase
-      .from('user_likes')
+      .from('user_interactions')
       .delete()
       .eq('user_id', userId)
-      .eq('worldcup_id', worldcupId);
+      .eq('target_type', 'worldcup')
+      .eq('target_id', worldcupId)
+      .eq('interaction_type', 'like');
 
     if (error) {
       console.error('❌ Error removing like:', error);
@@ -258,9 +272,11 @@ export function hasGuestLiked(worldcupId: string): boolean {
 export async function getWorldCupLikesCount(worldcupId: string): Promise<number> {
   try {
     const { count, error } = await supabase
-      .from('user_likes')
+      .from('user_interactions')
       .select('*', { count: 'exact', head: true })
-      .eq('worldcup_id', worldcupId);
+      .eq('target_type', 'worldcup')
+      .eq('target_id', worldcupId)
+      .eq('interaction_type', 'like');
 
     if (error) {
       console.error('Error getting likes count:', error);
@@ -278,9 +294,11 @@ export async function getWorldCupLikesCount(worldcupId: string): Promise<number>
 export async function getMultipleWorldCupLikesCount(worldcupIds: string[]): Promise<{ [key: string]: number }> {
   try {
     const { data, error } = await supabase
-      .from('user_likes')
-      .select('worldcup_id')
-      .in('worldcup_id', worldcupIds);
+      .from('user_interactions')
+      .select('target_id')
+      .eq('target_type', 'worldcup')
+      .eq('interaction_type', 'like')
+      .in('target_id', worldcupIds);
 
     if (error) {
       console.error('Error getting multiple likes count:', error);
@@ -294,7 +312,7 @@ export async function getMultipleWorldCupLikesCount(worldcupIds: string[]): Prom
     });
 
     data.forEach(item => {
-      counts[item.worldcup_id] = (counts[item.worldcup_id] || 0) + 1;
+      counts[item.target_id] = (counts[item.target_id] || 0) + 1;
     });
 
     return counts;

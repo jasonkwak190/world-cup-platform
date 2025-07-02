@@ -15,7 +15,7 @@ import {
   decrementWorldCupCommentCount
 } from '@/utils/comments';
 import { Heart, MessageCircle, Edit3, Trash2, Reply, Send, BarChart3 } from 'lucide-react';
-import { showToast } from './Toast';
+import { showToast } from '../Toast';
 import { isGuestCommentOwner, cleanupOldGuestSessions } from '@/utils/guestSession';
 
 interface CommentSystemProps {

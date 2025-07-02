@@ -42,7 +42,9 @@
       "mcp__gemini-cli__ask-gemini",
       "Bash(claude --debug --mcp-debug)",
       "mcp__gemini-cli__Ping",
-      "Bash(mv:*)"
+      "Bash(mv:*)",
+      "Bash(gemini:*)",
+      "Bash(timeout 10 npm run dev)"
     ],
     "deny": []
   }

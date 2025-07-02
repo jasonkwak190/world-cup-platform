@@ -80,9 +80,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // 실제 댓글 수 계산
     const { data: comments, error: commentsError } = await supabase
-      .from('worldcup_comments')
+      .from('comments')
       .select('id')
-      .eq('worldcup_id', worldcupId);
+      .eq('worldcup_id', worldcupId)
+      .eq('is_deleted', false);
 
     if (commentsError) {
       console.error('API: Error fetching comments:', commentsError);

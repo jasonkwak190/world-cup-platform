@@ -208,7 +208,7 @@ export default function CommentSystem({ worldcupId, initialCommentCount: _initia
       const commentIds = comments.map(c => c.id);
       if (commentIds.length === 0) return;
       
-      const likedIds = await getUserLikedComments(user.id, commentIds);
+      const likedIds = await getUserCommentLikes(user.id, commentIds);
       setLikedComments(new Set(likedIds));
     } catch (error) {
       console.error('Failed to load user likes:', error);
