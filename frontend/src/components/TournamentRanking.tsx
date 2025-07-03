@@ -1,40 +1,158 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trophy, Crown, Medal, Award, ArrowLeft, BarChart3, TrendingUp, Home, X, ZoomIn } from 'lucide-react';
-import { WorldCupItem } from '@/types/game';
+import { Trophy, Crown, Medal, Award, ArrowLeft, BarChart3, TrendingUp, Home, X, ZoomIn, RefreshCw } from 'lucide-react';
+import { WorldCupItem, Tournament, Match } from '@/types/game';
+import { getAggregatedRanking } from '@/utils/tournamentResults';
 
 interface RankingItem extends WorldCupItem {
   rank: number;
   winRate: number;
   totalMatches: number;
   wins: number;
+  losses?: number;
   roundReached: string;
+  appearances?: number;
 }
 
 interface TournamentRankingProps {
   tournamentTitle: string;
   winner: WorldCupItem;
   allItems: WorldCupItem[];
+  tournament: Tournament; // 현재 토너먼트 데이터
+  worldcupId: string; // Supabase worldcup ID
   onBack: () => void;
   onGoHome?: () => void;
 }
 
-// Mock ranking data - 실제로는 토너먼트 결과를 기반으로 생성
-const generateRankingData = (items: WorldCupItem[], winner: WorldCupItem): RankingItem[] => {
-  return items.map((item, index) => ({
-    ...item,
-    rank: index + 1,
-    winRate: item.id === winner.id ? 100 : Math.floor(Math.random() * 80) + 20,
-    totalMatches: item.id === winner.id ? 5 : Math.floor(Math.random() * 5) + 1,
-    wins: item.id === winner.id ? 5 : Math.floor(Math.random() * 3) + 1,
-    roundReached: item.id === winner.id ? '우승' : 
-                 index < 2 ? '결승' :
-                 index < 4 ? '준결승' :
-                 index < 8 ? '8강' :
-                 index < 16 ? '16강' : '32강'
-  })).sort((a, b) => b.winRate - a.winRate);
+// 실제 토너먼트 데이터를 기반으로 랭킹 생성
+const generateRankingData = (items: WorldCupItem[], winner: WorldCupItem, tournament: Tournament): RankingItem[] => {
+  const itemStats = new Map<string, { wins: number; losses: number; roundReached: string; rank: number }>();
+  
+  // 모든 아이템에 대해 초기 통계 설정
+  items.forEach(item => {
+    if (!item.is_bye && item.title !== '부전승') {
+      itemStats.set(item.id, { wins: 0, losses: 0, roundReached: '예선탈락', rank: items.length });
+    }
+  });
+  
+  // 각 매치를 분석하여 실제 통계 계산
+  tournament.matches.forEach(match => {
+    if (match.isCompleted && match.winner) {
+      const winnerId = match.winner.id;
+      const loserId = match.item1.id === winnerId ? match.item2.id : match.item1.id;
+      
+      // 승자 통계 업데이트
+      if (itemStats.has(winnerId)) {
+        const winnerStats = itemStats.get(winnerId)!;
+        winnerStats.wins++;
+        
+        // 라운드에 따른 도달 라운드 설정
+        const roundName = getRoundNameFromRound(match.round, tournament.totalRounds);
+        if (shouldUpdateRoundReached(winnerStats.roundReached, roundName)) {
+          winnerStats.roundReached = roundName;
+        }
+      }
+      
+      // 패자 통계 업데이트
+      if (itemStats.has(loserId) && !tournament.matches.find(m => m.item1.id === loserId || m.item2.id === loserId)?.item1.is_bye && !tournament.matches.find(m => m.item1.id === loserId || m.item2.id === loserId)?.item2.is_bye) {
+        const loserStats = itemStats.get(loserId)!;
+        loserStats.losses++;
+        
+        // 패자의 도달 라운드는 현재 라운드에서 탈락
+        const roundName = getRoundNameFromRound(match.round, tournament.totalRounds);
+        if (shouldUpdateRoundReached(loserStats.roundReached, roundName)) {
+          loserStats.roundReached = roundName;
+        }
+      }
+    }
+  });
+  
+  // 우승자 특별 처리
+  if (tournament.isCompleted && winner) {
+    const winnerStats = itemStats.get(winner.id);
+    if (winnerStats) {
+      winnerStats.roundReached = '우승';
+    }
+  }
+  
+  // RankingItem 배열 생성
+  const rankingItems: RankingItem[] = [];
+  
+  items.forEach(item => {
+    if (!item.is_bye && item.title !== '부전승') {
+      const stats = itemStats.get(item.id) || { wins: 0, losses: 0, roundReached: '예선탈락', rank: items.length };
+      const totalMatches = stats.wins + stats.losses;
+      const winRate = totalMatches > 0 ? Math.round((stats.wins / totalMatches) * 100) : 0;
+      
+      rankingItems.push({
+        ...item,
+        rank: 0, // 임시로 0, 나중에 정렬 후 설정
+        winRate,
+        totalMatches,
+        wins: stats.wins,
+        roundReached: stats.roundReached
+      });
+    }
+  });
+  
+  // 정렬: 1. 도달 라운드 우선, 2. 승률, 3. 총 경기수
+  rankingItems.sort((a, b) => {
+    const roundPriorityA = getRoundPriority(a.roundReached);
+    const roundPriorityB = getRoundPriority(b.roundReached);
+    
+    if (roundPriorityA !== roundPriorityB) {
+      return roundPriorityB - roundPriorityA; // 높은 라운드가 먼저
+    }
+    
+    if (a.winRate !== b.winRate) {
+      return b.winRate - a.winRate; // 높은 승률이 먼저
+    }
+    
+    return b.totalMatches - a.totalMatches; // 많은 경기수가 먼저
+  });
+  
+  // 순위 설정
+  rankingItems.forEach((item, index) => {
+    item.rank = index + 1;
+  });
+  
+  return rankingItems;
+};
+
+// 라운드 번호를 라운드 이름으로 변환
+const getRoundNameFromRound = (round: number, totalRounds: number): string => {
+  const remainingRounds = totalRounds - round + 1;
+  
+  switch (remainingRounds) {
+    case 1: return '결승';
+    case 2: return '준결승';
+    case 3: return '8강';
+    case 4: return '16강';
+    case 5: return '32강';
+    case 6: return '64강';
+    default: return `${Math.pow(2, remainingRounds)}강`;
+  }
+};
+
+// 라운드 우선순위 (높을수록 좋은 성적)
+const getRoundPriority = (roundName: string): number => {
+  switch (roundName) {
+    case '우승': return 10;
+    case '결승': return 9;
+    case '준결승': return 8;
+    case '8강': return 7;
+    case '16강': return 6;
+    case '32강': return 5;
+    case '64강': return 4;
+    default: return 0;
+  }
+};
+
+// 더 좋은 라운드로 업데이트해야 하는지 확인
+const shouldUpdateRoundReached = (current: string, newRound: string): boolean => {
+  return getRoundPriority(newRound) > getRoundPriority(current);
 };
 
 const getRankIcon = (rank: number) => {
@@ -67,12 +185,68 @@ export default function TournamentRanking({
   tournamentTitle, 
   winner, 
   allItems, 
+  tournament,
+  worldcupId,
   onBack,
   onGoHome
 }: TournamentRankingProps) {
   const [sortBy, setSortBy] = useState<'rank' | 'winRate' | 'matches'>('rank');
   const [selectedImage, setSelectedImage] = useState<{ title: string; rank: number; image?: string } | null>(null);
-  const rankingData = generateRankingData(allItems, winner);
+  const [rankingData, setRankingData] = useState<RankingItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [dataSource, setDataSource] = useState<'current' | 'aggregated'>('current');
+
+  // 현재 토너먼트 결과 기반 랭킹
+  const currentRankingData = generateRankingData(allItems, winner, tournament);
+
+  // Supabase에서 통합 랭킹 데이터 로드
+  useEffect(() => {
+    const loadAggregatedRanking = async () => {
+      try {
+        const aggregatedData = await getAggregatedRanking(worldcupId, allItems);
+        if (aggregatedData.length > 0) {
+          setRankingData(aggregatedData);
+          setDataSource('aggregated');
+        } else {
+          // 데이터가 없으면 현재 토너먼트 결과 사용
+          setRankingData(currentRankingData);
+          setDataSource('current');
+        }
+      } catch (error) {
+        console.error('Failed to load aggregated ranking:', error);
+        // 에러 시 현재 토너먼트 결과 사용
+        setRankingData(currentRankingData);
+        setDataSource('current');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadAggregatedRanking();
+  }, [worldcupId, allItems, winner, tournament]);
+
+  // 데이터 소스 전환 함수
+  const toggleDataSource = () => {
+    if (dataSource === 'current') {
+      setIsLoading(true);
+      getAggregatedRanking(worldcupId, allItems)
+        .then(aggregatedData => {
+          if (aggregatedData.length > 0) {
+            setRankingData(aggregatedData);
+            setDataSource('aggregated');
+          }
+        })
+        .catch(error => {
+          console.error('Failed to load aggregated ranking:', error);
+        })
+        .finally(() => {
+          setIsLoading(false);
+        });
+    } else {
+      setRankingData(currentRankingData);
+      setDataSource('current');
+    }
+  };
 
   const sortedData = [...rankingData].sort((a, b) => {
     switch (sortBy) {
@@ -116,6 +290,25 @@ export default function TournamentRanking({
           <div className="text-center">
             <h1 className="text-4xl font-bold text-white mb-2">토너먼트 랭킹</h1>
             <p className="text-gray-300">{tournamentTitle}</p>
+            <div className="mt-2 flex items-center justify-center space-x-2">
+              <button
+                onClick={toggleDataSource}
+                disabled={isLoading}
+                className="flex items-center space-x-2 px-3 py-1 bg-white/10 hover:bg-white/20 text-white text-sm rounded-lg transition-colors disabled:opacity-50"
+              >
+                {isLoading ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <BarChart3 className="w-4 h-4" />
+                )}
+                <span>
+                  {dataSource === 'current' ? '전체 통계 보기' : '현재 게임 결과'}
+                </span>
+              </button>
+              <div className="text-xs text-gray-400">
+                {dataSource === 'current' ? '(현재 게임)' : '(모든 플레이 통합)'}
+              </div>
+            </div>
           </div>
           
           <div className="w-32" /> {/* Spacer for center alignment */}
@@ -323,15 +516,29 @@ export default function TournamentRanking({
         >
           <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 text-center">
             <h3 className="text-lg font-semibold text-white mb-2">총 참가자</h3>
-            <p className="text-3xl font-bold text-blue-400">{allItems.length}</p>
+            <p className="text-3xl font-bold text-blue-400">{rankingData.length}</p>
           </div>
           <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 text-center">
-            <h3 className="text-lg font-semibold text-white mb-2">총 경기수</h3>
-            <p className="text-3xl font-bold text-green-400">{allItems.length - 1}</p>
+            <h3 className="text-lg font-semibold text-white mb-2">
+              {dataSource === 'current' ? '현재 경기수' : '총 플레이 수'}
+            </h3>
+            <p className="text-3xl font-bold text-green-400">
+              {dataSource === 'current' 
+                ? tournament.matches.filter(m => m.isCompleted).length
+                : rankingData.reduce((sum, item) => sum + (item.appearances || 0), 0)
+              }
+            </p>
           </div>
           <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 text-center">
-            <h3 className="text-lg font-semibold text-white mb-2">우승자 승률</h3>
-            <p className="text-3xl font-bold text-yellow-400">100%</p>
+            <h3 className="text-lg font-semibold text-white mb-2">
+              {dataSource === 'current' ? '우승자 승률' : '최고 승률'}
+            </h3>
+            <p className="text-3xl font-bold text-yellow-400">
+              {dataSource === 'current' 
+                ? (rankingData.find(item => item.id === winner.id)?.winRate || 100)
+                : Math.max(...rankingData.map(item => item.winRate))
+              }%
+            </p>
           </div>
         </motion.div>
 

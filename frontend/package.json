@@ -12,7 +12,9 @@
     "test:watch": "jest --watch",
     "dev:clean": "rm -rf .next && npm run dev",
     "dev:fresh": "rm -rf .next node_modules/.cache && npm run dev",
-    "clean": "rm -rf .next dist node_modules/.cache"
+    "clean": "rm -rf .next dist node_modules/.cache",
+    "clean:all": "rm -rf .next node_modules/.cache ~/.npm/_cacache node_modules && npm install",
+    "new-computer": "rm -rf .next node_modules/.cache ~/.npm/_cacache node_modules && npm install && npm run dev"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.4",
@@ -25,6 +27,9 @@
     "framer-motion": "^12.19.1",
     "geist": "^1.4.2",
     "lucide-react": "^0.522.0",
+    "next": "^15.3.4",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
     "react-window": "^1.8.11",
     "react-window-infinite-loader": "^1.0.10",
     "tailwindcss": "^4.1.11",

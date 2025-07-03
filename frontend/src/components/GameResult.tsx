@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Tournament, WorldCupItem } from '@/types/game';
 import { motion } from 'framer-motion';
 import { Trophy, RotateCcw, Home, Share2, Download, BarChart3, List } from 'lucide-react';
 import CommentSystem from './CommentSystem';
 import TournamentRanking from './TournamentRanking';
+import { saveTournamentResult } from '@/utils/tournamentResults';
 
 interface GameResultProps {
   tournament: Tournament;
@@ -23,6 +24,40 @@ export default function GameResult({
   const [showRanking, setShowRanking] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
   const [commentCount, setCommentCount] = useState(0);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  // 토너먼트 완료 시 결과를 Supabase에 저장
+  useEffect(() => {
+    const saveResult = async () => {
+      if (!tournament.isCompleted || !tournament.winner || !worldcupId || isSaving) {
+        return;
+      }
+
+      try {
+        setIsSaving(true);
+        setSaveError(null);
+        
+        console.log('💾 Saving tournament result to Supabase...');
+        const result = await saveTournamentResult(
+          tournament,
+          playTime,
+          worldcupId, // 실제 worldcupId 전달
+          undefined, // userId - 현재는 비회원 지원
+          `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        );
+        
+        console.log('✅ Tournament result saved successfully:', result.sessionId);
+      } catch (error) {
+        console.error('❌ Failed to save tournament result:', error);
+        setSaveError('결과 저장에 실패했습니다. 랭킹이 정확하지 않을 수 있습니다.');
+      } finally {
+        setIsSaving(false);
+      }
+    };
+
+    saveResult();
+  }, [tournament.isCompleted, tournament.winner, worldcupId, playTime, isSaving]);
   const formatTime = (ms: number) => {
     const seconds = Math.floor(ms / 1000);
     const minutes = Math.floor(seconds / 60);
@@ -93,6 +128,8 @@ export default function GameResult({
         tournamentTitle={tournament.title}
         winner={tournament.winner as WorldCupItem}
         allItems={tournament.items}
+        tournament={tournament}
+        worldcupId={worldcupId || ''}
         onBack={() => setShowRanking(false)}
         onGoHome={onGoHome}
       />
@@ -255,6 +292,18 @@ export default function GameResult({
           <p className="text-gray-500 text-sm">
             {tournament.title}
           </p>
+          
+          {/* Save Status */}
+          {(isSaving || saveError) && (
+            <div className="mt-2 text-center">
+              {isSaving && (
+                <p className="text-blue-600 text-xs">📊 결과를 저장 중...</p>
+              )}
+              {saveError && (
+                <p className="text-red-600 text-xs">⚠️ {saveError}</p>
+              )}
+            </div>
+          )}
         </motion.div>
         </motion.div>
         

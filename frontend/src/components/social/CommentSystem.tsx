@@ -256,10 +256,20 @@ export default function CommentSystem({ worldcupId, initialCommentCount: _initia
     if (!user) return;
     
     try {
-      const commentIds = comments.map(c => c.id);
+      // 모든 댓글 ID 수집 (최상위 댓글 + 대댓글)
+      const commentIds: string[] = [];
+      comments.forEach(comment => {
+        commentIds.push(comment.id);
+        if (comment.replies) {
+          comment.replies.forEach(reply => {
+            commentIds.push(reply.id);
+          });
+        }
+      });
+      
       if (commentIds.length === 0) return;
       
-      const likedIds = await getUserLikedComments(user.id, commentIds);
+      const likedIds = await getUserCommentLikes(user.id, commentIds);
       setLikedComments(new Set(likedIds));
     } catch (error) {
       console.error('Failed to load user likes:', error);
@@ -460,6 +470,10 @@ export default function CommentSystem({ worldcupId, initialCommentCount: _initia
           setLikedComments(prev => new Set([...prev, commentId]));
           // 댓글 목록에서 좋아요 수 증가
           updateCommentLikes(commentId, 1);
+        } else {
+          // 이미 좋아요가 있는 경우 - UI 상태를 서버와 동기화
+          setLikedComments(prev => new Set([...prev, commentId]));
+          console.log('Comment already liked, syncing UI state');
         }
       }
     } catch (error) {

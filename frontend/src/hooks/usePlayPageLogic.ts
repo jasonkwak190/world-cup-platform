@@ -41,8 +41,12 @@ export function usePlayPageLogic(params: { id: string; }) {
         
         let loadedData = null;
         try {
+          console.log('🔍 Loading worldcup from Supabase with ID:', id);
           const supabaseWorldCup = await getSupabaseWorldCupById(id);
+          console.log('📊 Supabase worldcup result:', supabaseWorldCup);
+          
           if (supabaseWorldCup && supabaseWorldCup.items && supabaseWorldCup.items.length > 0) {
+            console.log('✅ Supabase worldcup has items:', supabaseWorldCup.items.length);
             loadedData = {
               id: supabaseWorldCup.id,
               title: supabaseWorldCup.title,
@@ -58,6 +62,8 @@ export function usePlayPageLogic(params: { id: string; }) {
         } catch (supabaseError) {
           console.error('❌ Supabase error:', supabaseError);
         }
+        
+        console.log('🔍 LoadedData after Supabase:', loadedData);
         
         if (!loadedData) {
           try {

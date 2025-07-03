@@ -185,27 +185,15 @@ export default function GameScreen({ match, round, totalRounds, worldcupId, onCh
     setIsChoosing(true);
     setAnimationPhase('center');
     
-    // 1단계: 중앙으로 이동 (0.8초)
+    // PIKU 스타일: 선택된 아이템만 확대, 1.5초 정지
     setTimeout(() => {
-      setAnimationPhase('return');
-      
-      // 2단계: 원래 자리로 복귀 (0.8초)
-      setTimeout(() => {
-        setAnimationPhase('showOther');
-        
-        // 3단계: 다른 옵션 표시 후 전환 (0.5초)
-        setTimeout(() => {
-          setIsTransitioning(true);
-          setTimeout(() => {
-            onChoice(item);
-            setSelectedItem(null);
-            setIsChoosing(false);
-            setIsTransitioning(false);
-            setAnimationPhase('initial');
-          }, 300);
-        }, 500);
-      }, 800);
-    }, 800);
+      // 다음 매치로 전환
+      onChoice(item);
+      setSelectedItem(null);
+      setIsChoosing(false);
+      setIsTransitioning(false);
+      setAnimationPhase('initial');
+    }, 1500); // 1.5초 정지
   };
 
   // Touch gestures and keyboard shortcuts
@@ -238,7 +226,7 @@ export default function GameScreen({ match, round, totalRounds, worldcupId, onCh
   return (
     <div 
       ref={gestureRef}
-      className="flex flex-col items-center justify-start min-h-screen touch-manipulation"
+      className="flex flex-col items-center justify-start min-h-screen touch-manipulation w-full"
     >
       {/* Particle Effect */}
       <ParticleEffect count={roundStyle.particleCount} colors={particleColors} />
@@ -257,24 +245,24 @@ export default function GameScreen({ match, round, totalRounds, worldcupId, onCh
       </div>
 
       {/* VS Section - PIKU style with overlapping VS */}
-      <div className="relative flex items-center justify-center w-full max-w-none mx-auto px-4 mt-4 gap-4">
+      <div className="relative flex items-center justify-center w-full">
         {/* Item 1 */}
         <motion.div
           initial={{ opacity: 0, x: -100 }}
           animate={{ 
-            opacity: selectedItem?.id === match.item1.id ? 1 : (selectedItem && animationPhase !== 'showOther') || isTransitioning ? 0 : 1,
-            x: selectedItem?.id === match.item1.id && animationPhase === 'center' ? '50vw' : 0,
-            scale: selectedItem?.id === match.item1.id && animationPhase === 'center' ? 1.1 : 1,
-            z: selectedItem?.id === match.item1.id && animationPhase === 'center' ? 50 : 0
+            opacity: selectedItem && selectedItem.id !== match.item1.id ? 0 : 1,
+            x: selectedItem?.id === match.item1.id ? '50%' : 0,
+            scale: selectedItem?.id === match.item1.id ? 1.2 : 1,
+            zIndex: selectedItem?.id === match.item1.id ? 50 : 0
           }}
           transition={{ 
-            duration: 0.8,
+            duration: 0.4,
             ease: "easeInOut",
             delay: animationPhase === 'initial' ? 0.2 : 0
           }}
           whileHover={!isChoosing ? {} : {}}
           whileTap={!isChoosing ? { scale: 0.95 } : {}}
-          className={`flex-1 max-w-md sm:max-w-lg md:max-w-xl lg:max-w-2xl xl:max-w-3xl cursor-pointer transition-all duration-500 relative focus:outline-none z-10 ${isChoosing ? 'pointer-events-none' : ''}`}
+          className={`flex-1 cursor-pointer transition-all duration-500 relative focus:outline-none z-10 ${isChoosing ? 'pointer-events-none' : ''} ${selectedItem?.id === match.item1.id ? '!opacity-100 !block' : ''}`}
           onClick={() => handleChoice(cleanedMatch.item1)}
         >
           <AnimatePresence>
@@ -293,11 +281,11 @@ export default function GameScreen({ match, round, totalRounds, worldcupId, onCh
             )}
           </AnimatePresence>
           
-          <div className={`bg-white rounded-2xl p-1 shadow-2xl hover:shadow-emerald-500/25 transition-all duration-300 focus:outline-none ${
+          <div className={`bg-white rounded-2xl shadow-2xl hover:shadow-emerald-500/25 transition-all duration-300 focus:outline-none ${
             selectedItem?.id === match.item1.id ? getRoundBorderStyle(round, totalRounds) : ''
           }`}>
             {/* Item Image */}
-            <div className="aspect-[4/3] sm:aspect-[5/4] md:aspect-[6/5] bg-gradient-to-br from-emerald-100 to-blue-100 rounded-xl mb-3 overflow-hidden relative group">
+            <div className="h-[28rem] sm:h-[32rem] md:h-[36rem] lg:h-[40rem] xl:h-[44rem] bg-gradient-to-br from-emerald-100 to-blue-100 rounded-t-2xl mb-3 overflow-hidden relative group">
               {match.item1.image ? (
                 <>
                   <img 
@@ -365,12 +353,12 @@ export default function GameScreen({ match, round, totalRounds, worldcupId, onCh
             </div>
             
             {/* Item Info */}
-            <div className="text-center py-3">
-              <h3 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 line-clamp-2 leading-tight">
+            <div className="text-center py-2 sm:py-3 px-2 sm:px-4">
+              <h3 className="text-sm sm:text-base md:text-lg lg:text-xl xl:text-2xl font-bold text-gray-900 line-clamp-2 leading-tight">
                 {match.item1.title}
               </h3>
               {match.item1.description && (
-                <p className="text-sm sm:text-base text-gray-600 line-clamp-1 mt-1">
+                <p className="text-xs sm:text-sm md:text-base text-gray-600 line-clamp-1 mt-1">
                   {match.item1.description}
                 </p>
               )}
@@ -382,18 +370,18 @@ export default function GameScreen({ match, round, totalRounds, worldcupId, onCh
         <motion.div
           initial={{ opacity: 0, scale: 0 }}
           animate={{ 
-            opacity: (selectedItem && animationPhase !== 'showOther') || isTransitioning ? 0 : 1,
-            scale: (selectedItem && animationPhase !== 'showOther') || isTransitioning ? 0 : 1
+            opacity: selectedItem ? 0 : 1,
+            scale: selectedItem ? 0 : 1
           }}
           transition={{ 
-            duration: animationPhase === 'showOther' ? 0.3 : 0.5,
+            duration: 0.3,
             ease: "easeInOut",
-            delay: animationPhase === 'initial' ? 0.6 : (animationPhase === 'showOther' ? 0.2 : 0)
+            delay: animationPhase === 'initial' ? 0.6 : 0
           }}
           className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30"
         >
-          <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 lg:w-28 lg:h-28 bg-gradient-to-r from-orange-500 to-red-500 rounded-full flex items-center justify-center shadow-2xl border-4 border-white">
-            <span className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold text-white">VS</span>
+          <div className="w-12 h-12 sm:w-16 sm:h-16 md:w-20 md:h-20 lg:w-24 lg:h-24 xl:w-28 xl:h-28 2xl:w-32 2xl:h-32 bg-gradient-to-r from-orange-500 to-red-500 rounded-full flex items-center justify-center shadow-2xl border-2 sm:border-4 border-white">
+            <span className="text-sm sm:text-lg md:text-xl lg:text-2xl xl:text-3xl 2xl:text-4xl font-bold text-white">VS</span>
           </div>
         </motion.div>
 
@@ -401,19 +389,19 @@ export default function GameScreen({ match, round, totalRounds, worldcupId, onCh
         <motion.div
           initial={{ opacity: 0, x: 100 }}
           animate={{ 
-            opacity: selectedItem?.id === match.item2.id ? 1 : (selectedItem && animationPhase !== 'showOther') || isTransitioning ? 0 : 1,
-            x: selectedItem?.id === match.item2.id && animationPhase === 'center' ? '-50vw' : 0,
-            scale: selectedItem?.id === match.item2.id && animationPhase === 'center' ? 1.1 : 1,
-            z: selectedItem?.id === match.item2.id && animationPhase === 'center' ? 50 : 0
+            opacity: selectedItem && selectedItem.id !== match.item2.id ? 0 : 1,
+            x: selectedItem?.id === match.item2.id ? '-50%' : 0,
+            scale: selectedItem?.id === match.item2.id ? 1.2 : 1,
+            zIndex: selectedItem?.id === match.item2.id ? 50 : 0
           }}
           transition={{ 
-            duration: 0.8,
+            duration: 0.4,
             ease: "easeInOut",
             delay: animationPhase === 'initial' ? 0.4 : 0
           }}
           whileHover={!isChoosing ? {} : {}}
           whileTap={!isChoosing ? { scale: 0.95 } : {}}
-          className={`flex-1 max-w-md sm:max-w-lg md:max-w-xl lg:max-w-2xl xl:max-w-3xl cursor-pointer transition-all duration-500 relative focus:outline-none z-10 ${isChoosing ? 'pointer-events-none' : ''}`}
+          className={`flex-1 cursor-pointer transition-all duration-500 relative focus:outline-none z-10 ${isChoosing ? 'pointer-events-none' : ''} ${selectedItem?.id === match.item2.id ? '!opacity-100 !block' : ''}`}
           onClick={() => handleChoice(cleanedMatch.item2)}
         >
           <AnimatePresence>
@@ -432,11 +420,11 @@ export default function GameScreen({ match, round, totalRounds, worldcupId, onCh
             )}
           </AnimatePresence>
           
-          <div className={`bg-white rounded-2xl p-1 shadow-2xl hover:shadow-emerald-500/25 transition-all duration-300 focus:outline-none ${
+          <div className={`bg-white rounded-2xl shadow-2xl hover:shadow-emerald-500/25 transition-all duration-300 focus:outline-none ${
             selectedItem?.id === match.item2.id ? getRoundBorderStyle(round, totalRounds) : ''
           }`}>
             {/* Item Image */}
-            <div className="aspect-[4/3] sm:aspect-[5/4] md:aspect-[6/5] bg-gradient-to-br from-purple-100 to-pink-100 rounded-xl mb-3 overflow-hidden relative group">
+            <div className="h-[28rem] sm:h-[32rem] md:h-[36rem] lg:h-[40rem] xl:h-[44rem] bg-gradient-to-br from-purple-100 to-pink-100 rounded-t-2xl mb-3 overflow-hidden relative group">
               {match.item2.image ? (
                 <>
                 <img 
@@ -504,12 +492,12 @@ export default function GameScreen({ match, round, totalRounds, worldcupId, onCh
             </div>
             
             {/* Item Info */}
-            <div className="text-center py-3">
-              <h3 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 line-clamp-2 leading-tight">
+            <div className="text-center py-2 sm:py-3 px-2 sm:px-4">
+              <h3 className="text-sm sm:text-base md:text-lg lg:text-xl xl:text-2xl font-bold text-gray-900 line-clamp-2 leading-tight">
                 {match.item2.title}
               </h3>
               {match.item2.description && (
-                <p className="text-sm sm:text-base text-gray-600 line-clamp-1 mt-1">
+                <p className="text-xs sm:text-sm md:text-base text-gray-600 line-clamp-1 mt-1">
                   {match.item2.description}
                 </p>
               )}

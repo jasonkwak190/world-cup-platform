@@ -1,7 +1,19 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Play, Eye, Share2, Settings, Users, MessageCircle, Heart, Trophy } from 'lucide-react';
+import { Play, Eye, Share2, Settings, Users, MessageCircle, Heart, Trophy, Edit3 } from 'lucide-react';
+import dynamic from 'next/dynamic';
+
+// Dynamic import to prevent SSR issues
+const ImageCropper = dynamic(() => import('./ImageCropper'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center p-8">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
+      <span className="ml-3">이미지 편집기 로딩 중...</span>
+    </div>
+  ),
+});
 
 interface WorldCupItem {
   id: string;
@@ -22,13 +34,16 @@ interface WorldCupData {
 interface WorldCupPreviewProps {
   data: WorldCupData;
   onGameStateChange?: (isPlaying: boolean) => void;
+  onItemUpdate?: (itemId: string, updates: Partial<WorldCupItem>) => void;
+  onThumbnailUpdate?: (thumbnail: string | File) => void;
 }
 
 
 
-export default function WorldCupPreview({ data, onGameStateChange }: WorldCupPreviewProps) {
+export default function WorldCupPreview({ data, onGameStateChange, onItemUpdate, onThumbnailUpdate }: WorldCupPreviewProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentMatchItems, setCurrentMatchItems] = useState<[WorldCupItem, WorldCupItem] | null>(null);
+  const [showImageEditor, setShowImageEditor] = useState(false);
   
   // getImageUrl 함수를 먼저 정의
   const getImageUrl = (image: string | File | Blob | undefined | null): string => {
@@ -285,6 +300,15 @@ export default function WorldCupPreview({ data, onGameStateChange }: WorldCupPre
                   <button className="p-2.5 rounded-lg transition-all duration-200 min-h-[40px] min-w-[40px] flex items-center justify-center text-gray-400 hover:text-blue-500 hover:bg-blue-50 border border-gray-200 hover:border-blue-300 hover:shadow-md transform hover:scale-110">
                     <Share2 className="w-4 h-4" />
                   </button>
+                  {onItemUpdate && (
+                    <button 
+                      onClick={() => setShowImageEditor(true)}
+                      className="p-2.5 rounded-lg transition-all duration-200 min-h-[40px] min-w-[40px] flex items-center justify-center text-gray-400 hover:text-green-500 hover:bg-green-50 border border-gray-200 hover:border-green-300 hover:shadow-md transform hover:scale-110"
+                      title="이미지 크롭/편집"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -486,6 +510,39 @@ export default function WorldCupPreview({ data, onGameStateChange }: WorldCupPre
       )}
 
       {/* 수정: 파일 업로드 입력 제거 */}
+
+      {/* Image Editor Modal */}
+      {showImageEditor && onItemUpdate && onThumbnailUpdate && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg w-full max-w-6xl max-h-[90vh] overflow-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold">이미지 크롭/편집</h2>
+                <button
+                  onClick={() => setShowImageEditor(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  ✕
+                </button>
+              </div>
+              <ImageCropper
+                items={data.items}
+                onItemUpdate={onItemUpdate}
+                thumbnail={data.thumbnail}
+                onThumbnailUpdate={onThumbnailUpdate}
+              />
+              <div className="mt-4 text-center">
+                <button
+                  onClick={() => setShowImageEditor(false)}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                >
+                  완료
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

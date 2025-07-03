@@ -148,7 +148,7 @@ export default function CommentSection({ winnerName, worldcupId }: CommentSectio
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 1.5 }}
+      transition={{ delay: 2.0 }}
       className="mt-8 bg-white rounded-2xl p-6 shadow-lg"
     >
       {/* Header */}
