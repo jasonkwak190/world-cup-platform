@@ -10,6 +10,11 @@ export function generateGuestSessionId(): string {
 
 // 현재 비회원 세션 ID 가져오기 (없으면 생성)
 export function getGuestSessionId(): string {
+  // 서버사이드에서는 임시 ID 반환
+  if (typeof window === 'undefined') {
+    return 'temp_session_id';
+  }
+  
   const storageKey = 'guest_session_id';
   
   // localStorage에서 기존 세션 ID 확인
@@ -26,6 +31,10 @@ export function getGuestSessionId(): string {
 
 // 비회원 댓글 소유권 확인
 export function isGuestCommentOwner(commentId: string): boolean {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  
   const storageKey = `guest_comment_${commentId}`;
   const sessionId = getGuestSessionId();
   const storedSessionId = localStorage.getItem(storageKey);
@@ -35,6 +44,10 @@ export function isGuestCommentOwner(commentId: string): boolean {
 
 // 비회원 댓글 소유권 등록
 export function registerGuestComment(commentId: string): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  
   const storageKey = `guest_comment_${commentId}`;
   const sessionId = getGuestSessionId();
   localStorage.setItem(storageKey, sessionId);
@@ -42,6 +55,10 @@ export function registerGuestComment(commentId: string): void {
 
 // 비회원 댓글 소유권 해제 (삭제 시)
 export function unregisterGuestComment(commentId: string): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  
   const storageKey = `guest_comment_${commentId}`;
   localStorage.removeItem(storageKey);
 }

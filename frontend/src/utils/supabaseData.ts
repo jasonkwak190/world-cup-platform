@@ -2,9 +2,19 @@
 import { supabase } from '@/lib/supabase';
 import type { SupabaseWorldCup, SupabaseWorldCupItem, SupabaseUser } from '@/types/supabase';
 import { withRetry } from './supabaseConnection';
+import { cache } from './cache';
 
 // 월드컵 목록 가져오기 (RLS 정책 사용) - 성능 최적화 및 재시도 로직
 export async function getWorldCups() {
+  const cacheKey = 'worldcups_list';
+  
+  // 캐시에서 먼저 확인 (2분 캐시)
+  const cachedData = cache.get(cacheKey);
+  if (cachedData) {
+    console.log('✅ Using cached worldcups data');
+    return cachedData;
+  }
+  
   const startTime = Date.now();
   
   return withRetry(async () => {
@@ -33,7 +43,7 @@ export async function getWorldCups() {
       `)
       .eq('is_public', true)
       .order('created_at', { ascending: false })
-      .limit(20);
+      .limit(12); // 로딩 시간 단축을 위해 12개로 제한
 
     const { data, error } = await Promise.race([dataPromise, timeoutPromise]) as any;
 
@@ -69,7 +79,7 @@ export async function getWorldCups() {
     }
 
     // localStorage 형식으로 변환
-    return data.map(worldcup => {
+    const result = data.map(worldcup => {
       // 썸네일 URL 처리 - 이미 완전한 URL인지 확인
       let thumbnailUrl = '/placeholder.svg';
       
@@ -98,6 +108,11 @@ export async function getWorldCups() {
         items: [] // 아이템은 플레이할 때만 로드
       };
     });
+    
+    // 결과를 캐시에 저장 (2분 캐시)
+    cache.set(cacheKey, result, 2 * 60 * 1000);
+    
+    return result;
   }, 'Load worldcups from Supabase').catch(error => {
     console.error('Error in getWorldCups after retries:', error);
     return [];

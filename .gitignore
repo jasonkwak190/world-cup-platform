@@ -1,1 +1,21 @@
 node_modules
+
+# Claude MCP 설정 (API 키 포함)
+.claude/mcp_servers.json
+~/.config/claude/mcp_servers.json
+
+# 환경 변수 파일
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# API 키 및 시크릿
+*.key
+*.pem
+config/secrets.yml
+
+# 로그 파일
+*.log
+logs/

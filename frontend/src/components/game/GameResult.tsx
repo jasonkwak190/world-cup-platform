@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Tournament, WorldCupItem } from '@/types/game';
 import { motion } from 'framer-motion';
 import { Trophy, RotateCcw, Home, Share2, Download, BarChart3, List } from 'lucide-react';
-import CommentSystem from './CommentSystem';
+import CommentSystem from '../CommentSystem';
 import TournamentRanking from './TournamentRanking';
 
 interface GameResultProps {

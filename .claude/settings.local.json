@@ -44,7 +44,16 @@
       "mcp__gemini-cli__Ping",
       "Bash(mv:*)",
       "Bash(gemini:*)",
-      "Bash(timeout 10 npm run dev)"
+      "Bash(timeout 10 npm run dev)",
+      "Bash(claude --version)",
+      "Bash(claude config list)",
+      "Bash(claude quit)",
+      "mcp__memory-mcp__create_entities",
+      "mcp__sequential-thinking__sequentialthinking",
+      "mcp__github-mcp__search_repositories",
+      "Bash(./setup-claude-mcp.sh:*)",
+      "mcp__memory-mcp__read_graph",
+      "Bash(cat:*)"
     ],
     "deny": []
   }

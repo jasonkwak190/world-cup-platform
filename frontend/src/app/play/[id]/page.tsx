@@ -49,17 +49,6 @@ export default function PlayPage({ params: paramsPromise }: PlayPageProps) {
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-          <p className="text-white">월드컵 데이터를 불러오는 중...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
           <p className="text-white">월드컵을 준비하고 있습니다...</p>
         </div>
       </div>
@@ -98,12 +87,23 @@ export default function PlayPage({ params: paramsPromise }: PlayPageProps) {
   const progress = getTournamentProgress(tournament);
 
   if (tournament.isCompleted) {
+    // 클라이언트에서만 현재 시간 계산하여 하이드레이션 이슈 방지
+    const calculatePlayTime = () => {
+      if (gameState.endTime) {
+        return gameState.endTime - gameState.startTime;
+      }
+      if (typeof window !== 'undefined') {
+        return Date.now() - gameState.startTime;
+      }
+      return 0; // 서버 사이드에서는 0으로 기본값 설정
+    };
+
     return (
       <GameResult
         tournament={tournament}
         onRestart={handleRestart}
         onGoHome={handleGoHome}
-        playTime={gameState.endTime ? gameState.endTime - gameState.startTime : Date.now() - gameState.startTime}
+        playTime={calculatePlayTime()}
         worldcupId={worldcupId}
       />
     );

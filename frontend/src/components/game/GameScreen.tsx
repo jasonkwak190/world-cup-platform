@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { getRoundStyle, getRoundBorderStyle, getRoundCheckmarkStyle } from '@/utils/tournament';
 import ParticleEffect from './ParticleEffect';
 import { useTouchGestures, useKeyboardShortcuts } from '@/hooks/useTouchGestures';
-import { LiveActivityIndicator } from './RealtimeStats';
+// import { LiveActivityIndicator } from './RealtimeStats'; // Disabled
 
 interface GameScreenProps {
   match: Match;
@@ -244,7 +244,7 @@ export default function GameScreen({ match, round, totalRounds, worldcupId, onCh
       <ParticleEffect count={roundStyle.particleCount} colors={particleColors} />
       
       {/* Live Activity Indicator */}
-      {worldcupId && <LiveActivityIndicator worldcupId={worldcupId} />}
+      {/* {worldcupId && <LiveActivityIndicator worldcupId={worldcupId} />} */}
       
       {/* Controls Hint */}
       <div className="fixed top-4 right-4 bg-black/50 text-white text-xs px-3 py-2 rounded-lg backdrop-blur-sm z-50">

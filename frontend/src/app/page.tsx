@@ -26,15 +26,21 @@ export default function Home() {
   useEffect(() => {
     const calculateCategoryCounts = async () => {
       try {
-        // 캐시에서 먼저 확인
-        const cached = sessionStorage.getItem('worldcups_cache');
+        // 캐시에서 먼저 확인 (클라이언트에서만)
         let allWorldCups = [];
         
-        if (cached) {
-          const { data, timestamp } = JSON.parse(cached);
-          if (Date.now() - timestamp < 60000) { // 1분 캐시
-            allWorldCups = data;
+        // useEffect 안에서도 안전하게 처리
+        try {
+          const cached = sessionStorage.getItem('worldcups_cache');
+          if (cached) {
+            const { data, timestamp } = JSON.parse(cached);
+            const now = Date.now();
+            if (now - timestamp < 60000) { // 1분 캐시
+              allWorldCups = data;
+            }
           }
+        } catch (storageError) {
+          console.warn('Cache access failed:', storageError);
         }
         
         // 캐시가 없거나 만료된 경우 새로 로드
@@ -84,7 +90,7 @@ export default function Home() {
           
           allWorldCups = Array.from(worldCupMap.values());
           
-          // 캐시에 저장
+          // 캐시에 저장 (이미 useEffect 안이므로 클라이언트에서만 실행됨)
           try {
             sessionStorage.setItem('worldcups_cache', JSON.stringify({
               data: allWorldCups,

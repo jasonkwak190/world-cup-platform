@@ -184,6 +184,42 @@ Neutral: #6B7280 (그레이)
 - 코드를 짜고 나면, rail test 명령을 통해 테스트가 잘 성공하는지 반드시 확인하도록 해.
 - test 코드를 추가할 땐 minitest를 사용해. Rspec은 쓰지마, fixtures를 추가할 땐 내게 물어보고 추가해.
 
+## 🤖 Claude MCP 설정
+
+### 초기 설정 (새로운 컴퓨터에서 처음 실행 시)
+
+```bash
+# 프로젝트 루트에서 실행
+./setup-claude-mcp.sh
+```
+
+### MCP 서버 기능
+- **Memory**: 대화 내용 기억 및 관리
+- **Sequential Thinking**: 복잡한 문제 단계별 해결  
+- **Filesystem**: 프로젝트 파일 접근 최적화
+- **GitHub**: 저장소 관리 (API 키 필요)
+- **Brave Search**: 웹 검색 (API 키 필요)
+- **Gemini CLI**: 대용량 파일 분석 (API 키 필요)
+
+### API 키 설정 (선택사항)
+```bash
+# .claude/mcp_servers.json 파일에서 설정 (Git에 커밋되지 않음)
+# 또는 ~/.config/claude/mcp_servers.json 파일에서 설정
+GITHUB_PERSONAL_ACCESS_TOKEN="ghp_xxxxx"
+BRAVE_API_KEY="BSAxxxxx" 
+GEMINI_API_KEY="AIzaSyxxxxx"
+```
+
+### ⚠️ 보안 주의사항
+- **API 키 파일은 Git에 커밋되지 않습니다** (.gitignore 처리됨)
+- 템플릿 파일(`.template`)만 저장소에 포함됩니다
+- 실제 API 키는 로컬 환경에서만 관리됩니다
+- 팀 공유 시에는 각자 API 키를 개별 설정해야 합니다
+
+### 사용법
+- Claude CLI 재시작 후 자동으로 MCP 서버 연결
+- `@` 문법으로 대용량 파일 분석: `gemini -p "@src/ 전체 코드 구조 분석해줘"`
+
 
 # Using Gemini CLI for Large Codebase Analysis
 

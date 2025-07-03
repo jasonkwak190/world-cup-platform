@@ -109,22 +109,22 @@ export async function addLike(userId: string, worldcupId: string) {
       return false;
     }
 
-    // 중복 좋아요 확인
-    const { data: existingLike, error: checkError } = await supabase
+    // 중복 좋아요 확인 - .single() 대신 배열로 받아서 처리
+    const { data: existingLikes, error: checkError } = await supabase
       .from('user_interactions')
       .select('id')
       .eq('user_id', userId)
       .eq('target_type', 'worldcup')
       .eq('target_id', worldcupId)
       .eq('interaction_type', 'like')
-      .single();
+      .limit(1);
 
-    if (checkError && checkError.code !== 'PGRST116') {
+    if (checkError) {
       console.error('❌ Error checking existing like:', checkError);
       return false;
     }
 
-    if (existingLike) {
+    if (existingLikes && existingLikes.length > 0) {
       console.log('⚠️ User has already liked this worldcup');
       return false; // 이미 좋아요 했음
     }
