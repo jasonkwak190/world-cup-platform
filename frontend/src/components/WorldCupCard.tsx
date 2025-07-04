@@ -1,7 +1,6 @@
 import { Heart, MessageCircle, Share2, Play, Bookmark } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { RealtimeStatsCard } from './RealtimeStats';
 
 interface WorldCupCardProps {
   id: string;
@@ -200,16 +199,22 @@ export default function WorldCupCard({
           <span>{createdAt}</span>
         </div>
 
-        {/* Real-time Stats */}
-        <div className="mb-3">
-          <RealtimeStatsCard
-            worldcupId={id}
-            initialStats={{
-              participants,
-              comments,
-              likes
-            }}
-          />
+        {/* Stats */}
+        <div className="flex items-center justify-between text-sm text-gray-500 mb-3">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1">
+              <Play className="w-4 h-4" />
+              <span>{participants.toLocaleString()}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <MessageCircle className="w-4 h-4" />
+              <span>{comments.toLocaleString()}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Heart className="w-4 h-4" />
+              <span>{likes.toLocaleString()}</span>
+            </div>
+          </div>
         </div>
 
         {/* Actions */}

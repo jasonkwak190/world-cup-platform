@@ -53,7 +53,9 @@
       "mcp__github-mcp__search_repositories",
       "Bash(./setup-claude-mcp.sh:*)",
       "mcp__memory-mcp__read_graph",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(timeout 30s npm run dev:*)",
+      "Bash(gtimeout:*)"
     ],
     "deny": []
   }

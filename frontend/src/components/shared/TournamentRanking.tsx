@@ -4,38 +4,16 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, Crown, Medal, Award, ArrowLeft, BarChart3, TrendingUp, Home, X, ZoomIn } from 'lucide-react';
 import { WorldCupItem } from '@/types/game';
-
-interface RankingItem extends WorldCupItem {
-  rank: number;
-  winRate: number;
-  totalMatches: number;
-  wins: number;
-  roundReached: string;
-}
+import { generateRealRankingData, ItemStats } from '@/utils/gameStats';
 
 interface TournamentRankingProps {
   tournamentTitle: string;
+  worldcupId: string; // 월드컵 ID 추가 (통계 조회용)
   winner: WorldCupItem;
   allItems: WorldCupItem[];
   onBack: () => void;
   onGoHome?: () => void;
 }
-
-// Mock ranking data - 실제로는 토너먼트 결과를 기반으로 생성
-const generateRankingData = (items: WorldCupItem[], winner: WorldCupItem): RankingItem[] => {
-  return items.map((item, index) => ({
-    ...item,
-    rank: index + 1,
-    winRate: item.id === winner.id ? 100 : Math.floor(Math.random() * 80) + 20,
-    totalMatches: item.id === winner.id ? 5 : Math.floor(Math.random() * 5) + 1,
-    wins: item.id === winner.id ? 5 : Math.floor(Math.random() * 3) + 1,
-    roundReached: item.id === winner.id ? '우승' : 
-                 index < 2 ? '결승' :
-                 index < 4 ? '준결승' :
-                 index < 8 ? '8강' :
-                 index < 16 ? '16강' : '32강'
-  })).sort((a, b) => b.winRate - a.winRate);
-};
 
 const getRankIcon = (rank: number) => {
   switch (rank) {
@@ -65,6 +43,7 @@ const getRankStyle = (rank: number) => {
 
 export default function TournamentRanking({ 
   tournamentTitle, 
+  worldcupId,
   winner, 
   allItems, 
   onBack,
@@ -72,14 +51,34 @@ export default function TournamentRanking({
 }: TournamentRankingProps) {
   const [sortBy, setSortBy] = useState<'rank' | 'winRate' | 'matches'>('rank');
   const [selectedImage, setSelectedImage] = useState<{ title: string; rank: number; image?: string } | null>(null);
-  const rankingData = generateRankingData(allItems, winner);
+  
+  // 실제 통계 데이터 사용
+  const rankingData = generateRealRankingData(worldcupId, winner);
+  
+  // 통계가 없는 경우 기본 데이터 생성 (첫 게임 등)
+  const fallbackData = rankingData.length === 0 ? allItems.map((item, index) => ({
+    id: item.id,
+    title: item.title,
+    image: item.image || item.image_url,
+    totalAppearances: 0,
+    totalWins: 0,
+    totalLosses: 0,
+    winRate: 0,
+    roundStats: {},
+    championshipWins: 0,
+    finalAppearances: 0,
+    vsRecord: {},
+    rank: index + 1,
+    averageRoundReached: 0,
+    bestRoundReached: '1라운드'
+  } as ItemStats)) : rankingData;
 
-  const sortedData = [...rankingData].sort((a, b) => {
+  const sortedData = [...fallbackData].sort((a, b) => {
     switch (sortBy) {
       case 'winRate':
         return b.winRate - a.winRate;
       case 'matches':
-        return b.totalMatches - a.totalMatches;
+        return b.totalAppearances - a.totalAppearances;
       default:
         return a.rank - b.rank;
     }
@@ -262,15 +261,15 @@ export default function TournamentRanking({
                   </div>
                 </div>
 
-                {/* Round Reached */}
+                {/* Best Round Reached */}
                 <div className="col-span-2 text-center">
                   <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                    item.roundReached === '우승' ? 'bg-yellow-100 text-yellow-800' :
-                    item.roundReached === '결승' ? 'bg-silver-100 text-gray-700' :
-                    item.roundReached === '준결승' ? 'bg-orange-100 text-orange-700' :
+                    item.championshipWins > 0 ? 'bg-yellow-100 text-yellow-800' :
+                    item.bestRoundReached === '결승' ? 'bg-silver-100 text-gray-700' :
+                    item.bestRoundReached === '준결승' ? 'bg-orange-100 text-orange-700' :
                     'bg-blue-100 text-blue-700'
                   }`}>
-                    {item.roundReached}
+                    {item.championshipWins > 0 ? `우승 ${item.championshipWins}회` : item.bestRoundReached}
                   </span>
                 </div>
 
@@ -280,20 +279,20 @@ export default function TournamentRanking({
                     <div className="w-16 bg-gray-200 rounded-full h-2">
                       <div 
                         className="bg-gradient-to-r from-green-500 to-blue-500 h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${item.winRate}%` }}
+                        style={{ width: `${Math.round(item.winRate)}%` }}
                       />
                     </div>
-                    <span className="text-sm font-semibold text-gray-700">{item.winRate}%</span>
+                    <span className="text-sm font-semibold text-gray-700">{Math.round(item.winRate)}%</span>
                   </div>
                 </div>
 
                 {/* Match Record */}
                 <div className="col-span-2 text-center">
                   <span className="text-sm text-gray-700">
-                    {item.wins}승 {item.totalMatches - item.wins}패
+                    {item.totalWins}승 {item.totalLosses}패
                   </span>
                   <div className="text-xs text-gray-500">
-                    (총 {item.totalMatches}경기)
+                    (총 {item.totalAppearances}경기)
                   </div>
                 </div>
 
@@ -326,12 +325,16 @@ export default function TournamentRanking({
             <p className="text-3xl font-bold text-blue-400">{allItems.length}</p>
           </div>
           <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 text-center">
-            <h3 className="text-lg font-semibold text-white mb-2">총 경기수</h3>
-            <p className="text-3xl font-bold text-green-400">{allItems.length - 1}</p>
+            <h3 className="text-lg font-semibold text-white mb-2">총 게임 수</h3>
+            <p className="text-3xl font-bold text-green-400">
+              {fallbackData.length > 0 ? Math.max(...fallbackData.map(item => item.totalAppearances)) : 0}
+            </p>
           </div>
           <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 text-center">
-            <h3 className="text-lg font-semibold text-white mb-2">우승자 승률</h3>
-            <p className="text-3xl font-bold text-yellow-400">100%</p>
+            <h3 className="text-lg font-semibold text-white mb-2">최고 승률</h3>
+            <p className="text-3xl font-bold text-yellow-400">
+              {fallbackData.length > 0 ? Math.round(Math.max(...fallbackData.map(item => item.winRate))) : 0}%
+            </p>
           </div>
         </motion.div>
 

@@ -22,7 +22,7 @@ import { showToast } from './Toast';
 import { updateWorldCupCommentCount } from '@/utils/updateCommentCounts';
 import { onCommentCountChange } from '@/utils/commentEvents';
 import { incrementPlayCount, onPlayCountChange, notifyPlayCountChange } from '@/utils/playCount';
-import { withRetry, startConnectionMonitoring } from '@/utils/supabaseConnection';
+import { withRetry } from '@/utils/supabaseConnection';
 
 // Mock 데이터 제거됨 - 이제 Supabase에서 실제 데이터 사용
 
@@ -42,11 +42,10 @@ export default function WorldCupGrid({ category: _category, sortBy: _sortBy, sea
   const [loginPromptAction, setLoginPromptAction] = useState<() => void>(() => {});
   const [commentCounts, setCommentCounts] = useState<Map<string, number>>(new Map());
 
-  // Supabase에서 월드컵 데이터 로드 (재연결 로직 포함)
+  // Supabase에서 월드컵 데이터 로드
   useEffect(() => {
     let isMounted = true;
     let autoRefreshTimer: NodeJS.Timeout | null = null;
-    let connectionCleanup: (() => void) | null = null;
     
     const loadWorldCups = async () => {
       try {
@@ -145,9 +144,6 @@ export default function WorldCupGrid({ category: _category, sortBy: _sortBy, sea
       }
     };
 
-    // 연결 모니터링 시작
-    connectionCleanup = startConnectionMonitoring();
-    
     // 초기 로드 수행
     loadWorldCups();
 
@@ -183,9 +179,6 @@ export default function WorldCupGrid({ category: _category, sortBy: _sortBy, sea
       isMounted = false;
       if (autoRefreshTimer) {
         clearTimeout(autoRefreshTimer);
-      }
-      if (connectionCleanup) {
-        connectionCleanup();
       }
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibilityChange);

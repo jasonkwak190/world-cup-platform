@@ -2,6 +2,32 @@
 import { supabase } from '@/lib/supabase';
 import { Tournament, WorldCupItem, Match } from '@/types/game';
 
+// UUID 유효성 검사
+function isValidUUID(str: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(str);
+}
+
+// UUID 생성 함수
+function generateUUID(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+// ID를 UUID로 변환하거나 검증
+function ensureUUID(id: string): string {
+  if (isValidUUID(id)) {
+    return id;
+  }
+  
+  // UUID가 아닌 경우 오류 발생
+  console.error('❌ Invalid UUID format:', id);
+  throw new Error(`Invalid UUID format: ${id}. All IDs must be in UUID format for Supabase.`);
+}
+
 // 게임 세션을 Supabase에 저장
 export async function saveTournamentResult(
   tournament: Tournament,
@@ -22,9 +48,9 @@ export async function saveTournamentResult(
       throw new Error('Tournament is not completed or has no winner');
     }
 
-    // 1. 게임 세션 저장
+    // 1. 게임 세션 저장 (UUID 검증 포함)
     const sessionData = {
-      worldcup_id: worldcupId,
+      worldcup_id: ensureUUID(worldcupId),
       player_id: userId || null,
       session_token: sessionToken || generateSessionToken(),
       tournament_bracket: {
@@ -41,8 +67,8 @@ export async function saveTournamentResult(
       },
       current_round: tournament.currentRound,
       status: 'completed',
-      winner_item_id: tournament.winner.id,
-      runner_up_item_id: findRunnerUp(tournament)?.id || null,
+      winner_item_id: ensureUUID(tournament.winner.id),
+      runner_up_item_id: findRunnerUp(tournament)?.id ? ensureUUID(findRunnerUp(tournament)!.id) : null,
       total_rounds: tournament.totalRounds,
       total_matches: tournament.matches.filter(m => m.isCompleted).length,
       play_time_seconds: Math.round(playTimeMs / 1000),
@@ -63,17 +89,17 @@ export async function saveTournamentResult(
 
     console.log('✅ Game session saved:', session.id);
 
-    // 2. 모든 매치 결과 저장
+    // 2. 모든 매치 결과 저장 (UUID 검증 포함)
     const matchesData = tournament.matches
       .filter(match => match.isCompleted && match.winner)
       .map(match => ({
         session_id: session.id,
-        worldcup_id: worldcupId,
+        worldcup_id: ensureUUID(worldcupId),
         round_number: match.round,
         match_number: match.matchNumber,
-        item1_id: match.item1.id,
-        item2_id: match.item2.id,
-        winner_id: match.winner!.id,
+        item1_id: ensureUUID(match.item1.id),
+        item2_id: ensureUUID(match.item2.id),
+        winner_id: ensureUUID(match.winner!.id),
         decision_time_ms: null // 현재는 결정 시간을 추적하지 않음
       }));
 
@@ -95,7 +121,7 @@ export async function saveTournamentResult(
     const { data: currentData, error: fetchError } = await supabase
       .from('worldcups')
       .select('play_count')
-      .eq('id', worldcupId)
+      .eq('id', ensureUUID(worldcupId))
       .single();
 
     if (!fetchError && currentData) {
@@ -105,7 +131,7 @@ export async function saveTournamentResult(
           play_count: (currentData.play_count || 0) + 1,
           updated_at: new Date().toISOString()
         })
-        .eq('id', worldcupId);
+        .eq('id', ensureUUID(worldcupId));
 
       if (updateError) {
         console.warn('⚠️ Error updating worldcup play_count:', updateError);
@@ -114,7 +140,7 @@ export async function saveTournamentResult(
     }
 
     // 4. 아이템별 승패 통계 업데이트
-    await updateItemStatistics(tournament, worldcupId);
+    await updateItemStatistics(tournament, ensureUUID(worldcupId));
 
     return {
       sessionId: session.id,
@@ -152,7 +178,7 @@ export async function getTournamentResults(worldcupId: string, limit = 50) {
           avatar_url
         )
       `)
-      .eq('worldcup_id', worldcupId)
+      .eq('worldcup_id', ensureUUID(worldcupId))
       .eq('status', 'completed')
       .order('created_at', { ascending: false })
       .limit(limit);
@@ -184,7 +210,7 @@ export async function getItemStatistics(worldcupId: string) {
         winner_id,
         round_number
       `)
-      .eq('worldcup_id', worldcupId);
+      .eq('worldcup_id', ensureUUID(worldcupId));
 
     if (error) {
       console.error('❌ Error fetching item statistics:', error);
@@ -382,7 +408,7 @@ async function updateItemStatistics(tournament: Tournament, worldcupId: string) 
       const { data: currentStats, error: fetchError } = await supabase
         .from('worldcup_items')
         .select('win_count, loss_count')
-        .eq('id', itemId)
+        .eq('id', ensureUUID(itemId))
         .single();
 
       if (!fetchError && currentStats) {
@@ -399,7 +425,7 @@ async function updateItemStatistics(tournament: Tournament, worldcupId: string) 
             win_rate: newWinRate,
             updated_at: new Date().toISOString()
           })
-          .eq('id', itemId);
+          .eq('id', ensureUUID(itemId));
       }
     }
 

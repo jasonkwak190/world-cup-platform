@@ -9,7 +9,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Supabase URL과 Anonymous Key가 환경변수에 설정되지 않았습니다.');
 }
 
-// 클라이언트용 Supabase 인스턴스 - 실시간 기능 완전 비활성화
+// 클라이언트용 Supabase 인스턴스
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: true,
@@ -23,13 +23,6 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   },
   db: {
     schema: 'public'
-  },
-  realtime: {
-    params: {
-      eventsPerSecond: 0,
-    },
-    heartbeatIntervalMs: 30000,
-    logger: undefined
   }
 });
 

@@ -127,42 +127,6 @@ export const handlePageVisibilityChange = async (): Promise<void> => {
   }
 };
 
-// 연결 상태 모니터링 시작
-export const startConnectionMonitoring = (): (() => void) => {
-  // 페이지 가시성 변경 감지
-  const handleVisibilityChange = () => {
-    handlePageVisibilityChange();
-  };
-
-  // 윈도우 포커스 감지
-  const handleFocus = () => {
-    if (!document.hidden) {
-      handlePageVisibilityChange();
-    }
-  };
-
-  // 주기적 연결 확인 (5분마다)
-  const connectionCheckInterval = setInterval(async () => {
-    if (!document.hidden) {
-      const connected = await checkConnection();
-      if (!connected) {
-        console.warn('⚠️ Periodic connection check failed');
-        await attemptReconnection();
-      }
-    }
-  }, 5 * 60 * 1000); // 5분
-
-  // 이벤트 리스너 등록
-  document.addEventListener('visibilitychange', handleVisibilityChange);
-  window.addEventListener('focus', handleFocus);
-
-  // 정리 함수 반환
-  return () => {
-    document.removeEventListener('visibilitychange', handleVisibilityChange);
-    window.removeEventListener('focus', handleFocus);
-    clearInterval(connectionCheckInterval);
-  };
-};
 
 // 현재 연결 상태 가져오기
 export const getConnectionStatus = (): boolean => isConnected;

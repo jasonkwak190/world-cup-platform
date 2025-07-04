@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Tournament, WorldCupItem } from '@/types/game';
 import { motion } from 'framer-motion';
 import { Trophy, RotateCcw, Home, Share2, Download, BarChart3, List } from 'lucide-react';
 import CommentSystem from '../CommentSystem';
-import TournamentRanking from './TournamentRanking';
+import TournamentRanking from '../shared/TournamentRanking';
+import { saveGameResult, GameResult } from '@/utils/gameStats';
 
 interface GameResultProps {
   tournament: Tournament;
@@ -23,6 +24,30 @@ export default function GameResult({
   const [showRanking, setShowRanking] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
   const [commentCount, setCommentCount] = useState(0);
+  const [statsSaved, setStatsSaved] = useState(false);
+
+  // 게임 결과를 통계에 저장
+  useEffect(() => {
+    if (!statsSaved && tournament.winner && worldcupId) {
+      try {
+        const gameResult: GameResult = {
+          worldcupId: worldcupId,
+          sessionId: `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          timestamp: Date.now(),
+          winner: tournament.winner,
+          matches: tournament.matches.filter(match => match.isCompleted),
+          totalRounds: tournament.totalRounds,
+          playTime: playTime
+        };
+
+        saveGameResult(gameResult);
+        setStatsSaved(true);
+        console.log('✅ Game stats saved successfully:', gameResult.sessionId);
+      } catch (error) {
+        console.error('❌ Failed to save game stats:', error);
+      }
+    }
+  }, [tournament.winner, worldcupId, playTime, tournament.matches, tournament.totalRounds, statsSaved]);
   const formatTime = (ms: number) => {
     const seconds = Math.floor(ms / 1000);
     const minutes = Math.floor(seconds / 60);
@@ -91,6 +116,7 @@ export default function GameResult({
     return (
       <TournamentRanking
         tournamentTitle={tournament.title}
+        worldcupId={worldcupId || tournament.id}
         winner={tournament.winner as WorldCupItem}
         allItems={tournament.items}
         onBack={() => setShowRanking(false)}
