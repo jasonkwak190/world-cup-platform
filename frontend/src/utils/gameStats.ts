@@ -1,5 +1,5 @@
 // 게임 통계 및 랭킹 계산 유틸리티
-import { WorldCupItem, Match, Tournament } from '@/types/game';
+import { WorldCupItem, Match } from '@/types/game';
 
 export interface GameResult {
   worldcupId: string;
@@ -64,26 +64,49 @@ const GAME_RESULTS_KEY = 'worldcup_game_results';
 const WORLDCUP_STATS_KEY = 'worldcup_stats';
 
 /**
- * 게임 결과를 로컬스토리지에 저장
+ * 게임 결과를 서버에 저장하고 통계를 업데이트합니다.
  */
-export function saveGameResult(result: GameResult): void {
+export async function saveGameResult(result: GameResult): Promise<void> {
   try {
-    const existingResults = getGameResults();
-    existingResults.push(result);
-    
-    // 최대 1000개의 게임 결과만 보관 (용량 관리)
-    if (existingResults.length > 1000) {
-      existingResults.splice(0, existingResults.length - 1000);
+    console.log('📊 Sending game result to server:', {
+      worldcupId: result.worldcupId,
+      sessionId: result.sessionId,
+      matchesCount: result.matches.length,
+      winner: result.winner
+    });
+
+    const response = await fetch(`/api/worldcup/${result.worldcupId}/stats`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        matches: result.matches,
+        winner: result.winner,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ API call failed:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText
+      });
+      throw new Error(`API call failed with status: ${response.status} - ${errorText}`);
     }
-    
-    localStorage.setItem(GAME_RESULTS_KEY, JSON.stringify(existingResults));
-    
-    // 통계 업데이트
-    updateWorldCupStats(result);
-    
-    console.log('✅ Game result saved:', result.sessionId);
+
+    const responseData = await response.json();
+    console.log('✅ Game result successfully sent to server:', responseData);
+
+    // 기존 로컬 스토리지 기반 통계 업데이트 로직은 그대로 유지하거나 제거할 수 있습니다.
+    // 여기서는 서버가 모든 통계 처리를 담당하므로 클라이언트 측 업데이트를 제거합니다.
+    // updateWorldCupStats(result); 
+
   } catch (error) {
-    console.error('❌ Failed to save game result:', error);
+    console.error('❌ Failed to save game result to server:', error);
+    // Don't throw the error to prevent breaking the game flow
   }
 }
 

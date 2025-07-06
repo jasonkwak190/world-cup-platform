@@ -18,7 +18,9 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   },
   global: {
     headers: {
-      'User-Agent': 'worldcup-platform/1.0'
+      'User-Agent': 'worldcup-platform/1.0',
+      'Accept': 'application/json',
+      'Content-Type': 'application/json'
     }
   },
   db: {

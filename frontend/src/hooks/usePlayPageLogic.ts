@@ -7,7 +7,7 @@ import { createTournament, getCurrentMatch, selectWinner, getRoundName, getTourn
 import { getWorldCupById } from '@/utils/storage';
 import { getWorldCupById as getSupabaseWorldCupById } from '@/utils/supabaseData';
 
-export function usePlayPageLogic(params: { id: string; }) {
+export function usePlayPageLogic(params: Promise<{ id: string; }> | { id: string; }) {
   const router = useRouter();
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -36,7 +36,15 @@ export function usePlayPageLogic(params: { id: string; }) {
   useEffect(() => {
     const loadWorldCup = async () => {
       try {
-        const id = params.id;
+        // Handle params as Promise or direct object
+        const resolvedParams = await Promise.resolve(params);
+        const id = resolvedParams?.id;
+        if (!id) {
+          console.error('❌ No worldcup ID provided');
+          setShouldRedirectToHome(true);
+          return;
+        }
+        
         setWorldcupId(id);
         
         let loadedData = null;
@@ -52,10 +60,11 @@ export function usePlayPageLogic(params: { id: string; }) {
               title: supabaseWorldCup.title,
               description: supabaseWorldCup.description,
               items: supabaseWorldCup.items.map(item => ({
-                id: item.id,
+                id: item.title, // Use title as id for consistency with tournament logic
                 title: item.title,
                 description: item.description || '',
                 image: item.image,
+                uuid: item.id, // Store actual UUID for database operations
               })) as WorldCupItem[]
             };
           }
@@ -101,7 +110,7 @@ export function usePlayPageLogic(params: { id: string; }) {
     };
 
     loadWorldCup();
-  }, [params.id, router]);
+  }, [params, router]);
 
   useEffect(() => {
     if (shouldRedirectToHome) {

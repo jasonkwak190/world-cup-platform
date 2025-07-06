@@ -7,6 +7,7 @@ export interface WorldCupItem {
   image_url?: string;
   description?: string;
   is_bye?: boolean; // 부전승 항목 여부
+  uuid?: string; // Database UUID for operations
 }
 
 export interface Match {
