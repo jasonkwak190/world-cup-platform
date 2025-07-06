@@ -7,7 +7,6 @@ import WorldCupGrid from '@/components/WorldCupGrid';
 import TrendingRanking from '@/components/TrendingRanking';
 import RecentComments from '@/components/RecentComments';
 import Pagination from '@/components/Pagination';
-import QuickActions from '@/components/QuickActions';
 
 export default function Home() {
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -15,26 +14,7 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState(1);
   const totalPages = 16; // Mock total pages
 
-  const handleQuickPlay = () => {
-    // TODO: Implement random worldcup selection
-    console.log('Random play initiated');
-  };
-
-  const handleClearFilters = () => {
-    setSelectedCategory('all');
-    setSelectedSort('popular');
-    setCurrentPage(1);
-  };
-
-  const handleShowBookmarks = () => {
-    // TODO: Show bookmarked worldcups
-    console.log('Show bookmarks');
-  };
-
-  const handleDarkModeToggle = () => {
-    // TODO: Implement dark mode
-    console.log('Dark mode toggled');
-  };
+  // 사용하지 않는 핸들러들 제거됨 - 백업 파일
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -66,13 +46,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <QuickActions
-        onQuickPlay={handleQuickPlay}
-        onClearFilters={handleClearFilters}
-        onShowBookmarks={handleShowBookmarks}
-        onDarkModeToggle={handleDarkModeToggle}
-      />
+      {/* Quick Actions - 컴포넌트 없어서 임시 제거 */}
     </div>
   );
 }

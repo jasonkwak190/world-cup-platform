@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trophy, Crown, Medal, Award, ArrowLeft, BarChart3, TrendingUp, Home, X, ZoomIn } from 'lucide-react';
+import { Trophy, Crown, Medal, Award, ArrowLeft, BarChart3, TrendingUp, Home, X, ZoomIn, RefreshCw } from 'lucide-react';
 import { WorldCupItem } from '@/types/game';
 import { generateRealRankingData, ItemStats } from '@/utils/gameStats';
+import { getItemStatistics } from '@/utils/tournamentResults';
 
 interface TournamentRankingProps {
   tournamentTitle: string;
@@ -13,6 +14,7 @@ interface TournamentRankingProps {
   allItems: WorldCupItem[];
   onBack: () => void;
   onGoHome?: () => void;
+  refreshTrigger?: number; // 통계 새로고침 트리거
 }
 
 const getRankIcon = (rank: number) => {
@@ -47,16 +49,54 @@ export default function TournamentRanking({
   winner, 
   allItems, 
   onBack,
-  onGoHome
+  onGoHome,
+  refreshTrigger
 }: TournamentRankingProps) {
   const [sortBy, setSortBy] = useState<'rank' | 'winRate' | 'matches'>('rank');
   const [selectedImage, setSelectedImage] = useState<{ title: string; rank: number; image?: string } | null>(null);
+  const [realRankingData, setRealRankingData] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   
-  // 실제 통계 데이터 사용
-  const rankingData = generateRealRankingData(worldcupId, winner);
+  // 수동 새로고침 함수
+  const refreshStats = async () => {
+    setIsLoading(true);
+    try {
+      console.log('🔄 Manual refresh: Loading real ranking data for worldcup:', worldcupId);
+      const stats = await getItemStatistics(worldcupId);
+      console.log('📊 Manual refresh: Real ranking data loaded:', stats);
+      setRealRankingData(stats);
+    } catch (error) {
+      console.error('❌ Manual refresh failed:', error);
+      setRealRankingData([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // 실제 데이터베이스에서 통계 가져오기
+  useEffect(() => {
+    async function loadRealStats() {
+      setIsLoading(true);
+      try {
+        console.log('🔄 Loading real ranking data for worldcup:', worldcupId);
+        const stats = await getItemStatistics(worldcupId);
+        console.log('📊 Real ranking data loaded:', stats);
+        setRealRankingData(stats);
+      } catch (error) {
+        console.error('❌ Failed to load real stats:', error);
+        setRealRankingData([]);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    
+    if (worldcupId) {
+      loadRealStats();
+    }
+  }, [worldcupId, refreshTrigger]); // refreshTrigger 추가
   
   // 통계가 없는 경우 기본 데이터 생성 (첫 게임 등)
-  const fallbackData = rankingData.length === 0 ? allItems.map((item, index) => ({
+  const fallbackData = realRankingData.length === 0 ? allItems.map((item, index) => ({
     id: item.id,
     title: item.title,
     image: item.image || item.image_url,
@@ -71,7 +111,22 @@ export default function TournamentRanking({
     rank: index + 1,
     averageRoundReached: 0,
     bestRoundReached: '1라운드'
-  } as ItemStats)) : rankingData;
+  })) : realRankingData.map(item => ({
+    id: item.id,
+    title: item.title,
+    image: item.image,
+    totalAppearances: item.totalAppearances,
+    totalWins: item.totalWins,
+    totalLosses: item.totalLosses,
+    winRate: item.winRate,
+    roundStats: item.roundStats || {},
+    championshipWins: item.championshipWins,
+    finalAppearances: 0,
+    vsRecord: {},
+    rank: item.rank,
+    averageRoundReached: 0,
+    bestRoundReached: '1라운드'
+  }));
 
   const sortedData = [...fallbackData].sort((a, b) => {
     switch (sortBy) {
@@ -110,6 +165,14 @@ export default function TournamentRanking({
                 <span className="text-lg">홈으로</span>
               </button>
             )}
+            <button
+              onClick={refreshStats}
+              disabled={isLoading}
+              className={`flex items-center space-x-2 text-white hover:text-gray-300 transition-colors ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <RefreshCw className={`w-6 h-6 ${isLoading ? 'animate-spin' : ''}`} />
+              <span className="text-lg">새로고침</span>
+            </button>
           </div>
           
           <div className="text-center">
@@ -255,8 +318,8 @@ export default function TournamentRanking({
                   </div>
                   <div>
                     <h3 className="font-bold text-gray-900">{item.title}</h3>
-                    {item.description && (
-                      <p className="text-sm text-gray-600">{item.description}</p>
+                    {(item as any).description && (
+                      <p className="text-sm text-gray-600">{(item as any).description}</p>
                     )}
                   </div>
                 </div>

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Match, WorldCupItem } from '@/types/game';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getRoundStyle, getRoundBorderStyle, getRoundCheckmarkStyle } from '@/utils/tournament';
-import ParticleEffect from './ParticleEffect';
+import ParticleEffect from '../ParticleEffect';
 import { useTouchGestures, useKeyboardShortcuts } from '@/hooks/useTouchGestures';
 
 interface GameScreenProps {
@@ -236,7 +236,7 @@ export default function GameScreen({ match, round, totalRounds, worldcupId, onCh
 
   return (
     <div 
-      ref={gestureRef}
+      ref={gestureRef as any}
       className="flex flex-col items-center justify-start min-h-screen touch-manipulation"
     >
       {/* Particle Effect */}

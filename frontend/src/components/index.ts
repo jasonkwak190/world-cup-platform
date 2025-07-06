@@ -26,7 +26,7 @@ export * from './shared';
 // Remove these after all imports are updated
 
 // UI Components
-export { default as Toast } from './Toast';
+export { showToast as Toast } from './Toast';
 export { default as AuthModal } from './AuthModal';
 export { default as DeleteConfirmModal } from './DeleteConfirmModal';
 export { default as LoginPromptModal } from './LoginPromptModal';

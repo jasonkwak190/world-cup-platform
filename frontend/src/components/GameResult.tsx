@@ -26,8 +26,9 @@ export default function GameResult({
   const [commentCount, setCommentCount] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [hasSaved, setHasSaved] = useState(false);
 
-  // 토너먼트 완료 시 결과를 Supabase에 저장
+  // 토너먼트 완료 시 결과를 Supabase에 저장 (한 번만 실행)
   useEffect(() => {
     const saveResult = async () => {
       if (!tournament.isCompleted || !tournament.winner || !worldcupId || isSaving) {
@@ -48,6 +49,7 @@ export default function GameResult({
         );
         
         console.log('✅ Tournament result saved successfully:', result.sessionId);
+        setHasSaved(true); // 저장 완료 플래그 설정
       } catch (error) {
         console.error('❌ Failed to save tournament result:', error);
         setSaveError('결과 저장에 실패했습니다. 랭킹이 정확하지 않을 수 있습니다.');
@@ -56,8 +58,11 @@ export default function GameResult({
       }
     };
 
-    saveResult();
-  }, [tournament.isCompleted, tournament.winner, worldcupId, playTime, isSaving]);
+    // 토너먼트가 완료되고 우승자가 있으며 아직 저장하지 않았을 때만 한 번 실행
+    if (tournament.isCompleted && tournament.winner && worldcupId && !isSaving && !hasSaved) {
+      saveResult();
+    }
+  }, [tournament.isCompleted, tournament.winner, worldcupId, isSaving, hasSaved]);
   const formatTime = (ms: number) => {
     const seconds = Math.floor(ms / 1000);
     const minutes = Math.floor(seconds / 60);

@@ -262,9 +262,9 @@ export async function getWorldCupById(id: string) {
       thumbnail: thumbnailUrl,
       author: data.author?.username || 'Unknown',
       createdAt: new Date(data.created_at).toISOString().split('T')[0],
-      participants: data.participants,
-      comments: data.comments,
-      likes: data.likes,
+      participants: data.participants || 0,
+      comments: data.comments || 0,
+      likes: data.likes || 0,
       category: data.category,
       isPublic: data.is_public,
       items: processedItems

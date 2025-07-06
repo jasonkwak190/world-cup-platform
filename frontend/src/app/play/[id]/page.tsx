@@ -26,8 +26,7 @@ interface PlayPageProps {
   }>;
 }
 
-export default function PlayPage({ params: paramsPromise }: PlayPageProps) {
-  const params = React.use(paramsPromise);
+export default function PlayPage({ params }: PlayPageProps) {
 
   const {
     gameState,
@@ -54,6 +53,8 @@ export default function PlayPage({ params: paramsPromise }: PlayPageProps) {
       </div>
     );
   }
+
+  // 에러 처리는 usePlayPageLogic 내부에서 처리됨
 
   if (showTournamentSelector && worldcupData) {
     return (

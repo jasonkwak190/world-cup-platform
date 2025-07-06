@@ -28,7 +28,7 @@ export async function getCommentsByWorldCupId(worldcupId: string): Promise<Comme
     const cachedData = cache.get(cacheKey);
     if (cachedData) {
       console.log('✅ Using cached comments data for:', worldcupId);
-      return cachedData;
+      return cachedData as Comment[];
     }
     
     console.log('🔍 Fetching comments for worldcup:', worldcupId);
@@ -84,7 +84,7 @@ export async function getCommentsByWorldCupId(worldcupId: string): Promise<Comme
 
     // 사용자 정보 가져오기 (author_id가 있는 댓글들만)
     const authorIds = [...new Set(fullData.filter(c => c.author_id).map(c => c.author_id))];
-    let usersMap = new Map();
+    const usersMap = new Map();
     
     if (authorIds.length > 0) {
       try {

@@ -122,7 +122,7 @@ export async function signInWithSupabase(loginData: { email: string; password: s
       id: data.user.id,
       email: data.user.email || '',
       username: data.user.user_metadata?.username || data.user.email?.split('@')[0] || '사용자',
-      role: 'user' as const,
+      role: 'user' as 'user' | 'admin',
       created_at: data.user.created_at,
       updated_at: data.user.updated_at,
       profile_image_url: null
@@ -198,7 +198,7 @@ export async function getCurrentSupabaseUser(): Promise<SupabaseUser | null> {
       id: authUser.id,
       email: authUser.email || '',
       username: authUser.user_metadata?.username || authUser.email?.split('@')[0] || '사용자',
-      role: 'user' as const,
+      role: 'user' as 'user' | 'admin',
       created_at: authUser.created_at,
       updated_at: authUser.updated_at,
       profile_image_url: null

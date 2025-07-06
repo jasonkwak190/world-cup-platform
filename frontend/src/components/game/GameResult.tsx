@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { Trophy, RotateCcw, Home, Share2, Download, BarChart3, List } from 'lucide-react';
 import CommentSystem from '../CommentSystem';
 import TournamentRanking from '../shared/TournamentRanking';
-import { saveGameResult, GameResult } from '@/utils/gameStats';
+import { saveGameResult, type GameResult } from '@/utils/gameStats';
 
 interface GameResultProps {
   tournament: Tournament;
@@ -25,6 +25,7 @@ export default function GameResult({
   const [showImageModal, setShowImageModal] = useState(false);
   const [commentCount, setCommentCount] = useState(0);
   const [statsSaved, setStatsSaved] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // 게임 결과를 통계에 저장
   useEffect(() => {
@@ -40,7 +41,11 @@ export default function GameResult({
           playTime: playTime
         };
 
-        saveGameResult(gameResult);
+        saveGameResult(gameResult).then(() => {
+          // 통계 저장 완료 후 랭킹 새로고침 트리거
+          setRefreshTrigger(Date.now());
+          console.log('✅ Game stats saved successfully, triggering ranking refresh');
+        });
         setStatsSaved(true);
         console.log('✅ Game stats saved successfully:', gameResult.sessionId);
       } catch (error) {
@@ -121,6 +126,7 @@ export default function GameResult({
         allItems={tournament.items}
         onBack={() => setShowRanking(false)}
         onGoHome={onGoHome}
+        refreshTrigger={refreshTrigger}
       />
     );
   }

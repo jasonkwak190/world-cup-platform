@@ -219,16 +219,7 @@ export function addGuestLike(worldcupId: string): boolean {
     const newLikes = [...currentLikes, worldcupId];
     localStorage.setItem(GUEST_LIKES_KEY, JSON.stringify(newLikes));
     
-    // 비회원 좋아요도 Supabase worldcups 테이블에 반영
-    supabase.rpc('increment_worldcup_likes', {
-      worldcup_id: worldcupId
-    }).then(({ error }) => {
-      if (error) {
-        console.warn('⚠️ Failed to update worldcup likes count for guest:', error);
-      } else {
-        console.log('✅ Guest like updated in worldcups table');
-      }
-    });
+    // 비회원 좋아요는 로컬스토리지에만 저장 (데이터베이스 트리거가 좋아요 수 관리)
     
     return true;
   } catch (error) {
@@ -246,16 +237,7 @@ export function removeGuestLike(worldcupId: string): boolean {
     const newLikes = currentLikes.filter(id => id !== worldcupId);
     localStorage.setItem(GUEST_LIKES_KEY, JSON.stringify(newLikes));
     
-    // 비회원 좋아요 취소도 Supabase worldcups 테이블에 반영
-    supabase.rpc('decrement_worldcup_likes', {
-      worldcup_id: worldcupId
-    }).then(({ error }) => {
-      if (error) {
-        console.warn('⚠️ Failed to update worldcup likes count for guest unlike:', error);
-      } else {
-        console.log('✅ Guest unlike updated in worldcups table');
-      }
-    });
+    // 비회원 좋아요 취소는 로컬스토리지에서만 제거 (데이터베이스 트리거가 좋아요 수 관리)
     
     return true;
   } catch (error) {

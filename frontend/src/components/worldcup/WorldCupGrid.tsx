@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import WorldCupCard from './WorldCupCard';
 import VirtualizedWorldCupGrid from './VirtualizedWorldCupGrid';
 import { getStoredWorldCups, type StoredWorldCup } from '@/utils/storage';
@@ -16,9 +17,9 @@ import {
   getGuestLikes,
   getMultipleWorldCupLikesCount
 } from '@/utils/userInteractions';
-import LoginPromptModal from './LoginPromptModal';
+import LoginPromptModal from '../LoginPromptModal';
 import { supabase } from '@/lib/supabase';
-import { showToast } from './Toast';
+import { showToast } from '../Toast';
 import { updateWorldCupCommentCount } from '@/utils/updateCommentCounts';
 import { onCommentCountChange } from '@/utils/commentEvents';
 import { incrementPlayCount, onPlayCountChange, notifyPlayCountChange } from '@/utils/playCount';
@@ -34,6 +35,7 @@ interface WorldCupGridProps {
 
 export default function WorldCupGrid({ category: _category, sortBy: _sortBy, searchQuery = '' }: WorldCupGridProps) {
   const { user } = useAuth();
+  const router = useRouter();
   const [likedItems, setLikedItems] = useState<Set<string>>(new Set());
   const [bookmarkedItems, setBookmarkedItems] = useState<Set<string>>(new Set());
   const [storedWorldCups, setStoredWorldCups] = useState<StoredWorldCup[]>([]);
@@ -457,8 +459,8 @@ export default function WorldCupGrid({ category: _category, sortBy: _sortBy, sea
       // 에러가 발생해도 페이지 이동은 계속 진행
     }
     
-    // Navigate to worldcup play page
-    window.location.href = `/play/${id}`;
+    // Navigate to worldcup play page using Next.js router
+    router.push(`/play/${id}`);
   };
 
   const handleShare = async (id: string) => {

@@ -54,22 +54,29 @@ export async function saveTournamentResult(
     let winnerUuid: string | null = null;
     let runnerUpUuid: string | null = null;
     
-    // 우승자 UUID 조회
+    // 우승자 UUID 조회 - 직접 UUID 사용 또는 title로 조회
     if (tournament.winner) {
       try {
-        const { data: winnerData, error: winnerError } = await supabase
-          .from('worldcup_items')
-          .select('id')
-          .eq('worldcup_id', worldcupId)
-          .eq('title', tournament.winner.id)
-          .single();
-          
-        if (!winnerError && winnerData) {
-          winnerUuid = winnerData.id;
-          console.log(`🏆 Winner UUID found: ${tournament.winner.id} → ${winnerUuid}`);
+        // 먼저 winner 객체에 uuid 필드가 있는지 확인
+        if ((tournament.winner as any).uuid && isValidUUID((tournament.winner as any).uuid)) {
+          winnerUuid = (tournament.winner as any).uuid;
+          console.log(`🏆 Winner UUID from object: ${tournament.winner.id} → ${winnerUuid}`);
         } else {
-          console.error(`❌ Winner item not found: worldcup_id=${worldcupId}, title=${tournament.winner.id}`);
-          console.error('Error details:', winnerError);
+          // fallback: title로 UUID 조회
+          const { data: winnerData, error: winnerError } = await supabase
+            .from('worldcup_items')
+            .select('id')
+            .eq('worldcup_id', worldcupId)
+            .eq('title', tournament.winner.id)
+            .single();
+            
+          if (!winnerError && winnerData) {
+            winnerUuid = winnerData.id;
+            console.log(`🏆 Winner UUID found by title: ${tournament.winner.id} → ${winnerUuid}`);
+          } else {
+            console.error(`❌ Winner item not found: worldcup_id=${worldcupId}, title=${tournament.winner.id}`);
+            console.error('Error details:', winnerError);
+          }
         }
       } catch (error) {
         console.warn(`⚠️ Could not find winner UUID for ${tournament.winner.id}:`, error);
@@ -80,16 +87,23 @@ export async function saveTournamentResult(
     const runnerUp = findRunnerUp(tournament);
     if (runnerUp) {
       try {
-        const { data: runnerUpData, error: runnerUpError } = await supabase
-          .from('worldcup_items')
-          .select('id')
-          .eq('worldcup_id', worldcupId)
-          .eq('title', runnerUp.id)
-          .single();
-          
-        if (!runnerUpError && runnerUpData) {
-          runnerUpUuid = runnerUpData.id;
-          console.log(`🥈 Runner-up UUID found: ${runnerUp.id} → ${runnerUpUuid}`);
+        // 먼저 runnerUp 객체에 uuid 필드가 있는지 확인
+        if ((runnerUp as any).uuid && isValidUUID((runnerUp as any).uuid)) {
+          runnerUpUuid = (runnerUp as any).uuid;
+          console.log(`🥈 Runner-up UUID from object: ${runnerUp.id} → ${runnerUpUuid}`);
+        } else {
+          // fallback: title로 UUID 조회
+          const { data: runnerUpData, error: runnerUpError } = await supabase
+            .from('worldcup_items')
+            .select('id')
+            .eq('worldcup_id', worldcupId)
+            .eq('title', runnerUp.id)
+            .single();
+            
+          if (!runnerUpError && runnerUpData) {
+            runnerUpUuid = runnerUpData.id;
+            console.log(`🥈 Runner-up UUID found by title: ${runnerUp.id} → ${runnerUpUuid}`);
+          }
         }
       } catch (error) {
         console.warn(`⚠️ Could not find runner-up UUID for ${runnerUp.id}:`, error);
@@ -222,7 +236,7 @@ export async function saveTournamentResult(
     }
 
     // 4. 아이템별 승패 통계 업데이트
-    await updateItemStatistics(tournament, worldcupId);
+    await updateItemStatistics(tournament, worldcupId, sessionTokenToCheck);
 
     return {
       sessionId: session.id,
@@ -278,81 +292,73 @@ export async function getTournamentResults(worldcupId: string, limit = 50) {
   }
 }
 
-// 월드컵 아이템별 통합 통계 가져오기
+// 월드컵 아이템별 통합 통계 가져오기 (직접 worldcup_items에서 조회)
 export async function getItemStatistics(worldcupId: string) {
   try {
     console.log('📈 Fetching item statistics for worldcup:', worldcupId);
 
-    // 모든 게임 매치에서 아이템별 승패 통계 계산
-    const { data, error } = await supabase
-      .from('game_matches')
+    // 캐시 무력화를 위해 타임스탬프 추가
+    const timestamp = Date.now();
+    console.log('🔄 Cache-busting timestamp:', timestamp);
+
+    // worldcup_items 테이블에서 직접 통계 조회 (실시간 반영)
+    const { data: itemStats, error } = await supabase
+      .from('worldcup_items')
       .select(`
-        item1_id,
-        item2_id,
-        winner_id,
-        round_number
+        id,
+        title,
+        image_url,
+        win_count,
+        loss_count,
+        win_rate,
+        total_appearances,
+        championship_wins
       `)
-      .eq('worldcup_id', worldcupId);
+      .eq('worldcup_id', worldcupId)
+      .order('win_rate', { ascending: false });
 
     if (error) {
       console.error('❌ Error fetching item statistics:', error);
       throw error;
     }
 
-    // 아이템별 통계 계산
-    const itemStats = new Map<string, {
-      wins: number;
-      losses: number;
-      totalMatches: number;
-      winRate: number;
-      bestRound: number;
-      appearances: number;
-    }>();
+    if (!itemStats || itemStats.length === 0) {
+      console.log('📭 No statistics found for worldcup:', worldcupId);
+      return [];
+    }
 
-    data.forEach(match => {
-      const { item1_id, item2_id, winner_id, round_number } = match;
-      
-      // 각 아이템의 통계 초기화
-      [item1_id, item2_id].forEach(itemId => {
-        if (!itemStats.has(itemId)) {
-          itemStats.set(itemId, {
-            wins: 0,
-            losses: 0,
-            totalMatches: 0,
-            winRate: 0,
-            bestRound: 0,
-            appearances: 0
-          });
-        }
-      });
-
-      // 승패 통계 업데이트
-      const winnerStats = itemStats.get(winner_id)!;
-      const loserId = item1_id === winner_id ? item2_id : item1_id;
-      const loserStats = itemStats.get(loserId)!;
-
-      winnerStats.wins++;
-      winnerStats.totalMatches++;
-      winnerStats.bestRound = Math.max(winnerStats.bestRound, round_number);
-      winnerStats.appearances++;
-
-      loserStats.losses++;
-      loserStats.totalMatches++;
-      loserStats.appearances++;
+    console.log('✅ Fetched statistics for', itemStats.length, 'items');
+    
+    // 승률 기준으로 정렬된 결과 반환
+    const sortedStats = itemStats.sort((a, b) => {
+      if (b.win_rate !== a.win_rate) return b.win_rate - a.win_rate;
+      if (b.championship_wins !== a.championship_wins) return b.championship_wins - a.championship_wins;
+      return (b.win_count || 0) - (a.win_count || 0);
     });
 
-    // 승률 계산
-    itemStats.forEach(stats => {
-      stats.winRate = stats.totalMatches > 0 ? 
-        Math.round((stats.wins / stats.totalMatches) * 100) : 0;
-    });
+    return sortedStats.map((item, index) => ({
+      id: item.id,
+      title: item.title,
+      image: item.image_url,
+      totalWins: item.win_count || 0,
+      totalLosses: item.loss_count || 0,
+      totalGames: (item.win_count || 0) + (item.loss_count || 0),
+      winRate: item.win_rate || 0,
+      totalAppearances: item.total_appearances || 0,
+      championshipWins: item.championship_wins || 0,
+      rank: index + 1,
+      roundStats: {} // 간단하게 빈 객체로 설정
+    }));
 
-    console.log(`✅ Calculated statistics for ${itemStats.size} items`);
-    return itemStats;
   } catch (error) {
-    console.error('❌ Error fetching item statistics:', error);
-    throw error;
+    console.error('❌ Error in getItemStatistics:', error);
+    return [];
   }
+}
+
+// 이 함수는 더 이상 사용하지 않으므로 제거
+async function getFallbackStatistics(worldcupId: string) {
+  return [];
 }
 
 // 월드컵의 전체 랭킹 데이터 생성 (통합 통계 기반)
@@ -360,25 +366,33 @@ export async function getAggregatedRanking(worldcupId: string, worldcupItems: Wo
   try {
     const itemStatistics = await getItemStatistics(worldcupId);
     
+    // itemStatistics는 배열이므로 Map으로 변환
+    const statsMap = new Map();
+    if (Array.isArray(itemStatistics)) {
+      itemStatistics.forEach(stat => {
+        statsMap.set(stat.id, stat);
+      });
+    }
+    
     const rankingData = worldcupItems.map(item => {
-      const stats = itemStatistics.get(item.id) || {
-        wins: 0,
-        losses: 0,
-        totalMatches: 0,
+      const stats = statsMap.get(item.id) || {
+        totalWins: 0,
+        totalLosses: 0,
+        totalGames: 0,
         winRate: 0,
-        bestRound: 0,
-        appearances: 0
+        totalAppearances: 0,
+        championshipWins: 0
       };
 
       return {
         ...item,
         rank: 0, // 나중에 정렬 후 설정
-        winRate: stats.winRate,
-        totalMatches: stats.totalMatches,
-        wins: stats.wins,
-        losses: stats.losses,
-        roundReached: getRoundNameFromNumber(stats.bestRound),
-        appearances: stats.appearances
+        winRate: stats.winRate || 0,
+        totalMatches: stats.totalGames || 0,
+        wins: stats.totalWins || 0,
+        losses: stats.totalLosses || 0,
+        roundReached: '1라운드', // 기본값
+        appearances: stats.totalAppearances || 0
       };
     });
 
@@ -460,7 +474,7 @@ function getRoundNameFromNumber(roundNumber: number): string {
 }
 
 // 아이템별 승패 통계 업데이트 (worldcup_items 테이블의 캐시 업데이트)
-async function updateItemStatistics(tournament: Tournament, _worldcupId: string) {
+async function updateItemStatistics(tournament: Tournament, _worldcupId: string, sessionToken?: string) {
   try {
     console.log('📊 Updating item statistics for tournament:', tournament.id);
     
@@ -555,9 +569,14 @@ async function updateItemStatistics(tournament: Tournament, _worldcupId: string)
           const totalMatches = newWinCount + newLossCount;
           const newWinRate = totalMatches > 0 ? (newWinCount / totalMatches) * 100 : 0;
           
-          // 우승자인 경우 championship_wins 증가
+          // 우승자인 경우 championship_wins 증가 (세션 기반 중복 방지)
           const isChampion = tournament.winner?.id === itemId;
-          const newChampionshipWins = (currentStats.championship_wins || 0) + (isChampion ? 1 : 0);
+          let newChampionshipWins = currentStats.championship_wins || 0;
+          
+          // championship_wins는 API에서 처리되므로 여기서는 변경하지 않음
+          if (isChampion) {
+            console.log(`🏆 Championship for ${itemId} will be handled by stats API`);
+          }
 
           console.log(`🎯 Item ${itemId}: Champion=${isChampion}, Current Championships: ${currentStats.championship_wins || 0}, New Championships: ${newChampionshipWins}, Wins +${stats.wins}, Losses +${stats.losses}`);
 

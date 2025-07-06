@@ -257,7 +257,7 @@ export default function CommentSystem({ worldcupId, initialCommentCount: _initia
         if (showLoadingUI) {
           setComments([]);
           setIsLoading(false);
-          showToast('댓글 로딩이 지연되고 있습니다. 새로고침해보세요.', 'warning');
+          showToast('댓글 로딩이 지연되고 있습니다. 새로고침해보세요.', 'info');
         }
       }, 10000);
       

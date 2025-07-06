@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getUserWorldCups } from '@/utils/supabaseData';
 import { getUserBookmarks } from '@/utils/userInteractions';
@@ -52,16 +52,7 @@ export default function MyPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!user) {
-      router.push('/');
-      return;
-    }
-
-    loadMyData();
-  }, [user, router]);
-
-  const loadMyData = async () => {
+  const loadMyData = useCallback(async () => {
     if (!user?.id) return;
 
     try {
@@ -98,7 +89,16 @@ export default function MyPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) {
+      router.push('/');
+      return;
+    }
+
+    loadMyData();
+  }, [user, router, loadMyData]);
 
   const handlePlay = (id: string) => {
     router.push(`/play/${id}`);

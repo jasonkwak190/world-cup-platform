@@ -8,18 +8,22 @@ import type { SignupData, User as UserType } from '@/types/user';
 
 interface AuthModalProps {
   isOpen: boolean;
-  mode: 'login' | 'signup';
+  mode?: 'login' | 'signup';
   onClose: () => void;
-  onSuccess: (user: UserType) => void;
-  onSwitchMode: () => void;
+  onSuccess?: (user: UserType) => void;
+  onSwitchMode?: () => void;
+  title?: string;
+  subtitle?: string;
 }
 
 export default function AuthModal({
   isOpen,
-  mode,
+  mode = 'login',
   onClose,
   onSuccess,
   onSwitchMode,
+  title,
+  subtitle,
 }: AuthModalProps) {
   const [formData, setFormData] = useState({
     username: '',
@@ -54,7 +58,7 @@ export default function AuthModal({
           username: formData.username
         });
         if (supabaseResult.success && supabaseResult.user) {
-          onSuccess(supabaseResult.user);
+          onSuccess?.(supabaseResult.user);
           onClose();
           return;
         }
@@ -62,7 +66,7 @@ export default function AuthModal({
         // Supabase 실패시 localStorage fallback
         const localResult = signup(formData as SignupData);
         if (localResult.success && localResult.user) {
-          onSuccess(localResult.user);
+          onSuccess?.(localResult.user);
           onClose();
         } else {
           setError(supabaseResult.error || localResult.error || '회원가입에 실패했습니다.');
@@ -89,7 +93,7 @@ export default function AuthModal({
             }, 30000);
           });
           
-          const supabaseResult = await Promise.race([loginPromise, timeoutPromise]);
+          const supabaseResult = await Promise.race([loginPromise, timeoutPromise]) as any;
           
           // 성공하면 타임아웃 취소
           clearTimeout(timeoutId);
@@ -98,7 +102,7 @@ export default function AuthModal({
           
           if (supabaseResult.success && supabaseResult.user) {
             console.log('✅ Supabase login successful, calling onSuccess');
-            onSuccess(supabaseResult.user);
+            onSuccess?.(supabaseResult.user);
             onClose();
             return;
           } else {
@@ -224,7 +228,7 @@ export default function AuthModal({
 
   const handleSwitchMode = () => {
     resetForm();
-    onSwitchMode();
+    onSwitchMode?.();
   };
 
   return (
@@ -239,9 +243,14 @@ export default function AuthModal({
       <div className="relative bg-white rounded-lg shadow-xl w-full max-w-md transform transition-all">
         {/* 헤더 */}
         <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-xl font-semibold text-gray-900">
-            {mode === 'login' ? '로그인' : '회원가입'}
-          </h2>
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">
+              {title || (mode === 'login' ? '로그인' : '회원가입')}
+            </h2>
+            {subtitle && (
+              <p className="text-sm text-gray-600 mt-1">{subtitle}</p>
+            )}
+          </div>
           <button
             onClick={handleClose}
             className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
@@ -477,17 +486,19 @@ export default function AuthModal({
         </form>
 
         {/* 하단 링크 */}
-        <div className="px-6 pb-6 text-center">
-          <p className="text-sm text-gray-600">
-            {mode === 'login' ? '계정이 없으신가요?' : '이미 계정이 있으신가요?'}
-            <button
-              onClick={handleSwitchMode}
-              className="ml-1 text-emerald-600 hover:text-emerald-700 font-medium transition-colors"
-            >
-              {mode === 'login' ? '회원가입' : '로그인'}
-            </button>
-          </p>
-        </div>
+        {onSwitchMode && (
+          <div className="px-6 pb-6 text-center">
+            <p className="text-sm text-gray-600">
+              {mode === 'login' ? '계정이 없으신가요?' : '이미 계정이 있으신가요?'}
+              <button
+                onClick={handleSwitchMode}
+                className="ml-1 text-emerald-600 hover:text-emerald-700 font-medium transition-colors"
+              >
+                {mode === 'login' ? '회원가입' : '로그인'}
+              </button>
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

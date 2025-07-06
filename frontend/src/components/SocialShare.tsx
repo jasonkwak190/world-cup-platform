@@ -9,8 +9,6 @@ import {
   Facebook, 
   Twitter, 
   MessageCircle,
-  Instagram,
-  Link2,
   Image as ImageIcon,
   CheckCircle,
   Loader2,

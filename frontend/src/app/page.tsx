@@ -58,14 +58,14 @@ export default function Home() {
           ]);
           
           // 결과 처리
-          const supabaseData = supabaseWorldCups.status === 'fulfilled' ? supabaseWorldCups.value : [];
-          const localData = localWorldCups.status === 'fulfilled' ? localWorldCups.value : [];
+          const supabaseData = supabaseWorldCups.status === 'fulfilled' ? supabaseWorldCups.value as any[] : [];
+          const localData = localWorldCups.status === 'fulfilled' ? localWorldCups.value as any[] : [];
           
           if (supabaseWorldCups.status === 'rejected') {
             console.warn('⚠️ Supabase data loading failed:', supabaseWorldCups.reason);
             
             // 타임아웃으로 실패한 경우 자동 새로고침
-            if (supabaseWorldCups.reason?.message === 'Data loading timeout') {
+            if ((supabaseWorldCups.reason as Error)?.message === 'Data loading timeout') {
               console.log('🔄 10초 타임아웃 발생, 3초 후 자동 새로고침...');
               setTimeout(() => {
                 window.location.reload();
@@ -81,8 +81,8 @@ export default function Home() {
           
           // 중복 제거
           const worldCupMap = new Map();
-          supabaseData.forEach(wc => worldCupMap.set(wc.id, wc));
-          localData.forEach(wc => {
+          supabaseData.forEach((wc: any) => worldCupMap.set(wc.id, wc));
+          localData.forEach((wc: any) => {
             if (!worldCupMap.has(wc.id)) {
               worldCupMap.set(wc.id, wc);
             }

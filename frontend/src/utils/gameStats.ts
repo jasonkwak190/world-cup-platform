@@ -68,11 +68,50 @@ const WORLDCUP_STATS_KEY = 'worldcup_stats';
  */
 export async function saveGameResult(result: GameResult): Promise<void> {
   try {
+    // 중복 호출 방지 - 세션 기반 캐시 체크
+    const apiCallKey = `stats_api_called_${result.sessionId}`;
+    
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      const alreadyCalled = window.sessionStorage.getItem(apiCallKey);
+      if (alreadyCalled) {
+        console.warn('⚠️ Stats API already called for this session, skipping duplicate call');
+        return;
+      }
+      // API 호출 기록
+      window.sessionStorage.setItem(apiCallKey, Date.now().toString());
+    }
+    
     console.log('📊 Sending game result to server:', {
       worldcupId: result.worldcupId,
       sessionId: result.sessionId,
       matchesCount: result.matches.length,
       winner: result.winner
+    });
+
+    // Debug: Check if UUID is included in match data
+    console.log('🔍 Debug match data sample:', {
+      firstMatch: result.matches[0] ? {
+        item1: {
+          id: result.matches[0].item1.id,
+          title: result.matches[0].item1.title,
+          uuid: result.matches[0].item1.uuid || 'NO_UUID'
+        },
+        item2: {
+          id: result.matches[0].item2.id,
+          title: result.matches[0].item2.title,
+          uuid: result.matches[0].item2.uuid || 'NO_UUID'
+        },
+        winner: result.matches[0].winner ? {
+          id: result.matches[0].winner.id,
+          title: result.matches[0].winner.title,
+          uuid: result.matches[0].winner.uuid || 'NO_UUID'
+        } : null
+      } : null,
+      winnerData: {
+        id: result.winner.id,
+        title: result.winner.title,
+        uuid: result.winner.uuid || 'NO_UUID'
+      }
     });
 
     const response = await fetch(`/api/worldcup/${result.worldcupId}/stats`, {
@@ -84,6 +123,7 @@ export async function saveGameResult(result: GameResult): Promise<void> {
       body: JSON.stringify({
         matches: result.matches,
         winner: result.winner,
+        sessionToken: result.sessionId, // Pass session ID to prevent duplicate championships
       }),
     });
 

@@ -528,7 +528,7 @@ export default function WorldCupPreview({ data, onGameStateChange, onItemUpdate,
               <ImageCropper
                 items={data.items}
                 onItemUpdate={onItemUpdate}
-                thumbnail={data.thumbnail}
+                thumbnail={data.thumbnail as any}
                 onThumbnailUpdate={onThumbnailUpdate}
               />
               <div className="mt-4 text-center">

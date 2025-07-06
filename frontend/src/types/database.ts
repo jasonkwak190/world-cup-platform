@@ -14,16 +14,7 @@ export interface User {
   last_login_at?: string;
 }
 
-export interface Category {
-  id: number;
-  name: string;
-  description?: string;
-  icon?: string;
-  color?: string;
-  is_active: boolean;
-  display_order: number;
-  created_at: string;
-}
+// Category 인터페이스 제거됨 - 하드코딩된 카테고리 사용
 
 export interface WorldCup {
   id: string;

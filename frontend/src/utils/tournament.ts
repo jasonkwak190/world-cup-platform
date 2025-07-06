@@ -74,6 +74,7 @@ export function createTournament(
         </svg>
       `),
       is_bye: true, // BYE 여부를 나타내는 플래그 추가
+      uuid: undefined, // BYE 아이템은 UUID가 없음을 명시
     });
   }
   

@@ -1,6 +1,6 @@
 'use client';
 
-import { Search, Plus, User as UserIcon, LogOut, Home, Settings as SettingsIcon } from 'lucide-react';
+import { Search, Plus, User as UserIcon, LogOut, Settings as SettingsIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';

@@ -179,11 +179,30 @@ export async function saveWorldCupToSupabase(worldCupData: any, onProgress?: (pr
 
     onProgress?.(30, '월드컵 아이템들을 생성하고 있습니다...');
     
-    // 4. 월드컵 아이템들 생성
+    // 4. 월드컵 아이템들 생성 (중복 타이틀 검증 포함)
     if (worldCupData.items && worldCupData.items.length > 0) {
+      // 중복 타이틀 검증
+      const titleCounts = new Map<string, number>();
+      const duplicateTitles = new Set<string>();
+      
+      worldCupData.items.forEach((item: any) => {
+        const title = item.title.trim();
+        const count = titleCounts.get(title) || 0;
+        titleCounts.set(title, count + 1);
+        
+        if (count >= 1) {
+          duplicateTitles.add(title);
+        }
+      });
+      
+      if (duplicateTitles.size > 0) {
+        const duplicateList = Array.from(duplicateTitles).join(', ');
+        throw new Error(`중복된 아이템 이름이 있습니다: ${duplicateList}\n각 월드컵 내에서 아이템 이름은 고유해야 합니다.`);
+      }
+      
       const itemInserts: SupabaseWorldCupItemInsert[] = worldCupData.items.map((item: any, index: number) => ({
         worldcup_id: worldCup.id,
-        title: item.title,
+        title: item.title.trim(), // 공백 제거
         image_url: '', // 이미지 업로드 후 업데이트
         description: item.description || '',
         order_index: index

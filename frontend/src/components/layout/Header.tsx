@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import AuthModal from './AuthModal';
+import AuthModal from '../AuthModal';
 import type { User } from '@/types/user';
 
 interface HeaderProps {

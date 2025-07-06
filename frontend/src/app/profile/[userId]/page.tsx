@@ -71,7 +71,7 @@ export default function ProfilePage() {
   const [tournamentHistory, setTournamentHistory] = useState<TournamentHistory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'created' | 'played' | 'liked'>('created');
-  // const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
 
   const userId = params.userId as string;
   const isOwnProfile = user?.id === userId;

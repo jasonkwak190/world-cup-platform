@@ -224,7 +224,7 @@ export default function GameScreen({ match, round, totalRounds, worldcupId, onCh
 
   return (
     <div 
-      ref={gestureRef}
+      ref={gestureRef as any}
       className="flex flex-col items-center justify-start min-h-screen touch-manipulation w-full"
     >
       {/* Particle Effect */}

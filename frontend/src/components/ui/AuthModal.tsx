@@ -96,14 +96,14 @@ export default function AuthModal({
           
           console.log('🔐 Supabase login result:', supabaseResult);
           
-          if (supabaseResult.success && supabaseResult.user) {
+          if ((supabaseResult as any).success && (supabaseResult as any).user) {
             console.log('✅ Supabase login successful, calling onSuccess');
-            onSuccess(supabaseResult.user);
+            onSuccess((supabaseResult as any).user);
             onClose();
             return;
           } else {
-            console.log('❌ Supabase login failed:', supabaseResult.error);
-            setError(supabaseResult.error || '로그인에 실패했습니다.');
+            console.log('❌ Supabase login failed:', (supabaseResult as any).error);
+            setError((supabaseResult as any).error || '로그인에 실패했습니다.');
           }
         } catch (timeoutError) {
           console.error('❌ Login timeout or error:', timeoutError);

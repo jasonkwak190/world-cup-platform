@@ -83,7 +83,13 @@ export interface Database {
           image_url: string;
           description: string | null;
           order_index: number;
+          win_count: number;
+          loss_count: number;
+          win_rate: number;
+          total_appearances: number;
+          championship_wins: number;
           created_at: string;
+          updated_at: string;
         };
         Insert: {
           id?: string;
@@ -92,7 +98,13 @@ export interface Database {
           image_url: string;
           description?: string | null;
           order_index: number;
+          win_count?: number;
+          loss_count?: number;
+          win_rate?: number;
+          total_appearances?: number;
+          championship_wins?: number;
           created_at?: string;
+          updated_at?: string;
         };
         Update: {
           id?: string;
@@ -101,7 +113,13 @@ export interface Database {
           image_url?: string;
           description?: string | null;
           order_index?: number;
+          win_count?: number;
+          loss_count?: number;
+          win_rate?: number;
+          total_appearances?: number;
+          championship_wins?: number;
           created_at?: string;
+          updated_at?: string;
         };
       };
       user_interactions: {
