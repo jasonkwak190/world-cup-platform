@@ -128,11 +128,66 @@ export default function MyPage() {
   };
 
   const handleDelete = async (id: string, title: string) => {
-    if (confirm(`정말로 "${title}" 월드컵을 삭제하시겠습니까?`)) {
+    // 이중 확인으로 실수 방지
+    const firstConfirm = confirm(`정말로 "${title}" 월드컵을 삭제하시겠습니까?\n\n⚠️ 모든 게임 기록, 댓글, 통계가 함께 삭제됩니다.`);
+    if (!firstConfirm) return;
+    
+    const secondConfirm = confirm(`⚠️ 최종 확인\n\n"${title}" 월드컵과 관련된 모든 데이터가 영구히 삭제됩니다.\n\n계속하시겠습니까?`);
+    if (secondConfirm) {
       try {
         console.log('Delete worldcup:', id);
         
-        // supabase에서 월드컵 삭제
+        // 올바른 순서로 연관 데이터 삭제 (외래 키 제약 조건 고려)
+        
+        // 1. 먼저 해당 worldcup의 모든 items ID 가져오기
+        const { data: worldcupItems } = await supabase
+          .from('worldcup_items')
+          .select('id')
+          .eq('worldcup_id', id);
+
+        const itemIds = worldcupItems?.map(item => item.id) || [];
+        console.log('Found worldcup items:', itemIds);
+
+        // 2. 관련 데이터 삭제 (순서대로)
+        const deleteTasks = [
+          // 게임 매치 삭제
+          supabase.from('game_matches').delete().eq('worldcup_id', id),
+          // 게임 세션 삭제  
+          supabase.from('game_sessions').delete().eq('worldcup_id', id),
+          // 게임 결과 삭제
+          supabase.from('game_results').delete().eq('worldcup_id', id),
+          // 댓글 삭제
+          supabase.from('comments').delete().eq('worldcup_id', id),
+          // 사용자 상호작용 삭제
+          supabase.from('user_interactions').delete().eq('target_id', id).eq('target_type', 'worldcup')
+        ];
+
+        const tableNames = ['game_matches', 'game_sessions', 'game_results', 'comments', 'user_interactions'];
+        
+        // 순차적으로 삭제 (병렬로 하면 외래 키 순서 문제가 있을 수 있음)
+        for (let i = 0; i < deleteTasks.length; i++) {
+          const { error } = await deleteTasks[i];
+          if (error) {
+            console.warn(`Warning deleting from ${tableNames[i]}:`, error);
+          } else {
+            console.log(`✅ Successfully deleted from ${tableNames[i]}`);
+          }
+        }
+
+        // 3. worldcup_items 삭제 (CASCADE로 인해 남은 참조들이 자동 정리됨)
+        const { error: itemsError } = await supabase
+          .from('worldcup_items')
+          .delete()
+          .eq('worldcup_id', id);
+
+        if (itemsError) {
+          console.error('CRITICAL ERROR deleting worldcup_items:', itemsError);
+          throw new Error(`Failed to delete worldcup_items: ${itemsError.message}`);
+        } else {
+          console.log('✅ Successfully deleted from worldcup_items');
+        }
+
+        // 6. 최종적으로 월드컵 삭제
         const { error } = await supabase
           .from('worldcups')
           .delete()
@@ -140,13 +195,14 @@ export default function MyPage() {
 
         if (error) {
           console.error('Failed to delete worldcup:', error);
-          alert('월드컵 삭제 중 오류가 발생했습니다.');
+          alert(`월드컵 삭제 중 오류가 발생했습니다: ${error.message}`);
           return;
         }
 
         // 로컬 상태에서도 제거
         setCreatedWorldCups(prev => prev.filter(wc => wc.id !== id));
         alert('월드컵이 성공적으로 삭제되었습니다.');
+        
       } catch (error) {
         console.error('Failed to delete worldcup:', error);
         alert('월드컵 삭제 중 오류가 발생했습니다.');

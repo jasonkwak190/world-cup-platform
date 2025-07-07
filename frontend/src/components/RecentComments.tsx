@@ -1,41 +1,51 @@
-import { MessageCircle, Clock, Star } from 'lucide-react';
-
-const recentComments = [
-  {
-    id: 1,
-    author: '혹백 오리사이에 나온 먹고 싶은 음식',
-    content: '와우 웹사이트',
-    time: '방금 전',
-    worldcup: '포켓몬 4세대 bgm 이상형 월드컵',
-    isRecommended: false,
-  },
-  {
-    id: 2,
-    author: '따봉',
-    content: '나름 월드컵',
-    time: '1분 전',
-    worldcup: '포켓몬 4세대 bgm 이상형 월드컵',
-    isRecommended: false,
-  },
-  {
-    id: 3,
-    author: '세븐틴의 안나에서 살짝 아서 찾아서 ㅋㅋㅋㅋ',
-    content: '⭐ 브로스타즈 브롤러 대결 월드컵 2025 ⭐',
-    time: '2분 전',
-    worldcup: '스파이크 스파이크 스파이크 스파이크 스파이크 스파이크 스파이크 스파이크 스파이크 하는 사람 나',
-    isRecommended: true,
-  },
-  {
-    id: 4,
-    author: '⭐ 브로스타즈 브롤러 대결 월드컵 2025 ⭐',
-    content: '스파이크 스파이크 스파이크 스파이크 스파이크 스파이크 스파이크 스파이크 스파이크 하는 사람 나',
-    time: '3분 전',
-    worldcup: '브로스타즈 브롤러 대결 월드컵 2025',
-    isRecommended: true,
-  },
-];
+import { MessageCircle, Clock, Star, AlertCircle } from 'lucide-react';
+import { useRecentComments } from '@/hooks/useRecentComments';
 
 export default function RecentComments() {
+  const { data: recentComments, loading, error } = useRecentComments();
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-lg shadow-sm border p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <MessageCircle className="w-5 h-5 text-purple-600" />
+          <h2 className="text-lg font-bold text-gray-900">최근 댓글</h2>
+        </div>
+        <div className="text-sm text-gray-500 mb-4">
+          다른 사용자들의 생각을 확인해보세요
+        </div>
+        
+        <div className="space-y-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="p-3 rounded-lg animate-pulse">
+              <div className="flex justify-between mb-2">
+                <div className="h-4 bg-gray-200 rounded w-24"></div>
+                <div className="h-3 bg-gray-200 rounded w-16"></div>
+              </div>
+              <div className="h-4 bg-gray-200 rounded mb-2 w-full"></div>
+              <div className="h-3 bg-gray-200 rounded w-32"></div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-white rounded-lg shadow-sm border p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <MessageCircle className="w-5 h-5 text-purple-600" />
+          <h2 className="text-lg font-bold text-gray-900">최근 댓글</h2>
+        </div>
+        <div className="flex items-center gap-2 p-4 bg-red-50 rounded-lg">
+          <AlertCircle className="w-4 h-4 text-red-600" />
+          <span className="text-sm text-red-800">댓글을 불러오는 중 오류가 발생했습니다.</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white rounded-lg shadow-sm border p-6">
       <div className="flex items-center gap-2 mb-4">
@@ -56,7 +66,7 @@ export default function RecentComments() {
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-purple-600 truncate max-w-32">
-                  {comment.author}
+                  {comment.author_name}
                 </span>
                 {comment.isRecommended && (
                   <Star className="w-3 h-3 text-yellow-500 fill-current" />
@@ -64,7 +74,7 @@ export default function RecentComments() {
               </div>
               <div className="flex items-center gap-1 text-xs text-gray-400">
                 <Clock className="w-3 h-3" />
-                <span>{comment.time}</span>
+                <span>{comment.time_ago}</span>
               </div>
             </div>
 
@@ -75,7 +85,7 @@ export default function RecentComments() {
 
             {/* WorldCup Reference */}
             <div className="text-xs text-gray-500 bg-gray-50 rounded px-2 py-1 inline-block max-w-full truncate">
-              📋 {comment.worldcup}
+              📋 {comment.worldcup_title}
             </div>
           </div>
         ))}

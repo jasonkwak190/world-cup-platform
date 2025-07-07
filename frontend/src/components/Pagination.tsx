@@ -8,6 +8,10 @@ interface PaginationProps {
 
 export default function Pagination({ currentPage, totalPages, onPageChange }: PaginationProps) {
   const getVisiblePages = () => {
+    if (totalPages <= 1) {
+      return [1];
+    }
+
     const delta = 2;
     const range = [];
     const rangeWithDots = [];
@@ -28,11 +32,22 @@ export default function Pagination({ currentPage, totalPages, onPageChange }: Pa
 
     if (currentPage + delta < totalPages - 1) {
       rangeWithDots.push('dots2', totalPages);
-    } else {
+    } else if (totalPages > 1) {
       rangeWithDots.push(totalPages);
     }
 
-    return rangeWithDots;
+    // Remove duplicates while preserving order
+    const uniquePages = [];
+    const seen = new Set();
+    
+    for (const page of rangeWithDots) {
+      if (!seen.has(page)) {
+        seen.add(page);
+        uniquePages.push(page);
+      }
+    }
+
+    return uniquePages;
   };
 
   const visiblePages = getVisiblePages();

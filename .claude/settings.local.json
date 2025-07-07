@@ -62,7 +62,14 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(npx supabase db inspect:*)",
-      "WebFetch(domain:localhost)"
+      "WebFetch(domain:localhost)",
+      "Bash(npx @modelcontextprotocol/server-memory:*)",
+      "Bash(npx @modelcontextprotocol/server-filesystem:*)",
+      "Bash(npx @modelcontextprotocol/server-github:*)",
+      "Bash(npx @modelcontextprotocol/server-gemini-cli:*)",
+      "Bash(npm search:*)",
+      "Bash(npx:*)",
+      "Bash(find /Users/jaehyeok/world-cup-platform/frontend/src -name \"*backup*\" -o -name \"*test*\" -o -name \"*debug*\")"
     ],
     "deny": []
   }

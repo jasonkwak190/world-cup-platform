@@ -4,8 +4,18 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     
-    const title = searchParams.get('title') || 'WorldCup Tournament';
-    const winner = searchParams.get('winner');
+    // 🔒 SECURITY: HTML 이스케이프 처리로 XSS 방지
+    const escapeHtml = (text: string) => {
+      return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    };
+
+    const title = escapeHtml(searchParams.get('title') || 'WorldCup Tournament');
+    const winner = searchParams.get('winner') ? escapeHtml(searchParams.get('winner')!) : null;
     const participants = searchParams.get('participants') || '0';
     const type = searchParams.get('type') || 'tournament';
 

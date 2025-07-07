@@ -11,16 +11,18 @@ import Pagination from '@/components/Pagination';
 import { getStoredWorldCups } from '@/utils/storage';
 import { getWorldCups as getSupabaseWorldCups, getUserWorldCups } from '@/utils/supabaseData';
 import { useAuth } from '@/contexts/AuthContext';
+import { useStats } from '@/hooks/useStats';
 
 export default function Home() {
   const { user } = useAuth();
+  const { data: stats } = useStats();
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedSort, setSelectedSort] = useState('popular');
   const [currentPage, setCurrentPage] = useState(1);
   const [categoryCounts, setCategoryCounts] = useState<{ [key: string]: number }>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [userWorldCupCount, setUserWorldCupCount] = useState(0);
-  const totalPages = 16; // Mock total pages
+  const totalPages = stats?.totalPages || 1; // Dynamic total pages from stats
 
   // 카테고리별 월드컵 개수 계산
   useEffect(() => {

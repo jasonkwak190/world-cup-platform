@@ -2,6 +2,7 @@
 
 import { Search, Plus, User as UserIcon, LogOut, Settings as SettingsIcon } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -109,7 +110,16 @@ export default function Header({ searchQuery = '', onSearchChange, userWorldCupC
             {/* Logo */}
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <Link href="/" className="text-2xl font-bold text-emerald-600 hover:text-emerald-700 transition-colors">
+                <Link href="/" className="flex items-center gap-2 text-2xl font-bold text-emerald-600 hover:text-emerald-700 transition-colors">
+                  <Image 
+                    src="/vs-logo.png" 
+                    alt="VS Logo" 
+                    width={80} 
+                    height={40}
+                    className="h-10"
+                    style={{ width: "auto", height: "auto" }}
+                    priority
+                  />
                   WorldCup
                 </Link>
               </div>

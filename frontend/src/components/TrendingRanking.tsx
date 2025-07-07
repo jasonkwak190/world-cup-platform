@@ -1,45 +1,50 @@
-import { TrendingUp, Crown, Users } from 'lucide-react';
-
-const trendingData = [
-  {
-    rank: 1,
-    title: 'o s) 여자 사람 월드컵',
-    participants: 1687,
-    isHot: true,
-  },
-  {
-    rank: 2,
-    title: '이상형 월드컵 이브라히 브라힌체 최강자 레전드',
-    participants: 2791,
-    isHot: true,
-  },
-  {
-    rank: 3,
-    title: '여자배우 응원 월드컵',
-    participants: 4268,
-    isRising: true,
-  },
-  {
-    rank: 4,
-    title: '최강 어신 컬기 인방 여질 월드컵',
-    participants: 6852,
-    isRising: true,
-  },
-  {
-    rank: 5,
-    title: '대한민국 최고의 과자 월드컵',
-    participants: 400,
-    isNew: true,
-  },
-  {
-    rank: 6,
-    title: '당신의 최애국은? 2024 게이밍 월드컵',
-    participants: 4404,
-    isNew: true,
-  },
-];
+import { TrendingUp, Crown, Users, AlertCircle } from 'lucide-react';
+import { useTrending } from '@/hooks/useTrending';
 
 export default function TrendingRanking() {
+  const { data: trendingData, loading, error } = useTrending();
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-lg shadow-sm border p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <TrendingUp className="w-5 h-5 text-blue-600" />
+          <h2 className="text-lg font-bold text-gray-900">지금 인기 있는 월드컵</h2>
+        </div>
+        <div className="text-sm text-gray-500 mb-4">
+          최근 24시간 동안 가장 많이 플레이한 월드컵입니다
+        </div>
+        
+        <div className="space-y-3">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="flex items-start gap-3 p-3 rounded-lg animate-pulse">
+              <div className="flex-shrink-0 w-8 h-8 bg-gray-200 rounded"></div>
+              <div className="flex-1 min-w-0">
+                <div className="h-4 bg-gray-200 rounded mb-2 w-3/4"></div>
+                <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-white rounded-lg shadow-sm border p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <TrendingUp className="w-5 h-5 text-blue-600" />
+          <h2 className="text-lg font-bold text-gray-900">지금 인기 있는 월드컵</h2>
+        </div>
+        <div className="flex items-center gap-2 p-4 bg-red-50 rounded-lg">
+          <AlertCircle className="w-4 h-4 text-red-600" />
+          <span className="text-sm text-red-800">데이터를 불러오는 중 오류가 발생했습니다.</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white rounded-lg shadow-sm border p-6">
       <div className="flex items-center gap-2 mb-4">
@@ -53,7 +58,7 @@ export default function TrendingRanking() {
       <div className="space-y-3">
         {trendingData.map((item) => (
           <div
-            key={item.rank}
+            key={item.id}
             className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer group"
           >
             {/* Rank */}
@@ -93,7 +98,7 @@ export default function TrendingRanking() {
               </h3>
               <div className="flex items-center gap-1 mt-1 text-xs text-gray-500">
                 <Users className="w-3 h-3" />
-                <span>총 {item.participants.toLocaleString()}회 진행</span>
+                <span>총 {item.play_count.toLocaleString()}회 진행</span>
               </div>
             </div>
           </div>

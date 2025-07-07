@@ -14,6 +14,17 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
 });
 
 export async function POST(request: NextRequest) {
+  // 🔒 SECURITY: 마이그레이션은 관리자만 실행 가능
+  const authHeader = request.headers.get('authorization');
+  const adminSecret = process.env.ADMIN_MIGRATION_SECRET;
+  
+  if (!authHeader || !adminSecret || authHeader !== `Bearer ${adminSecret}`) {
+    return NextResponse.json(
+      { success: false, error: 'Unauthorized access' },
+      { status: 401 }
+    );
+  }
+
   try {
     const { users, worldcups } = await request.json();
     
