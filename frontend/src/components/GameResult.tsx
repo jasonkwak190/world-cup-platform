@@ -3,7 +3,7 @@ import { Tournament, WorldCupItem } from '@/types/game';
 import { motion } from 'framer-motion';
 import { Trophy, RotateCcw, Home, Share2, Download, BarChart3, List } from 'lucide-react';
 import CommentSystem from './CommentSystem';
-import TournamentRanking from './TournamentRanking';
+import RankingModal from './shared/RankingModal';
 import { saveTournamentResult } from '@/utils/tournamentResults';
 
 interface GameResultProps {
@@ -127,19 +127,6 @@ export default function GameResult({
     link.click();
   };
 
-  if (showRanking) {
-    return (
-      <TournamentRanking
-        tournamentTitle={tournament.title}
-        winner={tournament.winner as WorldCupItem}
-        allItems={tournament.items}
-        tournament={tournament}
-        worldcupId={worldcupId || ''}
-        onBack={() => setShowRanking(false)}
-        onGoHome={onGoHome}
-      />
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 p-4">
@@ -349,6 +336,16 @@ export default function GameResult({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Ranking Modal */}
+      {worldcupId && (
+        <RankingModal
+          isOpen={showRanking}
+          onClose={() => setShowRanking(false)}
+          worldcupId={worldcupId}
+          worldcupTitle={tournament.title}
+        />
       )}
     </div>
   );

@@ -297,49 +297,92 @@ export async function getItemStatistics(worldcupId: string) {
   try {
     console.log('📈 Fetching item statistics for worldcup:', worldcupId);
 
-    // 캐시 무력화를 위해 타임스탬프 추가
-    const timestamp = Date.now();
-    console.log('🔄 Cache-busting timestamp:', timestamp);
-
-    // worldcup_items 테이블에서 직접 통계 조회 (실시간 반영)
-    const { data: itemStats, error } = await supabase
-      .from('worldcup_items')
-      .select(`
-        id,
-        title,
-        image_url,
-        win_count,
-        loss_count,
-        win_rate,
-        total_appearances,
-        championship_wins
-      `)
-      .eq('worldcup_id', worldcupId)
-      .order('win_rate', { ascending: false });
-
-    if (error) {
-      console.error('❌ Error fetching item statistics:', error);
-      throw error;
-    }
-
-    if (!itemStats || itemStats.length === 0) {
-      console.log('📭 No statistics found for worldcup:', worldcupId);
+    // Input validation
+    if (!worldcupId || typeof worldcupId !== 'string') {
+      console.error('❌ Invalid worldcupId provided:', worldcupId);
       return [];
     }
 
-    console.log('✅ Fetched statistics for', itemStats.length, 'items');
+    // 캐시 무력화를 위해 타임스탬프 추가 및 API 직접 호출
+    const timestamp = Date.now();
+    console.log('🔄 Cache-busting timestamp:', timestamp);
+
+    // API를 직접 호출하여 최신 데이터 보장
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10초 타임아웃
+
+    let response: Response;
+    try {
+      response = await fetch(`/api/worldcup/${worldcupId}/stats?_t=${timestamp}`, {
+        method: 'GET',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+          'Accept': 'application/json'
+        },
+        signal: controller.signal
+      });
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      if (fetchError.name === 'AbortError') {
+        console.error('❌ API call timed out after 10 seconds');
+      } else {
+        console.error('❌ Network error during API call:', fetchError);
+      }
+      return [];
+    }
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      console.error('❌ API response not ok:', response.status, response.statusText);
+      // Try to get error details from response
+      try {
+        const errorData = await response.text();
+        console.error('❌ API error details:', errorData);
+      } catch (e) {
+        console.error('❌ Could not read error response');
+      }
+      return [];
+    }
+
+    let data;
+    try {
+      data = await response.json();
+      console.log('📊 Raw API response data:', data);
+    } catch (parseError) {
+      console.error('❌ Failed to parse JSON response:', parseError);
+      return [];
+    }
+
+    const itemStats = data?.items;
+    console.log('📊 Extracted itemStats:', itemStats?.length || 0, 'items');
+
+    if (!itemStats || !Array.isArray(itemStats)) {
+      console.log('📭 No valid statistics found for worldcup:', worldcupId);
+      console.log('📭 Data structure:', { hasData: !!data, hasItems: !!data?.items, itemsType: typeof data?.items });
+      return [];
+    }
+
+    if (itemStats.length === 0) {
+      console.log('📭 Empty statistics array for worldcup:', worldcupId);
+      return [];
+    }
+
+    console.log('✅ Fetched statistics for', itemStats.length, 'items via API');
     
-    // 승률 기준으로 정렬된 결과 반환
+    // 승률 기준으로 정렬된 결과 반환 (API에서 이미 정렬되어 있지만 재정렬)
     const sortedStats = itemStats.sort((a, b) => {
       if (b.win_rate !== a.win_rate) return b.win_rate - a.win_rate;
       if (b.championship_wins !== a.championship_wins) return b.championship_wins - a.championship_wins;
       return (b.win_count || 0) - (a.win_count || 0);
     });
 
-    return sortedStats.map((item, index) => ({
-      id: item.id,
-      title: item.title,
-      image: item.image_url,
+    const result = sortedStats.map((item, index) => ({
+      id: item.id || '',
+      title: item.title || 'Unknown',
+      image: item.image_url || null,
       totalWins: item.win_count || 0,
       totalLosses: item.loss_count || 0,
       totalGames: (item.win_count || 0) + (item.loss_count || 0),
@@ -350,8 +393,20 @@ export async function getItemStatistics(worldcupId: string) {
       roundStats: {} // 간단하게 빈 객체로 설정
     }));
 
+    console.log('📊 Processed statistics sample:', result.slice(0, 3).map(item => ({
+      title: item.title,
+      wins: item.totalWins,
+      losses: item.totalLosses,
+      winRate: item.winRate,
+      championships: item.championshipWins
+    })));
+
+    console.log('🎯 Returning', result.length, 'processed items');
+    return result;
+
   } catch (error) {
-    console.error('❌ Error in getItemStatistics:', error);
+    console.error('❌ Unexpected error in getItemStatistics:', error);
+    // Return empty array instead of throwing to prevent navigation issues
     return [];
   }
 }
@@ -573,9 +628,10 @@ async function updateItemStatistics(tournament: Tournament, _worldcupId: string,
           const isChampion = tournament.winner?.id === itemId;
           let newChampionshipWins = currentStats.championship_wins || 0;
           
-          // championship_wins는 API에서 처리되므로 여기서는 변경하지 않음
+          // 우승자인 경우 championship_wins 증가
           if (isChampion) {
-            console.log(`🏆 Championship for ${itemId} will be handled by stats API`);
+            newChampionshipWins += 1;
+            console.log(`🏆 Championship win added for ${itemId}: ${(currentStats.championship_wins || 0)} → ${newChampionshipWins}`);
           }
 
           console.log(`🎯 Item ${itemId}: Champion=${isChampion}, Current Championships: ${currentStats.championship_wins || 0}, New Championships: ${newChampionshipWins}, Wins +${stats.wins}, Losses +${stats.losses}`);

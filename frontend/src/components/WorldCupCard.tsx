@@ -1,4 +1,4 @@
-import { Heart, MessageCircle, Share2, Play, Bookmark } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Play, Bookmark, BarChart3 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 
@@ -19,6 +19,7 @@ interface WorldCupCardProps {
   onLike: () => void;
   onBookmark: () => void;
   onShare: () => void;
+  onViewRanking?: () => void;
 }
 
 export default function WorldCupCard({
@@ -38,6 +39,7 @@ export default function WorldCupCard({
   onLike,
   onBookmark,
   onShare,
+  onViewRanking,
 }: WorldCupCardProps) {
   // 이미지 URL 처리 함수 - Supabase URLs와 Base64 모두 지원
   const getImageUrl = (image: string | File | Blob | undefined | null): string => {
@@ -218,46 +220,65 @@ export default function WorldCupCard({
         </div>
 
         {/* Actions */}
-        <div className="flex items-stretch gap-2">
-          <button
-            onClick={onPlay}
-            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 px-4 rounded-lg transition-colors font-medium flex items-center justify-center h-[40px]"
-          >
-            시작하기
-          </button>
-          <button
-            onClick={onLike}
-            className={`p-2.5 rounded-lg transition-colors w-[40px] h-[40px] flex items-center justify-center ${
-              isLiked
-                ? 'text-red-500 bg-red-50 hover:bg-red-100'
-                : 'text-gray-400 hover:text-red-500 hover:bg-red-50'
-            }`}
-          >
-            <Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />
-          </button>
-          <button
-            onClick={onBookmark}
-            disabled={!isLoggedIn}
-            title={!isLoggedIn ? '북마크는 로그인 후 이용할 수 있습니다' : ''}
-            className={`p-2.5 rounded-lg transition-colors w-[40px] h-[40px] flex items-center justify-center ${
-              !isLoggedIn
-                ? 'text-gray-300 bg-gray-50 cursor-not-allowed'
-                : isBookmarked
-                ? 'text-emerald-500 bg-emerald-50 hover:bg-emerald-100'
-                : 'text-gray-400 hover:text-emerald-500 hover:bg-emerald-50'
-            }`}
-          >
-            <Bookmark className={`w-4 h-4 ${isBookmarked ? 'fill-current' : ''}`} />
-          </button>
-          <button
-            onClick={() => {
-              console.log('🔗 Share button clicked for worldcup:', id);
-              onShare();
-            }}
-            className="p-2.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors w-[40px] h-[40px] flex items-center justify-center"
-          >
-            <Share2 className="w-4 h-4" />
-          </button>
+        <div className="space-y-2">
+          {/* 주요 버튼들 */}
+          <div className="flex items-stretch gap-2">
+            <button
+              onClick={onPlay}
+              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 px-4 rounded-lg transition-colors font-medium flex items-center justify-center h-[40px]"
+            >
+              시작하기
+            </button>
+            {onViewRanking && (
+              <button
+                onClick={() => {
+                  console.log('📊 전체 랭킹 버튼 클릭 for worldcup:', id);
+                  onViewRanking();
+                }}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 px-4 rounded-lg transition-colors font-medium flex items-center justify-center h-[40px] gap-1.5"
+              >
+                <BarChart3 className="w-4 h-4" />
+                전체 랭킹
+              </button>
+            )}
+          </div>
+          
+          {/* 보조 버튼들 */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={onLike}
+              className={`p-2 rounded-lg transition-colors w-[32px] h-[32px] flex items-center justify-center ${
+                isLiked
+                  ? 'text-red-500 bg-red-50 hover:bg-red-100'
+                  : 'text-gray-400 hover:text-red-500 hover:bg-red-50'
+              }`}
+            >
+              <Heart className={`w-3.5 h-3.5 ${isLiked ? 'fill-current' : ''}`} />
+            </button>
+            <button
+              onClick={onBookmark}
+              disabled={!isLoggedIn}
+              title={!isLoggedIn ? '북마크는 로그인 후 이용할 수 있습니다' : ''}
+              className={`p-2 rounded-lg transition-colors w-[32px] h-[32px] flex items-center justify-center ${
+                !isLoggedIn
+                  ? 'text-gray-300 bg-gray-50 cursor-not-allowed'
+                  : isBookmarked
+                  ? 'text-emerald-500 bg-emerald-50 hover:bg-emerald-100'
+                  : 'text-gray-400 hover:text-emerald-500 hover:bg-emerald-50'
+              }`}
+            >
+              <Bookmark className={`w-3.5 h-3.5 ${isBookmarked ? 'fill-current' : ''}`} />
+            </button>
+            <button
+              onClick={() => {
+                console.log('🔗 Share button clicked for worldcup:', id);
+                onShare();
+              }}
+              className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors w-[32px] h-[32px] flex items-center justify-center"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </div>
     </div>

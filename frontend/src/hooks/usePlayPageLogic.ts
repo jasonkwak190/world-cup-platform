@@ -6,6 +6,7 @@ import { WorldCupItem, GameState } from '@/types/game';
 import { createTournament, getCurrentMatch, selectWinner, getRoundName, getTournamentProgress, undoLastMatch, shuffleArray, autoAdvanceByes, isByeMatch } from '@/utils/tournament';
 import { getWorldCupById } from '@/utils/storage';
 import { getWorldCupById as getSupabaseWorldCupById } from '@/utils/supabaseData';
+import { withRetry } from '@/utils/supabaseConnection';
 
 export function usePlayPageLogic(params: Promise<{ id: string; }> | { id: string; }) {
   const router = useRouter();
@@ -15,6 +16,7 @@ export function usePlayPageLogic(params: Promise<{ id: string; }> | { id: string
   const [worldcupData, setWorldcupData] = useState<any | null>(null);
   const [worldcupId, setWorldcupId] = useState<string>('');
   const [shouldRedirectToHome, setShouldRedirectToHome] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
   const handleChoice = useCallback((winner: WorldCupItem) => {
     if (!gameState) return;
@@ -50,7 +52,13 @@ export function usePlayPageLogic(params: Promise<{ id: string; }> | { id: string
         let loadedData = null;
         try {
           console.log('🔍 Loading worldcup from Supabase with ID:', id);
-          const supabaseWorldCup = await getSupabaseWorldCupById(id);
+          setConnectionError(null); // 에러 초기화
+          
+          const supabaseWorldCup = await withRetry(
+            () => getSupabaseWorldCupById(id),
+            `Loading worldcup ${id}`
+          );
+          
           console.log('📊 Supabase worldcup result:', supabaseWorldCup);
           
           if (supabaseWorldCup && supabaseWorldCup.items && supabaseWorldCup.items.length > 0) {
@@ -68,8 +76,17 @@ export function usePlayPageLogic(params: Promise<{ id: string; }> | { id: string
               })) as WorldCupItem[]
             };
           }
-        } catch (supabaseError) {
-          console.error('❌ Supabase error:', supabaseError);
+        } catch (supabaseError: any) {
+          console.error('❌ Supabase error after retries:', supabaseError);
+          
+          // 사용자 친화적인 에러 메시지 설정
+          if (supabaseError.message?.includes('Failed to fetch') || 
+              supabaseError.message?.includes('ERR_CONNECTION_CLOSED') ||
+              supabaseError.message?.includes('ERR_NETWORK')) {
+            setConnectionError('네트워크 연결에 문제가 있습니다. 잠시 후 다시 시도해주세요.');
+          } else {
+            setConnectionError('데이터를 불러오는 중 오류가 발생했습니다.');
+          }
         }
         
         console.log('🔍 LoadedData after Supabase:', loadedData);
@@ -97,7 +114,13 @@ export function usePlayPageLogic(params: Promise<{ id: string; }> | { id: string
         
         if (loadedData) {
           setWorldcupData(loadedData);
-          setShowTournamentSelector(true);
+          // Only show tournament selector if there's no existing game state
+          if (!gameState) {
+            console.log('🔄 Setting tournament selector to true (initial load)');
+            setShowTournamentSelector(true);
+          } else {
+            console.log('⚠️ GameState exists, NOT showing tournament selector');
+          }
         } else {
           setShouldRedirectToHome(true);
         }
@@ -110,7 +133,7 @@ export function usePlayPageLogic(params: Promise<{ id: string; }> | { id: string
     };
 
     loadWorldCup();
-  }, [params, router]);
+  }, [params, router, gameState]);
 
   useEffect(() => {
     if (shouldRedirectToHome) {
@@ -119,12 +142,13 @@ export function usePlayPageLogic(params: Promise<{ id: string; }> | { id: string
   }, [shouldRedirectToHome, router]);
 
   useEffect(() => {
-    if (!gameState) return;
+    if (!gameState || gameState.tournament.isCompleted) return;
     
     const currentMatch = getCurrentMatch(gameState.tournament);
     if (currentMatch) {
       const byeResult = isByeMatch(currentMatch);
       if (byeResult.isBye && byeResult.winner) {
+        console.log('🔄 Processing BYE match:', byeResult.winner.title);
         setTimeout(() => {
           handleChoice(byeResult.winner!);
         }, 1000);
@@ -149,6 +173,8 @@ export function usePlayPageLogic(params: Promise<{ id: string; }> | { id: string
   };
 
   const handleRestart = () => {
+    console.log('🚨 handleRestart called - this should NOT happen automatically after game completion!');
+    console.trace('handleRestart call stack:');
     setGameState(null);
     setShowTournamentSelector(true);
   };
@@ -195,6 +221,7 @@ export function usePlayPageLogic(params: Promise<{ id: string; }> | { id: string
     showTournamentSelector,
     worldcupData,
     worldcupId,
+    connectionError,
     handleChoice,
     handleUndo,
     handleRestart,

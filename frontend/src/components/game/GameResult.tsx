@@ -3,7 +3,7 @@ import { Tournament, WorldCupItem } from '@/types/game';
 import { motion } from 'framer-motion';
 import { Trophy, RotateCcw, Home, Share2, Download, BarChart3, List } from 'lucide-react';
 import CommentSystem from '../CommentSystem';
-import TournamentRanking from '../shared/TournamentRanking';
+import RankingModal from '../shared/RankingModal';
 import { saveGameResult, type GameResult } from '@/utils/gameStats';
 
 interface GameResultProps {
@@ -25,32 +25,38 @@ export default function GameResult({
   const [showImageModal, setShowImageModal] = useState(false);
   const [commentCount, setCommentCount] = useState(0);
   const [statsSaved, setStatsSaved] = useState(false);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [statsReady, setStatsReady] = useState(false);
 
   // 게임 결과를 통계에 저장
   useEffect(() => {
     if (!statsSaved && tournament.winner && worldcupId) {
-      try {
-        const gameResult: GameResult = {
-          worldcupId: worldcupId,
-          sessionId: `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          timestamp: Date.now(),
-          winner: tournament.winner,
-          matches: tournament.matches.filter(match => match.isCompleted),
-          totalRounds: tournament.totalRounds,
-          playTime: playTime
-        };
+      const saveStats = async () => {
+        try {
+          const gameResult: GameResult = {
+            worldcupId: worldcupId,
+            sessionId: `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            timestamp: Date.now(),
+            winner: tournament.winner,
+            matches: tournament.matches.filter(match => match.isCompleted),
+            totalRounds: tournament.totalRounds,
+            playTime: playTime
+          };
 
-        saveGameResult(gameResult).then(() => {
-          // 통계 저장 완료 후 랭킹 새로고침 트리거
-          setRefreshTrigger(Date.now());
-          console.log('✅ Game stats saved successfully, triggering ranking refresh');
-        });
-        setStatsSaved(true);
-        console.log('✅ Game stats saved successfully:', gameResult.sessionId);
-      } catch (error) {
-        console.error('❌ Failed to save game stats:', error);
-      }
+          console.log('📊 Starting to save game stats...', gameResult.sessionId);
+          await saveGameResult(gameResult);
+          
+          // 통계 저장 완료 - 하지만 자동으로 refresh하지 않음
+          // 사용자가 랭킹 버튼을 클릭했을 때만 refresh 하도록 변경
+          setStatsReady(true);
+          console.log('✅ Game stats saved successfully, ready for ranking view');
+          
+        } catch (error) {
+          console.error('❌ Failed to save game stats:', error);
+        }
+      };
+
+      saveStats();
+      setStatsSaved(true);
     }
   }, [tournament.winner, worldcupId, playTime, tournament.matches, tournament.totalRounds, statsSaved]);
   const formatTime = (ms: number) => {
@@ -117,19 +123,6 @@ export default function GameResult({
     link.click();
   };
 
-  if (showRanking) {
-    return (
-      <TournamentRanking
-        tournamentTitle={tournament.title}
-        worldcupId={worldcupId || tournament.id}
-        winner={tournament.winner as WorldCupItem}
-        allItems={tournament.items}
-        onBack={() => setShowRanking(false)}
-        onGoHome={onGoHome}
-        refreshTrigger={refreshTrigger}
-      />
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 p-4">
@@ -254,11 +247,20 @@ export default function GameResult({
           {/* Secondary Actions */}
           <div className="flex space-x-4">
             <button
-              onClick={() => setShowRanking(true)}
-              className="flex-1 bg-green-100 hover:bg-green-200 text-green-700 py-2 px-4 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2"
+              onClick={() => {
+                setShowRanking(true);
+              }}
+              className={`flex-1 ${
+                statsReady 
+                  ? 'bg-green-100 hover:bg-green-200 text-green-700' 
+                  : 'bg-gray-100 text-gray-500'
+              } py-2 px-4 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2`}
             >
               <BarChart3 className="w-4 h-4" />
               <span>게임 랭킹 보기</span>
+              {statsReady && (
+                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+              )}
             </button>
             <button
               onClick={handleShare}
@@ -296,10 +298,22 @@ export default function GameResult({
             worldcupId={worldcupId}
             initialCommentCount={0}
             onCommentCountChange={setCommentCount}
-            onShowRanking={() => setShowRanking(true)}
+            onShowRanking={() => {
+              setShowRanking(true);
+            }}
           />
         )}
       </div>
+
+      {/* Ranking Modal */}
+      {worldcupId && (
+        <RankingModal
+          isOpen={showRanking}
+          onClose={() => setShowRanking(false)}
+          worldcupId={worldcupId}
+          worldcupTitle={tournament.title}
+        />
+      )}
 
       {/* Image Modal */}
       {showImageModal && tournament.winner?.image && (

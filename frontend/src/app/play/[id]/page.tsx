@@ -34,6 +34,7 @@ export default function PlayPage({ params }: PlayPageProps) {
     showTournamentSelector,
     worldcupData,
     worldcupId,
+    connectionError,
     handleChoice,
     handleUndo,
     handleRestart,
@@ -54,7 +55,32 @@ export default function PlayPage({ params }: PlayPageProps) {
     );
   }
 
-  // 에러 처리는 usePlayPageLogic 내부에서 처리됨
+  // 연결 에러가 있는 경우 에러 화면 표시
+  if (connectionError) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-center text-white max-w-md mx-auto p-6">
+          <div className="text-6xl mb-6">⚠️</div>
+          <h1 className="text-2xl font-bold mb-4">연결 오류</h1>
+          <p className="text-gray-300 mb-6">{connectionError}</p>
+          <div className="space-y-3">
+            <button
+              onClick={() => window.location.reload()}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 px-6 py-3 rounded-lg transition-colors"
+            >
+              다시 시도
+            </button>
+            <button
+              onClick={handleGoHome}
+              className="w-full bg-gray-600 hover:bg-gray-700 px-6 py-3 rounded-lg transition-colors"
+            >
+              홈으로 돌아가기
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (showTournamentSelector && worldcupData) {
     return (

@@ -16,6 +16,7 @@ import {
   removeLike
 } from '@/utils/userInteractions';
 import LoginPromptModal from './LoginPromptModal';
+import RankingModal from './shared/RankingModal';
 import { supabase } from '@/lib/supabase';
 import { showToast } from './Toast';
 // updateWorldCupCommentCount import 제거됨 - 사용되지 않음
@@ -40,6 +41,8 @@ export default function WorldCupGrid({ category: _category, sortBy: _sortBy, sea
   const [isLoading, setIsLoading] = useState(true);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [loginPromptAction, setLoginPromptAction] = useState<() => void>(() => {});
+  const [showRankingModal, setShowRankingModal] = useState(false);
+  const [selectedWorldCupForRanking, setSelectedWorldCupForRanking] = useState<{ id: string; title: string } | null>(null);
 
   // Supabase에서 월드컵 데이터 로드
   useEffect(() => {
@@ -517,6 +520,18 @@ export default function WorldCupGrid({ category: _category, sortBy: _sortBy, sea
     setLoginPromptAction(() => {});
   };
 
+  // 전체 랭킹 보기 핸들러
+  const handleViewRanking = (worldcupId: string, worldcupTitle: string) => {
+    console.log('📊 Opening ranking modal for worldcup:', { id: worldcupId, title: worldcupTitle });
+    setSelectedWorldCupForRanking({ id: worldcupId, title: worldcupTitle });
+    setShowRankingModal(true);
+  };
+
+  const handleCloseRankingModal = () => {
+    setShowRankingModal(false);
+    setSelectedWorldCupForRanking(null);
+  };
+
   // 저장된 월드컵 데이터 필터링 (카테고리 + 검색)
   const filteredWorldCups = storedWorldCups.filter(worldcup => {
     // 카테고리 필터
@@ -590,6 +605,7 @@ export default function WorldCupGrid({ category: _category, sortBy: _sortBy, sea
                 onLike={() => handleLike(worldcup.id)}
                 onBookmark={() => handleBookmark(worldcup.id)}
                 onShare={() => handleShare(worldcup.id)}
+                onViewRanking={() => handleViewRanking(worldcup.id, worldcup.title)}
               />
             ))}
           </div>
@@ -603,6 +619,16 @@ export default function WorldCupGrid({ category: _category, sortBy: _sortBy, sea
         onLogin={handleLoginPromptLogin}
         message="좋아요를 하려면 로그인을 해야합니다."
       />
+
+      {/* 전체 랭킹 모달 */}
+      {selectedWorldCupForRanking && (
+        <RankingModal
+          isOpen={showRankingModal}
+          onClose={handleCloseRankingModal}
+          worldcupId={selectedWorldCupForRanking.id}
+          worldcupTitle={selectedWorldCupForRanking.title}
+        />
+      )}
     </>
   );
 }

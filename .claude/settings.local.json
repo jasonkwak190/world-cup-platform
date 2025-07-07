@@ -61,7 +61,8 @@
       "Bash(NEXT_PUBLIC_SUPABASE_URL=https://rctoxfcyzzsiikopbsne.supabase.co NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjdG94ZmN5enpzaWlrb3Bic25lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA5NTAwMDksImV4cCI6MjA2NjUyNjAwOX0.moYSDe7kRAkbnhPr_9V5nE_t_TvGAtBy6Uk3O7aXep4 node debug-db.js)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(npx supabase db inspect:*)"
+      "Bash(npx supabase db inspect:*)",
+      "WebFetch(domain:localhost)"
     ],
     "deny": []
   }
