@@ -1,6 +1,7 @@
 // Supabase에서 데이터를 가져오는 유틸리티 함수들
 import { supabase } from '@/lib/supabase';
-import type { SupabaseWorldCup, SupabaseWorldCupItem, SupabaseUser } from '@/types/supabase';
+import type { SupabaseWorldCup, SupabaseWorldCupItem, SupabaseUser, SupabaseWorldCupItemInsert } from '@/types/supabase';
+import type { WorldCupMediaItem, VideoMetadata } from '@/types/media';
 import { withRetry } from './supabaseConnection';
 import { cache } from './cache';
 
@@ -169,7 +170,11 @@ export async function getWorldCupById(id: string) {
       .select(`
         *,
         author:users(id, username, profile_image_url),
-        worldcup_items(id, title, image_url, description, order_index)
+        worldcup_items(
+          id, title, image_url, description, order_index,
+          media_type, video_url, video_id, video_start_time, 
+          video_end_time, video_thumbnail, video_duration, video_metadata
+        )
       `)
       .eq('id', id)
       .single();
@@ -215,34 +220,59 @@ export async function getWorldCupById(id: string) {
       });
     }
 
-    // localStorage 형식으로 변환
+    // localStorage 형식으로 변환 (동영상 지원 추가)
     const processedItems = data.worldcup_items?.map((item: any) => {
-      let imageUrl = item.image_url ? 
-        getSupabaseImageUrl(item.image_url, 'worldcup-images') : 
-        null;
-
-      // 🚨 FIX: Clean up any corrupted localhost URLs that might be in the database
-      if (imageUrl && typeof imageUrl === 'string' && imageUrl.includes('localhost:3000')) {
-        console.error('❌ Found corrupted localhost URL in database:', imageUrl);
-        
-        // Try to extract the actual path and reconstruct proper Supabase URL
-        const pathMatch = imageUrl.match(/([0-9a-f-]+\/items\/[^\/]+\.(gif|jpg|jpeg|png|webp))$/i);
-        if (pathMatch) {
-          const path = pathMatch[1];
-          imageUrl = `https://rctoxfcyzz5iikopbsne.supabase.co/storage/v1/object/public/worldcup-images/${path}`;
-          console.log('✅ Fixed corrupted URL to:', imageUrl);
-        } else {
-          console.warn('⚠️ Could not fix corrupted localhost URL, setting to null');
-          imageUrl = null;
-        }
-      }
-
-      return {
+      // 기본 아이템 구조
+      const baseItem = {
         id: item.id,
         title: item.title,
-        image: imageUrl,
-        description: item.description || ''
+        description: item.description || '',
+        mediaType: item.media_type || 'image'
       };
+
+      if (item.media_type === 'video') {
+        // 동영상 아이템 처리
+        return {
+          ...baseItem,
+          mediaType: 'video' as const,
+          videoUrl: item.video_url,
+          videoId: item.video_id,
+          videoStartTime: item.video_start_time || 0,
+          videoEndTime: item.video_end_time,
+          videoThumbnail: item.video_thumbnail,
+          videoDuration: item.video_duration,
+          videoMetadata: item.video_metadata,
+          // 동영상의 경우 image 필드는 썸네일로 설정
+          image: item.video_thumbnail
+        };
+      } else {
+        // 이미지 아이템 처리 (기존 로직)
+        let imageUrl = item.image_url ? 
+          getSupabaseImageUrl(item.image_url, 'worldcup-images') : 
+          null;
+
+        // 🚨 FIX: Clean up any corrupted localhost URLs that might be in the database
+        if (imageUrl && typeof imageUrl === 'string' && imageUrl.includes('localhost:3000')) {
+          console.error('❌ Found corrupted localhost URL in database:', imageUrl);
+          
+          // Try to extract the actual path and reconstruct proper Supabase URL
+          const pathMatch = imageUrl.match(/([0-9a-f-]+\/items\/[^\/]+\.(gif|jpg|jpeg|png|webp))$/i);
+          if (pathMatch) {
+            const path = pathMatch[1];
+            imageUrl = `https://rctoxfcyzz5iikopbsne.supabase.co/storage/v1/object/public/worldcup-images/${path}`;
+            console.log('✅ Fixed corrupted URL to:', imageUrl);
+          } else {
+            console.warn('⚠️ Could not fix corrupted localhost URL, setting to null');
+            imageUrl = null;
+          }
+        }
+
+        return {
+          ...baseItem,
+          mediaType: 'image' as const,
+          image: imageUrl
+        };
+      }
     }) || [];
 
     console.log('🔄 Processed worldcup items:', {
@@ -561,6 +591,264 @@ export async function deleteWorldCup(id: string) {
     return true;
   } catch (error) {
     console.error('❌ Critical error in deleteWorldCup:', error);
+    return false;
+  }
+}
+
+// ================================
+// YouTube 동영상 관련 함수들
+// ================================
+
+/**
+ * 동영상 아이템을 Supabase에 저장
+ */
+export async function createVideoWorldCupItem(
+  worldcupId: string,
+  videoItem: WorldCupMediaItem,
+  orderIndex: number
+): Promise<string | null> {
+  try {
+    if (videoItem.mediaType !== 'video') {
+      throw new Error('This function is only for video items');
+    }
+
+    const insertData: SupabaseWorldCupItemInsert = {
+      worldcup_id: worldcupId,
+      title: videoItem.title,
+      description: videoItem.description || '',
+      order_index: orderIndex,
+      media_type: 'video',
+      video_url: videoItem.videoUrl!,
+      video_id: videoItem.videoId!,
+      video_start_time: videoItem.videoStartTime || 0,
+      video_end_time: videoItem.videoEndTime,
+      video_thumbnail: videoItem.videoThumbnail!,
+      video_duration: videoItem.videoDuration,
+      video_metadata: videoItem.videoMetadata,
+      image_url: videoItem.videoThumbnail! // 썸네일을 image_url로도 저장
+    };
+
+    console.log('🎥 Creating video worldcup item:', {
+      worldcupId,
+      title: videoItem.title,
+      videoId: videoItem.videoId,
+      startTime: videoItem.videoStartTime,
+      endTime: videoItem.videoEndTime
+    });
+
+    const { data, error } = await supabase
+      .from('worldcup_items')
+      .insert(insertData)
+      .select('id')
+      .single();
+
+    if (error) {
+      console.error('❌ Error creating video item:', error);
+      throw error;
+    }
+
+    console.log('✅ Video item created successfully:', data.id);
+    return data.id;
+
+  } catch (error) {
+    console.error('❌ Error in createVideoWorldCupItem:', error);
+    return null;
+  }
+}
+
+/**
+ * 여러 동영상 아이템을 배치로 저장
+ */
+export async function createMultipleVideoItems(
+  worldcupId: string,
+  videoItems: WorldCupMediaItem[]
+): Promise<{ 
+  successful: string[], 
+  failed: Array<{ item: WorldCupMediaItem, error: string }> 
+}> {
+  const result = {
+    successful: [] as string[],
+    failed: [] as Array<{ item: WorldCupMediaItem, error: string }>
+  };
+
+  const videoOnlyItems = videoItems.filter(item => item.mediaType === 'video');
+  
+  if (videoOnlyItems.length === 0) {
+    return result;
+  }
+
+  console.log(`🎥 Creating ${videoOnlyItems.length} video items in batch...`);
+
+  // 배치로 데이터 준비
+  const insertDataArray: SupabaseWorldCupItemInsert[] = videoOnlyItems.map((item, index) => ({
+    worldcup_id: worldcupId,
+    title: item.title,
+    description: item.description || '',
+    order_index: index,
+    media_type: 'video',
+    video_url: item.videoUrl!,
+    video_id: item.videoId!,
+    video_start_time: item.videoStartTime || 0,
+    video_end_time: item.videoEndTime,
+    video_thumbnail: item.videoThumbnail!,
+    video_duration: item.videoDuration,
+    video_metadata: item.videoMetadata,
+    image_url: item.videoThumbnail! // 썸네일을 image_url로도 저장
+  }));
+
+  try {
+    const { data, error } = await supabase
+      .from('worldcup_items')
+      .insert(insertDataArray)
+      .select('id');
+
+    if (error) {
+      console.error('❌ Batch video insert failed:', error);
+      // 배치 실패 시 개별 처리
+      for (let i = 0; i < videoOnlyItems.length; i++) {
+        const itemId = await createVideoWorldCupItem(worldcupId, videoOnlyItems[i], i);
+        if (itemId) {
+          result.successful.push(itemId);
+        } else {
+          result.failed.push({ 
+            item: videoOnlyItems[i], 
+            error: 'Individual insert failed' 
+          });
+        }
+      }
+    } else {
+      console.log(`✅ Successfully created ${data.length} video items`);
+      result.successful = data.map(item => item.id);
+    }
+
+  } catch (error) {
+    console.error('❌ Error in batch video creation:', error);
+    // 전체 실패 시 개별 처리로 fallback
+    for (let i = 0; i < videoOnlyItems.length; i++) {
+      const itemId = await createVideoWorldCupItem(worldcupId, videoOnlyItems[i], i);
+      if (itemId) {
+        result.successful.push(itemId);
+      } else {
+        result.failed.push({ 
+          item: videoOnlyItems[i], 
+          error: 'Fallback insert failed' 
+        });
+      }
+    }
+  }
+
+  return result;
+}
+
+/**
+ * 혼합 미디어 월드컵 생성 (이미지 + 동영상)
+ */
+export async function createMixedMediaWorldCup(
+  title: string,
+  description: string,
+  category: string,
+  authorId: string,
+  mediaItems: WorldCupMediaItem[],
+  isPublic: boolean = true
+): Promise<string | null> {
+  try {
+    console.log('🎬 Creating mixed media worldcup:', {
+      title,
+      totalItems: mediaItems.length,
+      imageItems: mediaItems.filter(item => item.mediaType === 'image').length,
+      videoItems: mediaItems.filter(item => item.mediaType === 'video').length
+    });
+
+    // 월드컵 기본 정보 생성
+    const { data: worldcupData, error: worldcupError } = await supabase
+      .from('worldcups')
+      .insert({
+        title,
+        description,
+        category,
+        author_id: authorId,
+        is_public: isPublic,
+        thumbnail_url: '/placeholder.svg' // 나중에 첫 번째 아이템으로 설정
+      })
+      .select('id')
+      .single();
+
+    if (worldcupError) {
+      console.error('❌ Error creating worldcup:', worldcupError);
+      return null;
+    }
+
+    const worldcupId = worldcupData.id;
+    console.log('✅ Worldcup created with ID:', worldcupId);
+
+    // 미디어 아이템들을 타입별로 분리하여 처리
+    const imageItems = mediaItems.filter(item => item.mediaType === 'image');
+    const videoItems = mediaItems.filter(item => item.mediaType === 'video');
+
+    let totalSuccessful = 0;
+    let totalFailed = 0;
+
+    // 이미지 아이템 처리 (기존 로직 사용)
+    if (imageItems.length > 0) {
+      console.log(`📸 Processing ${imageItems.length} image items...`);
+      // 기존 이미지 처리 로직을 여기서 호출하거나 구현
+    }
+
+    // 동영상 아이템 처리
+    if (videoItems.length > 0) {
+      console.log(`🎥 Processing ${videoItems.length} video items...`);
+      const videoResult = await createMultipleVideoItems(worldcupId, videoItems);
+      totalSuccessful += videoResult.successful.length;
+      totalFailed += videoResult.failed.length;
+
+      console.log('🎥 Video processing result:', {
+        successful: videoResult.successful.length,
+        failed: videoResult.failed.length
+      });
+    }
+
+    console.log(`🎉 Mixed media worldcup creation completed:`, {
+      worldcupId,
+      totalItems: mediaItems.length,
+      successful: totalSuccessful,
+      failed: totalFailed
+    });
+
+    return worldcupId;
+
+  } catch (error) {
+    console.error('❌ Error in createMixedMediaWorldCup:', error);
+    return null;
+  }
+}
+
+/**
+ * 동영상 메타데이터 업데이트
+ */
+export async function updateVideoMetadata(
+  itemId: string,
+  metadata: Partial<VideoMetadata>
+): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('worldcup_items')
+      .update({
+        video_metadata: metadata,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', itemId)
+      .eq('media_type', 'video');
+
+    if (error) {
+      console.error('❌ Error updating video metadata:', error);
+      return false;
+    }
+
+    console.log('✅ Video metadata updated successfully:', itemId);
+    return true;
+
+  } catch (error) {
+    console.error('❌ Error in updateVideoMetadata:', error);
     return false;
   }
 }

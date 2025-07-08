@@ -60,18 +60,43 @@ export default function RootLayout({
         className={`${GeistSans.variable} ${GeistMono.variable} antialiased`}
       >
         <AuthProvider>
-          <ErrorBoundary>
+          <ErrorBoundary fallback={undefined}>
             {children}
           </ErrorBoundary>
         </AuthProvider>
         <script
           dangerouslySetInnerHTML={{
             __html: `
+              // 화면 전환 오류 방지를 위한 글로벌 에러 핸들러
+              window.addEventListener('error', function(e) {
+                if (e.message.includes('reading \\'call\\'') || e.message.includes('Cannot read properties of undefined')) {
+                  console.warn('⚠️ Module loading error caught, reloading...', e.message);
+                  // 심각한 모듈 로딩 오류시에만 새로고침
+                  if (e.filename && e.filename.includes('_next/static')) {
+                    setTimeout(() => window.location.reload(), 100);
+                  }
+                  e.preventDefault();
+                  return false;
+                }
+              });
+              
+              // Service Worker 등록 (캐시 충돌 방지)
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', function() {
                   navigator.serviceWorker.register('/sw.js')
                     .then(function(registration) {
                       console.log('✅ SW registered: ', registration);
+                      // 캐시 업데이트 체크
+                      registration.addEventListener('updatefound', () => {
+                        const newWorker = registration.installing;
+                        if (newWorker) {
+                          newWorker.addEventListener('statechange', () => {
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                              console.log('🔄 New SW version available, will update on next navigation');
+                            }
+                          });
+                        }
+                      });
                     })
                     .catch(function(registrationError) {
                       console.log('❌ SW registration failed: ', registrationError);

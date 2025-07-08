@@ -73,7 +73,7 @@ export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState<'created' | 'played' | 'liked'>('created');
   const [isEditing, setIsEditing] = useState(false);
 
-  const userId = params.userId as string;
+  const userId = params?.userId as string;
   const isOwnProfile = user?.id === userId;
 
   // Mock data - replace with actual API calls

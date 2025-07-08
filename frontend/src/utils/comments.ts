@@ -37,6 +37,7 @@ export async function getCommentsByWorldCupId(worldcupId: string): Promise<Comme
     // 직접 댓글 쿼리 시도 (디버깅 단계 제거)
     console.log('📝 Attempting direct comments query...');
     
+    // N+1 쿼리 문제 해결: JOIN을 사용하여 한 번에 데이터 가져오기
     const { data, error } = await supabase
       .from('comments')
       .select(`
@@ -50,7 +51,11 @@ export async function getCommentsByWorldCupId(worldcupId: string): Promise<Comme
         created_at,
         updated_at,
         guest_session_id,
-        is_deleted
+        is_deleted,
+        author:author_id (
+          id,
+          username
+        )
       `)
       .eq('worldcup_id', worldcupId)
       .or('is_deleted.is.null,is_deleted.eq.false')
@@ -77,42 +82,22 @@ export async function getCommentsByWorldCupId(worldcupId: string): Promise<Comme
       return [];
     }
 
-    console.log('📝 Found', data.length, 'comments, fetching user data...');
+    console.log('📝 Found', data.length, 'comments with user data in single query');
     
-    // 이미 가져온 데이터 사용 (중복 쿼리 제거)
+    // 이미 JOIN으로 사용자 정보가 포함된 데이터 사용
     const fullData = data;
-
-    // 사용자 정보 가져오기 (author_id가 있는 댓글들만)
-    const authorIds = [...new Set(fullData.filter(c => c.author_id).map(c => c.author_id))];
-    const usersMap = new Map();
-    
-    if (authorIds.length > 0) {
-      try {
-        const { data: users } = await supabase
-          .from('users')
-          .select('id, username')
-          .in('id', authorIds);
-        
-        users?.forEach(user => {
-          usersMap.set(user.id, user.username);
-        });
-        console.log('👥 Loaded', users?.length || 0, 'user profiles');
-      } catch (userError) {
-        console.warn('⚠️ Failed to fetch user data:', userError);
-      }
-    }
 
     // 댓글을 계층 구조로 변환
     const commentsMap = new Map<string, Comment>();
     const topLevelComments: Comment[] = [];
 
-    // 모든 댓글을 Map에 저장하고 기본 구조 설정
+    // 모든 댓글을 Map에 저장하고 기본 구조 설정 (JOIN된 사용자 정보 사용)
     fullData.forEach(comment => {
       const formattedComment: Comment = {
         id: comment.id,
         worldcup_id: comment.worldcup_id,
         user_id: comment.author_id,
-        username: comment.author_id ? (usersMap.get(comment.author_id) || 'Unknown') : comment.guest_name,
+        username: comment.author ? comment.author.username : comment.guest_name || '익명',
         content: comment.content,
         parent_id: comment.parent_id,
         likes: comment.like_count || 0,

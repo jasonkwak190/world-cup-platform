@@ -90,12 +90,21 @@ export interface Database {
           championship_wins: number;
           created_at: string;
           updated_at: string;
+          // YouTube 동영상 지원 필드 추가
+          media_type: 'image' | 'video';
+          video_url: string | null;
+          video_id: string | null;
+          video_start_time: number;
+          video_end_time: number | null;
+          video_thumbnail: string | null;
+          video_duration: number | null;
+          video_metadata: any | null; // JSONB
         };
         Insert: {
           id?: string;
           worldcup_id: string;
           title: string;
-          image_url: string;
+          image_url?: string;
           description?: string | null;
           order_index: number;
           win_count?: number;
@@ -105,6 +114,15 @@ export interface Database {
           championship_wins?: number;
           created_at?: string;
           updated_at?: string;
+          // YouTube 동영상 지원 필드 추가
+          media_type?: 'image' | 'video';
+          video_url?: string | null;
+          video_id?: string | null;
+          video_start_time?: number;
+          video_end_time?: number | null;
+          video_thumbnail?: string | null;
+          video_duration?: number | null;
+          video_metadata?: any | null;
         };
         Update: {
           id?: string;
@@ -120,6 +138,15 @@ export interface Database {
           championship_wins?: number;
           created_at?: string;
           updated_at?: string;
+          // YouTube 동영상 지원 필드 추가
+          media_type?: 'image' | 'video';
+          video_url?: string | null;
+          video_id?: string | null;
+          video_start_time?: number;
+          video_end_time?: number | null;
+          video_thumbnail?: string | null;
+          video_duration?: number | null;
+          video_metadata?: any | null;
         };
       };
       user_interactions: {

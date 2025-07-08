@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import { Upload, X, FileImage, Plus } from 'lucide-react';
+import { Upload, X, FileImage, Plus, Shield } from 'lucide-react';
 import ImageUploadGuide from './ImageUploadGuide';
+import { secureFileValidation, validateMultipleFiles } from '@/lib/fileValidation';
 
 interface WorldCupItem {
   id: string;
@@ -21,6 +22,7 @@ interface DragDropUploadProps {
 
 export default function DragDropUpload({ items, onItemsUpload, onItemDelete, thumbnail, onThumbnailUpload }: DragDropUploadProps) {
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
 
@@ -70,31 +72,52 @@ export default function DragDropUpload({ items, onItemsUpload, onItemDelete, thu
 
 
 
-  const handleFiles = useCallback((files: FileList) => {
-    const newItems: WorldCupItem[] = [];
-    const errors: string[] = [];
+  const handleFiles = useCallback(async (files: FileList) => {
+    setIsValidating(true);
     
-    Array.from(files).forEach(file => {
-      try {
-        if (file.type.startsWith('image/')) {
-          newItems.push(createItemFromFile(file));
-        } else {
-          errors.push(`${file.name}: 이미지 파일이 아닙니다`);
-        }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류';
-        errors.push(`${file.name}: ${errorMessage}`);
-        console.error('File processing error:', error);
+    try {
+      const fileArray = Array.from(files).filter(file => file.type.startsWith('image/'));
+      
+      if (fileArray.length === 0) {
+        alert('이미지 파일만 업로드할 수 있습니다.');
+        return;
       }
-    });
 
-    // 에러가 있으면 사용자에게 알림
-    if (errors.length > 0) {
-      alert(`다음 파일들을 업로드할 수 없습니다:\n\n${errors.join('\n')}`);
-    }
+      // 🔒 보안 검증 수행
+      const { validFiles, invalidFiles } = await validateMultipleFiles(fileArray);
+      
+      // 검증된 파일로 아이템 생성
+      const newItems: WorldCupItem[] = [];
+      const errors: string[] = [];
+      
+      validFiles.forEach(file => {
+        try {
+          newItems.push(createItemFromFile(file));
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류';
+          errors.push(`${file.name}: ${errorMessage}`);
+        }
+      });
+      
+      // 무효한 파일 에러 추가
+      invalidFiles.forEach(({ file, error }) => {
+        errors.push(`${file.name}: ${error}`);
+      });
 
-    if (newItems.length > 0) {
-      onItemsUpload(newItems);
+      // 에러가 있으면 사용자에게 알림
+      if (errors.length > 0) {
+        alert(`다음 파일들을 업로드할 수 없습니다:\n\n${errors.join('\n')}\n\n보안 검증을 통과한 ${validFiles.length}개 파일이 업로드됩니다.`);
+      }
+
+      if (newItems.length > 0) {
+        onItemsUpload(newItems);
+      }
+      
+    } catch (error) {
+      console.error('File validation error:', error);
+      alert('파일 검증 중 오류가 발생했습니다. 다시 시도해주세요.');
+    } finally {
+      setIsValidating(false);
     }
   }, [onItemsUpload]);
 
@@ -125,38 +148,30 @@ export default function DragDropUpload({ items, onItemsUpload, onItemDelete, thu
 
 
 
-  // 썸네일 파일 업로드 핸들러
-  const handleThumbnailFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 썸네일 파일 업로드 핸들러 (보안 강화)
+  const handleThumbnailFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     
+    setIsValidating(true);
+    
     try {
-      // 썸네일도 동일한 유효성 검사 적용
-      if (!file.type.startsWith('image/')) {
-        alert('이미지 파일만 업로드 가능합니다.');
+      // 🔒 보안 검증 수행
+      const validation = await secureFileValidation(file);
+      
+      if (!validation.isValid) {
+        alert(`썸네일 업로드 실패: ${validation.error}`);
         return;
       }
       
-      // 파일 크기 제한 (10MB)
-      const maxSize = 10 * 1024 * 1024;
-      if (file.size > maxSize) {
-        alert('파일 크기가 10MB를 초과합니다.');
-        return;
-      }
-      
-      // 지원되는 이미지 타입 확인
-      const supportedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
-      if (!supportedTypes.includes(file.type.toLowerCase())) {
-        alert('지원되지 않는 파일 형식입니다. (JPG, PNG, GIF, WebP만 허용)');
-        return;
-      }
-      
-      if (onThumbnailUpload) {
-        onThumbnailUpload(file);
+      if (onThumbnailUpload && validation.secureFile) {
+        onThumbnailUpload(validation.secureFile);
       }
     } catch (error) {
       console.error('Thumbnail upload error:', error);
       alert('썸네일 업로드 중 오류가 발생했습니다.');
+    } finally {
+      setIsValidating(false);
     }
   };
 
@@ -319,6 +334,8 @@ export default function DragDropUpload({ items, onItemsUpload, onItemDelete, thu
         className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
           isDragOver
             ? 'border-emerald-500 bg-emerald-50'
+            : isValidating
+            ? 'border-blue-500 bg-blue-50'
             : 'border-gray-300 hover:border-gray-400'
         }`}
       >
@@ -333,25 +350,57 @@ export default function DragDropUpload({ items, onItemsUpload, onItemDelete, thu
         
         <div className="space-y-4">
           <div className="flex justify-center">
-            <Upload className={`w-12 h-12 ${isDragOver ? 'text-emerald-500' : 'text-gray-400'}`} />
+            {isValidating ? (
+              <Shield className="w-12 h-12 text-blue-500 animate-pulse" />
+            ) : (
+              <Upload className={`w-12 h-12 ${isDragOver ? 'text-emerald-500' : 'text-gray-400'}`} />
+            )}
           </div>
           
           <div>
-            <p className={`text-lg font-medium ${isDragOver ? 'text-emerald-700' : 'text-gray-700'}`}>
-              {isDragOver ? '파일을 놓아주세요' : '이미지를 드래그하거나 클릭하여 업로드'}
+            <p className={`text-lg font-medium ${
+              isValidating 
+                ? 'text-blue-700' 
+                : isDragOver 
+                ? 'text-emerald-700' 
+                : 'text-gray-700'
+            }`}>
+              {isValidating 
+                ? '🔒 보안 검증 중...' 
+                : isDragOver 
+                ? '파일을 놓아주세요' 
+                : '이미지를 드래그하거나 클릭하여 업로드'
+              }
             </p>
             <p className="text-sm text-gray-500 mt-1">
-              JPG, PNG, GIF 등 이미지 파일을 지원합니다
+              {isValidating 
+                ? '파일 헤더 검증 및 메타데이터 제거 중입니다'
+                : 'JPG, PNG, GIF, WebP 파일을 지원합니다 (보안 검증 포함)'
+              }
             </p>
           </div>
 
           <div className="flex justify-center space-x-3">
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors flex items-center space-x-2"
+              disabled={isValidating}
+              className={`px-4 py-2 rounded-lg transition-colors flex items-center space-x-2 ${
+                isValidating 
+                  ? 'bg-gray-400 text-white cursor-not-allowed'
+                  : 'bg-emerald-600 text-white hover:bg-emerald-700'
+              }`}
             >
-              <FileImage className="w-4 h-4" />
-              <span>파일 선택</span>
+              {isValidating ? (
+                <>
+                  <Shield className="w-4 h-4 animate-pulse" />
+                  <span>검증 중...</span>
+                </>
+              ) : (
+                <>
+                  <FileImage className="w-4 h-4" />
+                  <span>파일 선택</span>
+                </>
+              )}
             </button>
           </div>
         </div>

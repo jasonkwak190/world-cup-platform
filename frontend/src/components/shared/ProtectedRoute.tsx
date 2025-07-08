@@ -4,7 +4,8 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Lock } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { canCreateWorldCup } from '@/utils/auth';
+// 인증 확인을 위한 간단한 함수 (Supabase Auth만 사용)
+const canCreateWorldCup = (user: any) => user !== null;
 
 interface ProtectedRouteProps {
   children: React.ReactNode;

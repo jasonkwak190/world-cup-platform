@@ -8,6 +8,16 @@ export interface WorldCupItem {
   description?: string;
   is_bye?: boolean; // 부전승 항목 여부
   uuid?: string; // Database UUID for operations
+  
+  // Video support
+  mediaType?: 'image' | 'video';
+  videoUrl?: string;
+  videoId?: string;
+  videoStartTime?: number;
+  videoEndTime?: number;
+  videoThumbnail?: string;
+  videoDuration?: number;
+  videoMetadata?: any;
 }
 
 export interface Match {

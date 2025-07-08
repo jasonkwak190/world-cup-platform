@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { X, User, Mail, Lock, Eye, EyeOff } from 'lucide-react';
-import { signup } from '@/utils/auth';
 import { signUpWithSupabase, signInWithSupabase, sendPasswordResetOTP, resetPasswordWithOTP } from '@/utils/supabaseAuth';
 import type { SignupData, User as UserType } from '@/types/user';
 

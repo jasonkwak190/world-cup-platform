@@ -1,6 +1,7 @@
 // 서버 사이드 마이그레이션 API
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { migrationSchema, validateRequest } from '@/lib/validations';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -26,14 +27,23 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { users, worldcups } = await request.json();
+    const requestBody = await request.json();
     
-    if (!users || !Array.isArray(users)) {
+    // 🔒 Zod 스키마 검증 적용
+    const validation = validateRequest(migrationSchema, requestBody);
+    
+    if (!validation.success) {
       return NextResponse.json(
-        { success: false, error: '유효하지 않은 사용자 데이터입니다.' },
+        { 
+          success: false, 
+          error: '입력값 검증 실패', 
+          details: validation.error 
+        },
         { status: 400 }
       );
     }
+    
+    const { users, worldcups } = validation.data;
 
     const migrationResults = {
       userResults: [] as any[],
@@ -195,12 +205,13 @@ export async function POST(request: NextRequest) {
           migrationResults.log.push(`✅ 월드컵 생성 성공: ${localWorldCup.title}`);
 
         } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
           migrationResults.worldCupResults.push({
             title: localWorldCup.title,
             success: false,
-            error: error.message
+            error: errorMessage
           });
-          migrationResults.log.push(`❌ 월드컵 예외: ${localWorldCup.title} - ${error.message}`);
+          migrationResults.log.push(`❌ 월드컵 예외: ${localWorldCup.title} - ${errorMessage}`);
         }
       }
 
@@ -224,7 +235,7 @@ export async function POST(request: NextRequest) {
       { 
         success: false, 
         error: '마이그레이션 중 서버 오류가 발생했습니다.',
-        details: error.message 
+        details: error instanceof Error ? error.message : 'Unknown error' 
       },
       { status: 500 }
     );

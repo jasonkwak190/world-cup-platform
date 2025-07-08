@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { X, User, Mail, Lock, Eye, EyeOff } from 'lucide-react';
-import { signup } from '@/utils/auth';
 import { signUpWithSupabase, signInWithSupabase, sendPasswordResetOTP, resetPasswordWithOTP } from '@/utils/supabaseAuth';
 import type { SignupData, User as UserType } from '@/types/user';
 
@@ -63,14 +62,8 @@ export default function AuthModal({
           return;
         }
         
-        // Supabase 실패시 localStorage fallback
-        const localResult = signup(formData as SignupData);
-        if (localResult.success && localResult.user) {
-          onSuccess?.(localResult.user);
-          onClose();
-        } else {
-          setError(supabaseResult.error || localResult.error || '회원가입에 실패했습니다.');
-        }
+        // Supabase 실패시 에러 표시
+        setError(supabaseResult.error || '회원가입에 실패했습니다. Supabase 연결을 확인해주세요.');
       } else {
         // Supabase 로그인 시도 (타임아웃 추가)
         console.log('🔐 Attempting Supabase login with:', { email: formData.email });
@@ -79,7 +72,7 @@ export default function AuthModal({
           // 타임아웃 설정 (30초)
           console.log('⏰ Starting login with 30s timeout...');
           
-          let timeoutId: NodeJS.Timeout;
+          let timeoutId: NodeJS.Timeout | undefined;
           
           const loginPromise = signInWithSupabase({
             email: formData.email,
@@ -96,7 +89,7 @@ export default function AuthModal({
           const supabaseResult = await Promise.race([loginPromise, timeoutPromise]) as any;
           
           // 성공하면 타임아웃 취소
-          clearTimeout(timeoutId);
+          if (timeoutId) clearTimeout(timeoutId);
           
           console.log('🔐 Supabase login result:', supabaseResult);
           
@@ -112,11 +105,13 @@ export default function AuthModal({
         } catch (timeoutError) {
           console.error('❌ Login timeout or error:', timeoutError);
           
+          const errorMessage = timeoutError instanceof Error ? timeoutError.message : 'Unknown error';
+          
           // 타임아웃인 경우 에러 메시지만 표시
-          if (timeoutError.message.includes('초과')) {
+          if (errorMessage.includes('초과')) {
             setError('로그인 처리가 지연되고 있습니다. 네트워크 상태를 확인하고 다시 시도해주세요.');
           } else {
-            setError(timeoutError.message || '로그인 중 오류가 발생했습니다.');
+            setError(errorMessage || '로그인 중 오류가 발생했습니다.');
           }
         }
       }

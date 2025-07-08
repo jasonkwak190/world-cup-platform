@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import dynamic from 'next/dynamic';
 import { RefreshCw, AlertCircle, Home } from 'lucide-react';
 
 interface ErrorBoundaryState {
@@ -111,9 +112,15 @@ class ErrorBoundaryComponent extends React.Component<ErrorBoundaryProps, ErrorBo
   }
 }
 
+// Dynamic import wrapper to prevent SSR issues
+const DynamicErrorBoundary = dynamic(() => Promise.resolve(ErrorBoundaryComponent), {
+  ssr: false,
+  loading: () => null
+});
+
 // Simple wrapper function to export
 const ErrorBoundary = (props: ErrorBoundaryProps) => {
-  return <ErrorBoundaryComponent {...props} />;
+  return <DynamicErrorBoundary {...props} />;
 };
 
 export default ErrorBoundary;

@@ -4,6 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { getRoundStyle, getRoundBorderStyle, getRoundCheckmarkStyle } from '@/utils/tournament';
 import ParticleEffect from '../ParticleEffect';
 import { useTouchGestures, useKeyboardShortcuts } from '@/hooks/useTouchGestures';
+import YouTubePlayer from '../YouTubePlayer';
+import { Play, Youtube } from 'lucide-react';
 
 interface GameScreenProps {
   match: Match;
@@ -153,6 +155,97 @@ export default function GameScreen({ match, round, totalRounds, worldcupId, onCh
     }
   };
 
+  // 미디어 렌더링 함수 (이미지 또는 동영상)
+  const renderMediaContent = (item: WorldCupItem, gradientClass: string) => {
+    // 동영상 아이템인지 확인
+    const isVideo = item.mediaType === 'video' || (item.videoId && item.videoUrl);
+    
+    if (isVideo && item.videoId) {
+      return (
+        <div className="relative w-full h-full">
+          <YouTubePlayer
+            videoId={item.videoId}
+            startTime={item.videoStartTime || 0}
+            endTime={item.videoEndTime}
+            autoplay={false}
+            controls={true}
+            className="w-full h-full rounded-xl"
+          />
+          {/* YouTube 아이콘 오버레이 */}
+          <div className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded">
+            <Youtube className="w-4 h-4" />
+          </div>
+        </div>
+      );
+    } else if (item.image) {
+      // 기존 이미지 렌더링 로직
+      return (
+        <>
+          <img 
+            src={cleanAndFixImageUrl(item.image)} 
+            alt={item.title}
+            className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-500"
+            style={{ 
+              imageRendering: 'auto',
+              animationPlayState: 'running',
+              willChange: 'auto'
+            }}
+            loading="eager"
+            decoding="async"
+            onLoad={(e) => {
+              stabilizeGifAnimation(e.currentTarget);
+            }}
+            onError={(e) => {
+              const src = e.currentTarget.src;
+              console.error('❌ Image failed to load:', {
+                src: src.substring(0, 100) + '...',
+                isLocalhost: src.includes('localhost'),
+                isSupabase: src.includes('supabase'),
+                isBlob: src.startsWith('blob:')
+              });
+              
+              if (src.includes('localhost')) {
+                console.error('🚨 Completely blocking localhost URL');
+                e.currentTarget.style.display = 'none';
+                const nextElement = e.currentTarget.nextElementSibling as HTMLElement;
+                if (nextElement) {
+                  nextElement.classList.remove('hidden');
+                }
+                return;
+              }
+              
+              if (src.startsWith('data:image/') && src.length > 1000) {
+                e.currentTarget.style.display = 'block';
+                e.currentTarget.style.visibility = 'visible';
+                e.currentTarget.style.opacity = '1';
+                return;
+              }
+              
+              e.currentTarget.style.display = 'none';
+              const nextElement = e.currentTarget.nextElementSibling as HTMLElement;
+              if (nextElement) {
+                nextElement.classList.remove('hidden');
+              }
+            }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+        </>
+      );
+    } else {
+      // 플레이스홀더
+      return (
+        <div className="w-full h-full flex items-center justify-center">
+          <div className="text-center">
+            <div className="text-9xl mb-2">{isVideo ? '🎬' : '🎭'}</div>
+            <div className="text-gray-600 font-medium text-xl">
+              {item.title}
+            </div>
+          </div>
+        </div>
+      );
+    }
+  };
+
   // 컴포넌트가 마운트되거나 매치가 변경될 때 이미지 안정화
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -293,72 +386,9 @@ export default function GameScreen({ match, round, totalRounds, worldcupId, onCh
           <div className={`bg-white rounded-2xl p-1 shadow-2xl hover:shadow-emerald-500/25 transition-all duration-300 focus:outline-none ${
             selectedItem?.id === match.item1.id ? getRoundBorderStyle(round, totalRounds) : ''
           }`}>
-            {/* Item Image */}
+            {/* Item Media (Image or Video) */}
             <div className="aspect-[4/3] sm:aspect-[5/4] md:aspect-[6/5] bg-gradient-to-br from-emerald-100 to-blue-100 rounded-xl mb-3 overflow-hidden relative group">
-              {match.item1.image ? (
-                <>
-                  <img 
-                    src={cleanedMatch.item1.image} 
-                    alt={match.item1.title}
-                    className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-500"
-                    style={{ 
-                      imageRendering: 'auto',
-                      animationPlayState: 'running',
-                      willChange: 'auto'
-                    }}
-                    loading="eager"
-                    decoding="async"
-                    onLoad={(e) => {
-                      // 이미지 안정화
-                      stabilizeGifAnimation(e.currentTarget);
-                    }}
-                    onError={(e) => {
-                      const src = e.currentTarget.src;
-                      console.error('❌ Image failed to load:', {
-                        src: src.substring(0, 100) + '...',
-                        isLocalhost: src.includes('localhost'),
-                        isSupabase: src.includes('supabase'),
-                        isBlob: src.startsWith('blob:')
-                      });
-                      
-                      // localhost URL이면 완전히 차단
-                      if (src.includes('localhost')) {
-                        console.error('🚨 Completely blocking localhost URL');
-                        e.currentTarget.style.display = 'none';
-                        const nextElement = e.currentTarget.nextElementSibling as HTMLElement;
-                        if (nextElement) {
-                          nextElement.classList.remove('hidden');
-                        }
-                        return;
-                      }
-                      
-                      // Base64 이미지는 표시 유지
-                      if (src.startsWith('data:image/') && src.length > 1000) {
-                        e.currentTarget.style.display = 'block';
-                        e.currentTarget.style.visibility = 'visible';
-                        e.currentTarget.style.opacity = '1';
-                        return;
-                      }
-                      
-                      // 기타 에러의 경우 플레이스홀더 표시
-                      e.currentTarget.style.display = 'none';
-                      const nextElement = e.currentTarget.nextElementSibling as HTMLElement;
-                      if (nextElement) {
-                        nextElement.classList.remove('hidden');
-                      }
-                    }}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                </>
-              ) : null}
-              <div className={`w-full h-full flex items-center justify-center ${match.item1.image ? 'hidden' : ''}`}>
-                <div className="text-center">
-                  <div className="text-9xl mb-2">🎭</div>
-                  <div className="text-gray-600 font-medium text-xl">
-                    {match.item1.title}
-                  </div>
-                </div>
-              </div>
+              {renderMediaContent(match.item1, 'from-emerald-100 to-blue-100')}
             </div>
             
             {/* Item Info */}
@@ -432,72 +462,9 @@ export default function GameScreen({ match, round, totalRounds, worldcupId, onCh
           <div className={`bg-white rounded-2xl p-1 shadow-2xl hover:shadow-emerald-500/25 transition-all duration-300 focus:outline-none ${
             selectedItem?.id === match.item2.id ? getRoundBorderStyle(round, totalRounds) : ''
           }`}>
-            {/* Item Image */}
+            {/* Item Media (Image or Video) */}
             <div className="aspect-[4/3] sm:aspect-[5/4] md:aspect-[6/5] bg-gradient-to-br from-purple-100 to-pink-100 rounded-xl mb-3 overflow-hidden relative group">
-              {match.item2.image ? (
-                <>
-                <img 
-                  src={cleanedMatch.item2.image} 
-                  alt={match.item2.title}
-                  className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-500"
-                  style={{ 
-                    imageRendering: 'auto',
-                    animationPlayState: 'running',
-                    willChange: 'auto'
-                  }}
-                  loading="eager"
-                  decoding="async"
-                  onLoad={(e) => {
-                    // 이미지 안정화
-                    stabilizeGifAnimation(e.currentTarget);
-                  }}
-                  onError={(e) => {
-                    const src = e.currentTarget.src;
-                    console.error('❌ Image failed to load:', {
-                      src: src.substring(0, 100) + '...',
-                      isLocalhost: src.includes('localhost'),
-                      isSupabase: src.includes('supabase'),
-                      isBlob: src.startsWith('blob:')
-                    });
-                    
-                    // localhost URL이면 완전히 차단
-                    if (src.includes('localhost')) {
-                      console.error('🚨 Completely blocking localhost URL');
-                      e.currentTarget.style.display = 'none';
-                      const nextElement = e.currentTarget.nextElementSibling as HTMLElement;
-                      if (nextElement) {
-                        nextElement.classList.remove('hidden');
-                      }
-                      return;
-                    }
-                    
-                    // Base64 이미지는 표시 유지
-                    if (src.startsWith('data:image/') && src.length > 1000) {
-                      e.currentTarget.style.display = 'block';
-                      e.currentTarget.style.visibility = 'visible';
-                      e.currentTarget.style.opacity = '1';
-                      return;
-                    }
-                    
-                    // 기타 에러의 경우 플레이스홀더 표시
-                    e.currentTarget.style.display = 'none';
-                    const nextElement = e.currentTarget.nextElementSibling as HTMLElement;
-                    if (nextElement) {
-                      nextElement.classList.remove('hidden');
-                    }
-                  }}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                </>
-              ) : null}
-              <div className={`w-full h-full flex items-center justify-center ${match.item2.image ? 'hidden' : ''}`}>
-                <div className="text-center">
-                  <div className="text-9xl mb-2">🎨</div>
-                  <div className="text-gray-600 font-medium text-xl">
-                    {match.item2.title}
-                  </div>
-                </div>
-              </div>
+              {renderMediaContent(match.item2, 'from-purple-100 to-pink-100')}
             </div>
             
             {/* Item Info */}

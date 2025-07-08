@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Upload, Image, Settings, Play } from 'lucide-react';
+import { ArrowLeft, Upload, Image, Settings, Play, Youtube, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import DragDropUpload from '@/components/DragDropUpload';
+import BulkYouTubeUpload from '@/components/forms/BulkYouTubeUpload';
 import WorldCupPreview from '@/components/WorldCupPreview';
 import TournamentSettings from '@/components/TournamentSettings';
 import AuthModal from '@/components/AuthModal';
@@ -23,6 +24,7 @@ const ImageCropper = dynamic(() => import('@/components/ImageCropper'), {
 import { saveWorldCupToSupabase } from '@/utils/supabaseWorldCup';
 import { getUserWorldCups } from '@/utils/supabaseData';
 import { supabase } from '@/lib/supabase';
+import type { WorldCupMediaItem } from '@/types/media';
 
 interface WorldCupItem {
   id: string;
@@ -36,6 +38,7 @@ interface WorldCupData {
   description: string;
   category: string;
   items: WorldCupItem[];
+  videoItems: WorldCupMediaItem[];
   isPublic: boolean;
   thumbnail?: string | File;
 }
@@ -49,11 +52,13 @@ export default function CreatePage() {
   const [isCreating, setIsCreating] = useState(false);
   const [creationProgress, setCreationProgress] = useState(0);
   const [creationStatus, setCreationStatus] = useState('');
+  const [activeMediaTab, setActiveMediaTab] = useState<'images' | 'videos'>('images');
   const [worldCupData, setWorldCupData] = useState<WorldCupData>({
     title: '',
     description: '',
     category: 'entertainment',
     items: [],
+    videoItems: [],
     isPublic: true,
     thumbnail: undefined,
   });
@@ -225,16 +230,38 @@ export default function CreatePage() {
     });
   };
 
+  // 동영상 아이템 처리 함수
+  const handleVideosProcessed = (videos: WorldCupMediaItem[]) => {
+    console.log('handleVideosProcessed called with videos:', videos);
+    setWorldCupData(prev => {
+      const newData = {
+        ...prev,
+        videoItems: [...prev.videoItems, ...videos]
+      };
+      console.log('Updated worldCupData videoItems:', newData.videoItems);
+      return newData;
+    });
+  };
+
+  const handleVideoItemDelete = (itemId: string) => {
+    setWorldCupData(prev => ({
+      ...prev,
+      videoItems: prev.videoItems.filter(item => item.id !== itemId)
+    }));
+  };
+
   const canProceed = () => {
+    const totalItems = worldCupData.items.length + worldCupData.videoItems.length;
+    
     switch (currentStep) {
       case 1:
         return worldCupData.title.trim() !== '';
       case 2:
-        return worldCupData.items.length >= 4;
+        return totalItems >= 4;
       case 3:
         return true;
       case 4:
-        return worldCupData.items.length >= 4;
+        return totalItems >= 4;
       default:
         return false;
     }
@@ -251,13 +278,116 @@ export default function CreatePage() {
         );
       case 2:
         return (
-          <DragDropUpload
-            items={worldCupData.items}
-            onItemsUpload={handleItemsUpload}
-            onItemDelete={handleItemDelete}
-            thumbnail={worldCupData.thumbnail}
-            onThumbnailUpload={handleThumbnailUpload}
-          />
+          <div className="space-y-6">
+            {/* 미디어 타입 탭 */}
+            <div className="border-b border-gray-200">
+              <nav className="-mb-px flex space-x-8">
+                <button
+                  onClick={() => setActiveMediaTab('images')}
+                  className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                    activeMediaTab === 'images'
+                      ? 'border-emerald-500 text-emerald-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center space-x-2">
+                    <Image className="w-5 h-5" />
+                    <span>이미지 ({worldCupData.items.length}개)</span>
+                  </div>
+                </button>
+                <button
+                  onClick={() => setActiveMediaTab('videos')}
+                  className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                    activeMediaTab === 'videos'
+                      ? 'border-red-500 text-red-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center space-x-2">
+                    <Youtube className="w-5 h-5" />
+                    <span>YouTube 동영상 ({worldCupData.videoItems.length}개)</span>
+                  </div>
+                </button>
+              </nav>
+            </div>
+
+            {/* 전체 아이템 수 표시 */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                  <span className="text-blue-800 font-medium">
+                    총 {worldCupData.items.length + worldCupData.videoItems.length}개 아이템
+                  </span>
+                </div>
+                <div className="text-sm text-blue-700">
+                  {worldCupData.items.length + worldCupData.videoItems.length >= 4 
+                    ? '✅ 최소 조건 충족' 
+                    : `⚠️ ${4 - (worldCupData.items.length + worldCupData.videoItems.length)}개 더 필요`
+                  }
+                </div>
+              </div>
+              <div className="mt-2 text-xs text-blue-600">
+                이미지 {worldCupData.items.length}개 + 동영상 {worldCupData.videoItems.length}개 = 
+                총 {worldCupData.items.length + worldCupData.videoItems.length}개 (최소 4개 필요)
+              </div>
+            </div>
+
+            {/* 탭 내용 */}
+            {activeMediaTab === 'images' ? (
+              <DragDropUpload
+                items={worldCupData.items}
+                onItemsUpload={handleItemsUpload}
+                onItemDelete={handleItemDelete}
+                thumbnail={worldCupData.thumbnail}
+                onThumbnailUpload={handleThumbnailUpload}
+              />
+            ) : (
+              <div className="space-y-6">
+                <BulkYouTubeUpload
+                  onVideosProcessed={handleVideosProcessed}
+                  maxVideos={64}
+                />
+                
+                {/* 추가된 동영상 목록 */}
+                {worldCupData.videoItems.length > 0 && (
+                  <div className="bg-white border rounded-lg p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                      🎥 추가된 동영상 ({worldCupData.videoItems.length}개)
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {worldCupData.videoItems.map((video) => (
+                        <div key={video.id} className="flex items-start space-x-3 p-3 border rounded-lg">
+                          <img
+                            src={video.videoThumbnail}
+                            alt={video.title}
+                            className="w-20 h-15 object-cover rounded"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-medium text-gray-900 truncate">{video.title}</h4>
+                            <p className="text-sm text-gray-500">
+                              {video.videoMetadata?.channelTitle}
+                            </p>
+                            {video.videoStartTime !== undefined && (
+                              <p className="text-xs text-blue-600">
+                                {video.videoStartTime}초 ~ {video.videoEndTime || '끝'}초
+                              </p>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => handleVideoItemDelete(video.id)}
+                            className="text-red-500 hover:text-red-700"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         );
       case 3:
         return (

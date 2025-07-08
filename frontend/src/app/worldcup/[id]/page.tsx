@@ -29,7 +29,7 @@ export default function WorldCupDetailPage() {
   const [isBookmarkLoading, setIsBookmarkLoading] = useState(false);
   const [currentCommentCount, setCurrentCommentCount] = useState(0);
 
-  const worldcupId = Array.isArray(params.id) ? params.id[0] : params.id;
+  const worldcupId = Array.isArray(params?.id) ? params.id[0] : params?.id;
 
   useEffect(() => {
     if (worldcupId) {
@@ -44,6 +44,8 @@ export default function WorldCupDetailPage() {
   }, [user, worldcup]);
 
   const loadWorldCup = async () => {
+    if (!worldcupId) return;
+    
     try {
       setIsLoading(true);
       const data = await getWorldCupById(worldcupId);

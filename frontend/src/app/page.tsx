@@ -108,7 +108,7 @@ export default function Home() {
           all: allWorldCups.length,
         };
         
-        allWorldCups.forEach(worldcup => {
+        allWorldCups.forEach((worldcup: any) => {
           const category = worldcup.category || 'entertainment';
           counts[category] = (counts[category] || 0) + 1;
         });

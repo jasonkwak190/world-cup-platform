@@ -427,7 +427,7 @@ export default function MyPage() {
                                 <span>👥 {worldcup.participants}명</span>
                                 <span>❤️ {worldcup.likes}개</span>
                                 <span>📝 {worldcup.items.length}개 항목</span>
-                                <span>🏷️ {getCategoryName(worldcup.category)}</span>
+                                <span>🏷️ {getCategoryName(worldcup.category || 'misc')}</span>
                                 <span>📅 {worldcup.createdAt}</span>
                               </div>
                             </div>

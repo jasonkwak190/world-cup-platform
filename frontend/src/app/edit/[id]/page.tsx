@@ -26,7 +26,8 @@ import { generateAutoThumbnail } from '@/utils/thumbnailGenerator';
 import { saveWorldCupToSupabase, updateWorldCupInSupabase } from '@/utils/supabaseWorldCup';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import { isAdmin } from '@/utils/auth';
+// 관리자 권한 확인 함수 (Supabase Auth만 사용)
+const isAdmin = (user: any) => user?.role === 'admin';
 
 interface WorldCupItem {
   id: string;
@@ -126,7 +127,7 @@ function EditPageContent() {
           title: existingWorldCup.title,
           description: existingWorldCup.description || '',
           category: existingWorldCup.category || 'entertainment',
-          items: existingWorldCup.items.map(item => ({
+          items: existingWorldCup.items.map((item: any) => ({
             id: item.id,
             title: item.title,
             image: item.image || '', // 이미지 URL 또는 base64

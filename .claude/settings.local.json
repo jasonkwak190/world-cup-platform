@@ -69,7 +69,9 @@
       "Bash(npx @modelcontextprotocol/server-gemini-cli:*)",
       "Bash(npm search:*)",
       "Bash(npx:*)",
-      "Bash(find /Users/jaehyeok/world-cup-platform/frontend/src -name \"*backup*\" -o -name \"*test*\" -o -name \"*debug*\")"
+      "Bash(find /Users/jaehyeok/world-cup-platform/frontend/src -name \"*backup*\" -o -name \"*test*\" -o -name \"*debug*\")",
+      "Bash(echo)",
+      "Bash(psql:*)"
     ],
     "deny": []
   }

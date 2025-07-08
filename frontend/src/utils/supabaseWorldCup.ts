@@ -179,13 +179,18 @@ export async function saveWorldCupToSupabase(worldCupData: any, onProgress?: (pr
 
     onProgress?.(30, '월드컵 아이템들을 생성하고 있습니다...');
     
-    // 4. 월드컵 아이템들 생성 (중복 타이틀 검증 포함)
-    if (worldCupData.items && worldCupData.items.length > 0) {
-      // 중복 타이틀 검증
+    // 4. 혼합 미디어 아이템들 생성 (이미지 + 동영상)
+    const allMediaItems = [
+      ...(worldCupData.items || []).map(item => ({ ...item, mediaType: 'image' as const })),
+      ...(worldCupData.videoItems || [])
+    ];
+    
+    if (allMediaItems.length > 0) {
+      // 중복 타이틀 검증 (모든 미디어 타입 포함)
       const titleCounts = new Map<string, number>();
       const duplicateTitles = new Set<string>();
       
-      worldCupData.items.forEach((item: any) => {
+      allMediaItems.forEach((item: any) => {
         const title = item.title.trim();
         const count = titleCounts.get(title) || 0;
         titleCounts.set(title, count + 1);
@@ -200,13 +205,36 @@ export async function saveWorldCupToSupabase(worldCupData: any, onProgress?: (pr
         throw new Error(`중복된 아이템 이름이 있습니다: ${duplicateList}\n각 월드컵 내에서 아이템 이름은 고유해야 합니다.`);
       }
       
-      const itemInserts: SupabaseWorldCupItemInsert[] = worldCupData.items.map((item: any, index: number) => ({
-        worldcup_id: worldCup.id,
-        title: item.title.trim(), // 공백 제거
-        image_url: '', // 이미지 업로드 후 업데이트
-        description: item.description || '',
-        order_index: index
-      }));
+      const itemInserts: SupabaseWorldCupItemInsert[] = allMediaItems.map((item: any, index: number) => {
+        const baseInsert = {
+          worldcup_id: worldCup.id,
+          title: item.title.trim(),
+          description: item.description || '',
+          order_index: index,
+          media_type: item.mediaType || 'image'
+        };
+
+        if (item.mediaType === 'video') {
+          // 동영상 아이템
+          return {
+            ...baseInsert,
+            image_url: item.videoThumbnail || '', // 썸네일을 image_url로 저장
+            video_url: item.videoUrl,
+            video_id: item.videoId,
+            video_start_time: item.videoStartTime || 0,
+            video_end_time: item.videoEndTime,
+            video_thumbnail: item.videoThumbnail,
+            video_duration: item.videoDuration,
+            video_metadata: item.videoMetadata
+          };
+        } else {
+          // 이미지 아이템
+          return {
+            ...baseInsert,
+            image_url: '' // 이미지 업로드 후 업데이트
+          };
+        }
+      });
 
       const { data: items, error: itemsError } = await supabase
         .from('worldcup_items')
@@ -220,19 +248,34 @@ export async function saveWorldCupToSupabase(worldCupData: any, onProgress?: (pr
 
       console.log(`✅ ${items.length} items created`);
 
-      // 5. 아이템 이미지들 업로드 (향상된 처리)
-      onProgress?.(40, `이미지를 업로드하고 있습니다... (0/${worldCupData.items.length})`);
+      // 5. 이미지 아이템들만 업로드 처리 (동영상은 이미 썸네일이 설정됨)
+      const imageItems = allMediaItems.filter(item => item.mediaType === 'image');
+      const imageCount = imageItems.length;
       
-      for (let i = 0; i < worldCupData.items.length; i++) {
-        try {
-          const item = worldCupData.items[i];
+      if (imageCount > 0) {
+        onProgress?.(40, `이미지를 업로드하고 있습니다... (0/${imageCount})`);
+        
+        let imageProcessedCount = 0;
+        
+        for (let i = 0; i < allMediaItems.length; i++) {
+          const item = allMediaItems[i];
           const itemRecord = items[i];
           
-          console.log(`🖼️ Processing item ${i + 1}/${worldCupData.items.length}: ${item.title}`);
+          // 동영상 아이템은 건너뛰기 (이미 썸네일이 설정됨)
+          if (item.mediaType === 'video') {
+            console.log(`🎥 Skipping video item ${i + 1}: ${item.title} (thumbnail already set)`);
+            continue;
+          }
           
-          // 진행률 업데이트 (40% ~ 90% 사이에서 이미지 개수에 따라 분배)
-          const imageProgress = 40 + Math.floor((i / worldCupData.items.length) * 50);
-          onProgress?.(imageProgress, `이미지를 업로드하고 있습니다... (${i + 1}/${worldCupData.items.length})`);
+          try {
+          
+            console.log(`🖼️ Processing image item ${i + 1}/${allMediaItems.length}: ${item.title}`);
+            
+            imageProcessedCount++;
+            
+            // 진행률 업데이트 (40% ~ 90% 사이에서 이미지 개수에 따라 분배)
+            const imageProgress = 40 + Math.floor((imageProcessedCount / imageCount) * 50);
+            onProgress?.(imageProgress, `이미지를 업로드하고 있습니다... (${imageProcessedCount}/${imageCount})`);
           
           let imageFile: File | null = null;
           
@@ -332,10 +375,13 @@ export async function saveWorldCupToSupabase(worldCupData: any, onProgress?: (pr
           } else {
             console.log(`ℹ️ No image provided for item ${i + 1}`);
           }
-        } catch (error) {
-          console.error(`❌ Item ${i + 1} image processing error:`, error);
-          // 개별 이미지 실패는 전체 프로세스를 중단하지 않음
+          } catch (error) {
+            console.error(`❌ Item ${i + 1} image processing error:`, error);
+            // 개별 이미지 실패는 전체 프로세스를 중단하지 않음
+          }
         }
+      } else {
+        console.log('ℹ️ No image items to process, only videos present');
       }
     }
 

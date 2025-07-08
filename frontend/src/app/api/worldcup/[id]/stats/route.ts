@@ -3,6 +3,97 @@ import { createClient } from '@supabase/supabase-js';
 import { type NextRequest, NextResponse } from 'next/server';
 import { Database } from '@/types/supabase';
 
+// 보안 강화된 통계 업데이트 함수
+async function updateItemStatsSecure(
+  supabase: any,
+  itemId: string,
+  worldcupId: string,
+  updateData: any,
+  sessionToken?: string
+) {
+  try {
+    // 1. 권한 검증: 월드컵이 공개되어 있는지 확인
+    const { data: worldcup, error: worldcupError } = await supabase
+      .from('worldcups')
+      .select('is_public, creator_id')
+      .eq('id', worldcupId)
+      .single();
+
+    if (worldcupError || !worldcup) {
+      return {
+        error: { message: 'Worldcup not found or access denied', code: 'WORLDCUP_NOT_FOUND' }
+      };
+    }
+
+    if (!worldcup.is_public) {
+      return {
+        error: { message: 'Cannot update stats for private worldcup', code: 'PRIVATE_WORLDCUP' }
+      };
+    }
+
+    // 2. 입력값 검증
+    if (updateData.win_count < 0 || updateData.loss_count < 0 || 
+        updateData.total_appearances < 0 || updateData.championship_wins < 0) {
+      return {
+        error: { message: 'Invalid stats values: negative numbers not allowed', code: 'INVALID_STATS' }
+      };
+    }
+
+    if (updateData.win_rate < 0 || updateData.win_rate > 100) {
+      return {
+        error: { message: 'Invalid win rate: must be between 0 and 100', code: 'INVALID_WIN_RATE' }
+      };
+    }
+
+    // 3. 아이템이 해당 월드컵에 속하는지 확인
+    const { data: item, error: itemError } = await supabase
+      .from('worldcup_items')
+      .select('id, worldcup_id')
+      .eq('id', itemId)
+      .eq('worldcup_id', worldcupId)
+      .single();
+
+    if (itemError || !item) {
+      return {
+        error: { message: 'Item not found in specified worldcup', code: 'ITEM_NOT_FOUND' }
+      };
+    }
+
+    // 4. 보안 강화된 RPC 함수 호출 (secure-rls-policies.sql에서 정의)
+    const { data, error } = await supabase.rpc('update_item_stats_secure', {
+      p_item_id: itemId,
+      p_win_count: updateData.win_count,
+      p_loss_count: updateData.loss_count,
+      p_win_rate: updateData.win_rate,
+      p_total_appearances: updateData.total_appearances,
+      p_championship_wins: updateData.championship_wins
+    });
+
+    if (error) {
+      console.error('Secure RPC function error:', error);
+      return { error };
+    }
+
+    // 5. RPC 함수 결과 검증
+    if (data && typeof data === 'object' && !data.success) {
+      return {
+        error: { message: data.error || 'Stats update failed', code: 'UPDATE_FAILED' }
+      };
+    }
+
+    return { data };
+
+  } catch (error) {
+    console.error('updateItemStatsSecure error:', error);
+    return {
+      error: { 
+        message: error instanceof Error ? error.message : 'Unknown error',
+        code: 'INTERNAL_ERROR'
+      }
+    };
+  }
+}
+
 // Supabase 클라이언트를 초기화합니다.
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -63,7 +154,7 @@ export async function POST(
     }
 
     // Debug: Log first few matches to see data structure
-    console.log('🔍 Debug: First 3 matches data:', matches?.slice(0, 3).map(match => ({
+    console.log('🔍 Debug: First 3 matches data:', matches?.slice(0, 3).map((match: any) => ({
       item1: { id: match.item1?.id, title: match.item1?.title, uuid: match.item1?.uuid },
       item2: { id: match.item2?.id, title: match.item2?.title, uuid: match.item2?.uuid },
       winner: match.winner ? { id: match.winner.id, title: match.winner.title, uuid: match.winner.uuid } : null
@@ -332,24 +423,23 @@ export async function POST(
           code: directResult.error.code
         });
         
-        // Try RPC as fallback
-        console.log(`🔄 Trying RPC fallback for ${item.title}...`);
-        const rpcResult = await supabase.rpc('update_item_stats', {
-          item_uuid: item.id,
-          new_win_count: updateData.win_count,
-          new_loss_count: updateData.loss_count,
-          new_win_rate: updateData.win_rate,
-          new_total_appearances: updateData.total_appearances,
-          new_championship_wins: updateData.championship_wins
-        });
+        // 보안 강화된 통계 업데이트 (서버 측 검증 포함)
+        console.log(`🔄 Using secure stats update for ${item.title}...`);
+        const secureResult = await updateItemStatsSecure(
+          supabase,
+          item.id,
+          worldcupId,
+          updateData,
+          sessionToken
+        );
         
-        if (rpcResult.error) {
-          console.error(`❌ RPC also failed for ${item.title}:`, rpcResult.error);
+        if (secureResult.error) {
+          console.error(`❌ Secure update failed for ${item.title}:`, secureResult.error);
         } else {
-          console.log(`✅ RPC succeeded for ${item.title}:`, rpcResult.data);
+          console.log(`✅ Secure update succeeded for ${item.title}:`, secureResult.data);
         }
         
-        return rpcResult;
+        return secureResult;
       } else {
         console.log(`✅ Direct update successful for ${item.title}:`, directResult.data);
         return directResult;

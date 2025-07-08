@@ -24,48 +24,136 @@ export async function GET(request: NextRequest) {
 
     console.log('📊 Fetching PIKU-style global rankings...');
 
-    // global_item_rankings View에서 랭킹 조회
+    // 실시간 랭킹 계산 (worldcup_items 테이블 기반)
     let query = supabase
-      .from('global_item_rankings')
+      .from('worldcup_items')
       .select(`
-        rank,
+        id,
         title,
         image_url,
-        total_wins,
-        total_losses,
+        win_count,
+        loss_count,
         total_appearances,
-        total_championships,
-        total_participants,
-        worldcup_count,
-        categories,
+        championship_wins,
         win_rate,
-        popularity_score,
-        last_updated
+        updated_at,
+        worldcups!inner(
+          title,
+          category,
+          participants,
+          is_public
+        )
       `)
-      .order('rank', { ascending: true })
+      .eq('worldcups.is_public', true)
+      .order('win_rate', { ascending: false })
+      .order('total_appearances', { ascending: false })
       .limit(limit);
 
     // 카테고리 필터링
     if (category) {
-      query = query.contains('categories', [category]);
+      query = query.eq('worldcups.category', category);
     }
 
-    const { data: rankings, error } = await query;
+    const { data: items, error } = await query;
 
     if (error) {
       console.error('❌ Error fetching global rankings:', error);
       throw error;
     }
 
-    console.log(`✅ Found ${rankings?.length || 0} global rankings`);
+    // 아이템별 통계 집계 및 랭킹 계산
+    const itemStats = new Map<string, {
+      title: string;
+      image_url: string;
+      totalWins: number;
+      totalLosses: number;
+      totalAppearances: number;
+      totalChampionships: number;
+      totalParticipants: number;
+      worldcupCount: number;
+      categories: Set<string>;
+    }>();
+
+    items?.forEach(item => {
+      const key = item.title.toLowerCase().trim();
+      const worldcup = Array.isArray(item.worldcups) ? item.worldcups[0] : item.worldcups;
+      
+      if (!itemStats.has(key)) {
+        itemStats.set(key, {
+          title: item.title,
+          image_url: item.image_url || '',
+          totalWins: 0,
+          totalLosses: 0,
+          totalAppearances: 0,
+          totalChampionships: 0,
+          totalParticipants: 0,
+          worldcupCount: 0,
+          categories: new Set()
+        });
+      }
+
+      const stats = itemStats.get(key)!;
+      stats.totalWins += item.win_count || 0;
+      stats.totalLosses += item.loss_count || 0;
+      stats.totalAppearances += item.total_appearances || 0;
+      stats.totalChampionships += item.championship_wins || 0;
+      stats.totalParticipants += worldcup?.participants || 0;
+      stats.worldcupCount += 1;
+      stats.categories.add(worldcup?.category || 'misc');
+    });
+
+    // 랭킹 계산 및 정렬
+    const rankings = Array.from(itemStats.entries()).map(([_, stats]) => {
+      const winRate = stats.totalAppearances > 0 ? (stats.totalWins / stats.totalAppearances) * 100 : 0;
+      
+      // PIKU 스타일 인기도 점수 계산
+      const popularityScore = 
+        (stats.totalParticipants * 0.3) +
+        (winRate * stats.totalAppearances * 0.4) +
+        (stats.worldcupCount * 50) +
+        (stats.totalChampionships * 100);
+
+      return {
+        title: stats.title,
+        image_url: stats.image_url,
+        total_wins: stats.totalWins,
+        total_losses: stats.totalLosses,
+        total_appearances: stats.totalAppearances,
+        total_championships: stats.totalChampionships,
+        total_participants: stats.totalParticipants,
+        worldcup_count: stats.worldcupCount,
+        categories: Array.from(stats.categories),
+        win_rate: Math.round(winRate * 100) / 100,
+        popularity_score: Math.round(popularityScore * 100) / 100,
+        last_updated: new Date().toISOString()
+      };
+    })
+    .sort((a, b) => {
+      // 인기도 점수 기준 정렬
+      if (b.popularity_score !== a.popularity_score) {
+        return b.popularity_score - a.popularity_score;
+      }
+      // 승률 기준 정렬  
+      if (b.win_rate !== a.win_rate) {
+        return b.win_rate - a.win_rate;
+      }
+      // 총 출현 횟수 기준 정렬
+      return b.total_appearances - a.total_appearances;
+    })
+    .map((item, index) => ({
+      ...item,
+      rank: index + 1
+    }));
+
+    console.log(`✅ Calculated rankings for ${rankings.length} unique items`);
 
     return NextResponse.json({
       rankings: rankings || [],
       totalItems: rankings?.length || 0,
-      isRealtime: true, // View는 항상 최신 데이터
+      isRealtime: true,
       lastUpdated: new Date().toISOString(),
-      message: `PIKU-style rankings (${rankings?.length || 0} items)`,
-      note: "Rankings update automatically based on game results"
+      message: `Real-time rankings (${rankings?.length || 0} items)`,
+      note: "Rankings calculated in real-time from current game data"
     });
 
   } catch (error) {
@@ -80,6 +168,18 @@ export async function GET(request: NextRequest) {
 // 랭킹 수동 업데이트 (관리자용)
 export async function POST(request: NextRequest) {
   try {
+    // 관리자 인증 토큰 확인
+    const adminToken = request.headers.get('x-admin-token');
+    const expectedToken = process.env.ADMIN_API_TOKEN;
+    
+    if (!expectedToken || adminToken !== expectedToken) {
+      console.log('❌ Unauthorized ranking update attempt');
+      return NextResponse.json(
+        { error: 'Unauthorized access. Admin token required.' },
+        { status: 401 }
+      );
+    }
+    
     console.log('🔄 Manual ranking update requested...');
     
     const result = await generateGlobalRankings();
