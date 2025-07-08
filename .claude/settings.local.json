@@ -58,7 +58,7 @@
       "Bash(gtimeout:*)",
       "Bash(npm cache clean:*)",
       "Bash(timeout 15s npm run dev)",
-      "Bash(NEXT_PUBLIC_SUPABASE_URL=https://rctoxfcyzzsiikopbsne.supabase.co NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjdG94ZmN5enpzaWlrb3Bic25lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA5NTAwMDksImV4cCI6MjA2NjUyNjAwOX0.moYSDe7kRAkbnhPr_9V5nE_t_TvGAtBy6Uk3O7aXep4 node debug-db.js)",
+      "Bash(source .claude/.env && NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY node debug-db.js)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(npx supabase db inspect:*)",
@@ -72,9 +72,9 @@
       "Bash(find /Users/jaehyeok/world-cup-platform/frontend/src -name \"*backup*\" -o -name \"*test*\" -o -name \"*debug*\")",
       "Bash(echo)",
       "Bash(psql:*)",
-      "Bash(SUPABASE_URL=https://rctoxfcyzzsiikopbsne.supabase.co SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjdG94ZmN5enpzaWlrb3Bic25lIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MDk1MDAwOSwiZXhwIjoyMDY2NTI2MDA5fQ.r5IHJ6EpA-JCljhxCFzri-W3xQaqLFyxGn8EAd_QswM timeout 3s node /Users/jaehyeok/world-cup-platform/.claude/supabase-mcp-server.js)",
+      "Bash(source .claude/.env && SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY timeout 3s node /Users/jaehyeok/world-cup-platform/.claude/supabase-mcp-server.js)",
       "Bash(kill:*)",
-      "Bash(SUPABASE_URL=\"https://rctoxfcyzzsiikopbsne.supabase.co\" SUPABASE_SERVICE_ROLE_KEY=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjdG94ZmN5enpzaWlrb3Bic25lIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MDk1MDAwOSwiZXhwIjoyMDY2NTI2MDA5fQ.r5IHJ6EpA-JCljhxCFzri-W3xQaqLFyxGn8EAd_QswM\" timeout 3 node /Users/jaehyeok/world-cup-platform/.claude/supabase-mcp-server.js)"
+      "Bash(source .claude/.env && SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY timeout 3 node /Users/jaehyeok/world-cup-platform/.claude/supabase-mcp-server.js)"
     ],
     "deny": []
   }

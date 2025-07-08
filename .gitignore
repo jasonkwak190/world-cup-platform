@@ -27,3 +27,5 @@ config/secrets.yml
 # 로그 파일
 *.log
 logs/
+
+.claude/.env
