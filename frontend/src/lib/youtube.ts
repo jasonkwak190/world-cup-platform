@@ -191,12 +191,27 @@ export class YouTubeService {
       const response = await fetch(url);
       
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('YouTube API 응답 에러:', {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorText
+        });
+        
         if (response.status === 403) {
-          throw new Error('YouTube API 할당량이 초과되었습니다. 나중에 다시 시도해주세요.');
+          if (errorText.includes('quotaExceeded')) {
+            throw new Error('YouTube API 할당량이 초과되었습니다. 내일 다시 시도해주세요.');
+          } else if (errorText.includes('keyInvalid')) {
+            throw new Error('YouTube API 키가 유효하지 않습니다. API 키를 확인해주세요.');
+          } else if (errorText.includes('accessNotConfigured')) {
+            throw new Error('YouTube Data API v3가 활성화되지 않았습니다. Google Cloud Console에서 활성화해주세요.');
+          } else {
+            throw new Error(`YouTube API 접근 거부: ${errorText}`);
+          }
         } else if (response.status === 400) {
-          throw new Error('잘못된 YouTube API 요청입니다.');
+          throw new Error(`잘못된 YouTube API 요청: ${errorText}`);
         } else {
-          throw new Error(`YouTube API 요청 실패: ${response.status}`);
+          throw new Error(`YouTube API 요청 실패 (${response.status}): ${errorText}`);
         }
       }
 

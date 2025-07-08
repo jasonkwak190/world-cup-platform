@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef } from 'react';
-import { Youtube, Upload, X, PlayCircle, Clock, Check, AlertCircle, Copy, FileText, Play, Pause } from 'lucide-react';
+import { Upload, X, Check, AlertCircle, FileText, Play, Pause } from 'lucide-react';
 import YouTubePlayer from '../YouTubePlayer';
 import { getYouTubeService, extractVideoId, isValidYouTubeUrl } from '@/lib/youtube';
 import type { WorldCupMediaItem, VideoMetadata } from '@/types/media';
@@ -73,11 +73,21 @@ export default function BulkYouTubeUpload({
       return;
     }
 
+    // 🔑 YouTube API 키 확인
+    const apiKey = process.env.NEXT_PUBLIC_YOUTUBE_API_KEY;
+    console.log('🔑 API Key check:', apiKey ? `${apiKey.slice(0, 10)}...${apiKey.slice(-5)}` : 'NOT FOUND');
+    
+    if (!apiKey) {
+      alert('YouTube API 키가 설정되지 않았습니다. 개발자에게 문의하세요.');
+      return;
+    }
+
     setIsProcessing(true);
     setProcessedCount(0);
 
     try {
       const youtubeService = getYouTubeService();
+      console.log('🔧 YouTube Service created successfully');
       
       // 비디오 ID 추출
       const videoIds = videoItems
@@ -193,31 +203,14 @@ https://youtu.be/kffacxfA7G4`;
     }
   };
 
-  // 시:분:초 형식을 초로 변환
-  const parseTimeToSeconds = (timeString: string): number => {
-    if (!timeString) return 0;
-    
-    const parts = timeString.split(':').map(part => parseInt(part) || 0);
-    
-    if (parts.length === 1) {
-      // 초만 입력된 경우
-      return parts[0];
-    } else if (parts.length === 2) {
-      // 분:초 형식
-      return parts[0] * 60 + parts[1];
-    } else if (parts.length === 3) {
-      // 시:분:초 형식
-      return parts[0] * 3600 + parts[1] * 60 + parts[2];
-    }
-    
-    return 0;
-  };
-
-  // 초를 시:분:초 형식으로 변환
+  // 초를 시:분:초 형식으로 변환 (간단한 버전)
   const secondsToTimeString = (seconds: number): string => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const remainingSeconds = seconds % 60;
+    if (!seconds || seconds === 0) return '';
+    
+    const totalSeconds = Math.floor(Math.max(0, seconds));
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const remainingSeconds = totalSeconds % 60;
     
     if (hours > 0) {
       return `${hours}:${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
@@ -226,12 +219,14 @@ https://youtu.be/kffacxfA7G4`;
     }
   };
 
+
+
   return (
     <div className="space-y-6">
       {/* 헤더 */}
       <div className="text-center">
         <div className="flex items-center justify-center space-x-2 mb-4">
-          <Youtube className="w-8 h-8 text-red-500" />
+          <Play className="w-8 h-8 text-red-500 bg-red-100 rounded-full p-1" />
           <h2 className="text-2xl font-bold text-gray-900">YouTube 동영상 대량 추가</h2>
         </div>
         <p className="text-gray-600">
@@ -240,7 +235,7 @@ https://youtu.be/kffacxfA7G4`;
       </div>
 
       {/* URL 입력 영역 */}
-      <div className="bg-blue-50 rounded-lg p-6">
+      <div className="bg-blue-50 rounded-lg p-6 text-black">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-blue-900">📝 URL 입력</h3>
           <button
@@ -347,7 +342,7 @@ https://www.youtube.com/watch?v=9bZkp7q19f0
                       ) : item.status === 'error' ? (
                         <AlertCircle className="w-6 h-6 text-red-500" />
                       ) : (
-                        <Youtube className="w-6 h-6 text-gray-400" />
+                        <Play className="w-6 h-6 text-gray-400" />
                       )}
                     </div>
                   )}
@@ -390,52 +385,177 @@ https://www.youtube.com/watch?v=9bZkp7q19f0
                   {/* 시간 구간 설정 (성공한 아이템만) */}
                   {item.status === 'success' && item.metadata && (
                     <div className="mt-3 space-y-3">
-                      <div className="text-xs text-gray-600 mb-2">
-                        💡 시간 형식: 분:초 (예: 1:30) 또는 시:분:초 (예: 1:23:45)
+                      <div className="text-xs text-gray-600 mb-2 flex items-center space-x-1">
+                        <span>💡</span>
+                        <span>시간 형식: {item.metadata.duration >= 3600 ? '시:분:초 (예: 1:23:45)' : '분:초 (예: 1:30)'}</span>
+                        <span className="text-blue-600">• 전체 길이: {formatTime(item.metadata.duration)}</span>
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-2 gap-3 text-black">
                         <div>
                           <label className="block text-xs font-medium text-gray-700 mb-1">
-                            시작 시간
+                            시작 시간 *
                           </label>
-                          <input
-                            type="text"
-                            value={secondsToTimeString(item.startTime || 0)}
-                            onChange={(e) => {
-                              const seconds = parseTimeToSeconds(e.target.value);
-                              if (seconds <= (item.metadata!.duration || 0)) {
-                                updateTimeRange(item.id, seconds, item.endTime);
-                              }
-                            }}
-                            placeholder="0:00"
-                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                          />
+                          <div className="flex items-center space-x-1">
+                            {/* 시간 입력 (1시간 이상인 경우만 표시) */}
+                            {item.metadata.duration >= 3600 && (
+                              <>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="23"
+                                  value={Math.floor((item.startTime || 0) / 3600)}
+                                  onChange={(e) => {
+                                    const hours = parseInt(e.target.value) || 0;
+                                    const minutes = Math.floor(((item.startTime || 0) % 3600) / 60);
+                                    const seconds = (item.startTime || 0) % 60;
+                                    updateTimeRange(item.id, hours * 3600 + minutes * 60 + seconds, item.endTime);
+                                  }}
+                                  className="w-12 px-1 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
+                                  placeholder="0"
+                                />
+                                <span className="text-sm text-gray-500">시</span>
+                              </>
+                            )}
+                            <input
+                              type="number"
+                              min="0"
+                              max="59"
+                              value={Math.floor(((item.startTime || 0) % 3600) / 60)}
+                              onChange={(e) => {
+                                const hours = Math.floor((item.startTime || 0) / 3600);
+                                const minutes = parseInt(e.target.value) || 0;
+                                const seconds = (item.startTime || 0) % 60;
+                                updateTimeRange(item.id, hours * 3600 + minutes * 60 + seconds, item.endTime);
+                              }}
+                              className="w-12 px-1 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
+                              placeholder="0"
+                            />
+                            <span className="text-sm text-gray-500">분</span>
+                            <input
+                              type="number"
+                              min="0"
+                              max="59"
+                              value={(item.startTime || 0) % 60}
+                              onChange={(e) => {
+                                const hours = Math.floor((item.startTime || 0) / 3600);
+                                const minutes = Math.floor(((item.startTime || 0) % 3600) / 60);
+                                const seconds = parseInt(e.target.value) || 0;
+                                updateTimeRange(item.id, hours * 3600 + minutes * 60 + seconds, item.endTime);
+                              }}
+                              className="w-12 px-1 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
+                              placeholder="0"
+                            />
+                            <span className="text-sm text-gray-500">초</span>
+                          </div>
                         </div>
                         <div>
                           <label className="block text-xs font-medium text-gray-700 mb-1">
                             종료 시간 (선택사항)
                           </label>
-                          <input
-                            type="text"
-                            value={item.endTime ? secondsToTimeString(item.endTime) : ''}
-                            onChange={(e) => {
-                              if (e.target.value.trim() === '') {
-                                updateTimeRange(item.id, item.startTime, undefined);
-                              } else {
-                                const seconds = parseTimeToSeconds(e.target.value);
-                                if (seconds > (item.startTime || 0) && seconds <= (item.metadata!.duration || 0)) {
-                                  updateTimeRange(item.id, item.startTime, seconds);
-                                }
-                              }
-                            }}
-                            placeholder="끝까지 재생"
-                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                          />
+                          {item.endTime ? (
+                            <div className="flex items-center space-x-1">
+                              {/* 시간 입력 (1시간 이상인 경우만 표시) */}
+                              {item.metadata.duration >= 3600 && (
+                                <>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max="23"
+                                    value={Math.floor(item.endTime / 3600)}
+                                    onChange={(e) => {
+                                      const hours = parseInt(e.target.value) || 0;
+                                      const minutes = Math.floor((item.endTime! % 3600) / 60);
+                                      const seconds = item.endTime! % 60;
+                                      const newEndTime = hours * 3600 + minutes * 60 + seconds;
+                                      if (newEndTime > (item.startTime || 0)) {
+                                        updateTimeRange(item.id, item.startTime, newEndTime);
+                                      }
+                                    }}
+                                    className="w-12 px-1 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
+                                    placeholder="0"
+                                  />
+                                  <span className="text-sm text-gray-500">시</span>
+                                </>
+                              )}
+                              <input
+                                type="number"
+                                min="0"
+                                max="59"
+                                value={Math.floor((item.endTime % 3600) / 60)}
+                                onChange={(e) => {
+                                  const hours = Math.floor(item.endTime! / 3600);
+                                  const minutes = parseInt(e.target.value) || 0;
+                                  const seconds = item.endTime! % 60;
+                                  const newEndTime = hours * 3600 + minutes * 60 + seconds;
+                                  if (newEndTime > (item.startTime || 0)) {
+                                    updateTimeRange(item.id, item.startTime, newEndTime);
+                                  }
+                                }}
+                                className="w-12 px-1 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
+                                placeholder="0"
+                              />
+                              <span className="text-sm text-gray-500">분</span>
+                              <input
+                                type="number"
+                                min="0"
+                                max="59"
+                                value={item.endTime % 60}
+                                onChange={(e) => {
+                                  const hours = Math.floor(item.endTime! / 3600);
+                                  const minutes = Math.floor((item.endTime! % 3600) / 60);
+                                  const seconds = parseInt(e.target.value) || 0;
+                                  const newEndTime = hours * 3600 + minutes * 60 + seconds;
+                                  if (newEndTime > (item.startTime || 0)) {
+                                    updateTimeRange(item.id, item.startTime, newEndTime);
+                                  }
+                                }}
+                                className="w-12 px-1 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
+                                placeholder="0"
+                              />
+                              <span className="text-sm text-gray-500">초</span>
+                              <button
+                                onClick={() => updateTimeRange(item.id, item.startTime, undefined)}
+                                className="text-xs text-red-600 hover:text-red-800 px-2 py-1 border border-red-200 rounded"
+                              >
+                                해제
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                const endTime = Math.min((item.startTime || 0) + 30, item.metadata!.duration);
+                                updateTimeRange(item.id, item.startTime, endTime);
+                              }}
+                              className="text-sm text-blue-600 hover:text-blue-800 px-3 py-1 border border-blue-200 rounded hover:bg-blue-50"
+                            >
+                              + 종료 시간 설정
+                            </button>
+                          )}
                         </div>
                       </div>
-                      <div className="text-xs text-gray-500">
-                        전체 길이: {formatTime(item.metadata.duration)} | 
-                        구간: {formatTime(item.startTime || 0)} - {item.endTime ? formatTime(item.endTime) : '끝'}
+                      
+                      {/* 시간 구간 정보 표시 */}
+                      <div className="bg-gray-50 rounded p-2">
+                        <div className="text-xs text-gray-600 space-y-1">
+                          <div className="flex justify-between">
+                            <span>전체 길이:</span>
+                            <span className="font-medium">{formatTime(item.metadata.duration)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>재생 구간:</span>
+                            <span className="font-medium text-blue-600">
+                              {formatTime(item.startTime || 0)} - {item.endTime ? formatTime(item.endTime) : '끝'}
+                            </span>
+                          </div>
+                          {item.endTime && (
+                            <div className="flex justify-between">
+                              <span>구간 길이:</span>
+                              <span className="font-medium text-green-600">
+                                {formatTime(item.endTime - (item.startTime || 0))}
+                              </span>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -512,7 +632,7 @@ https://www.youtube.com/watch?v=9bZkp7q19f0
         <ul className="text-sm text-gray-600 space-y-1">
           <li>• 다양한 YouTube URL 형식을 지원합니다 (youtube.com, youtu.be, embed)</li>
           <li>• 플레이리스트 링크를 넣으면 자동으로 개별 영상 URL을 추출합니다</li>
-          <li>• <strong>시간 구간 설정</strong>: 분:초 (1:30) 또는 시:분:초 (1:23:45) 형식으로 입력</li>
+          <li>• <strong>시간 구간 설정</strong>: 1시간 미만은 분:초 (1:30), 1시간 이상은 시:분:초 (1:23:45) 형식으로 입력</li>
           <li>• <strong>미리보기</strong>: 썸네일에 마우스를 올리고 플레이 버튼을 눌러 미리보기 가능</li>
           <li>• 최대 {maxVideos}개까지 한 번에 처리할 수 있습니다</li>
           <li>• API 사용량 최적화를 위해 배치 처리됩니다</li>

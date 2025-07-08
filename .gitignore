@@ -2,7 +2,15 @@ node_modules
 
 # Claude MCP 설정 (API 키 포함)
 .claude/mcp_servers.json
+.claude/.mcp.json
+.claude/.env
 ~/.config/claude/mcp_servers.json
+
+# Claude MCP 템플릿 파일들은 포함 (템플릿이므로 안전)
+!.claude/.mcp.json.template
+!.claude/.env.template
+!.claude/supabase-mcp-server.js
+!.claude/README.md
 
 # 환경 변수 파일
 .env

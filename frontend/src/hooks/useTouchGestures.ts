@@ -66,8 +66,8 @@ export const useTouchGestures = (
       clearLongPressTimer();
     }
 
-    // Prevent scroll during potential swipe
-    if (preventScrollOnSwipe && distance > threshold / 2) {
+    // Only prevent scroll if explicitly needed and we're actually swiping
+    if (preventScrollOnSwipe && distance > threshold) {
       e.preventDefault();
     }
   }, [threshold, preventScrollOnSwipe, clearLongPressTimer]);
@@ -116,9 +116,13 @@ export const useTouchGestures = (
     const element = elementRef.current;
     if (!element) return;
 
-    element.addEventListener('touchstart', handleTouchStart, { passive: false });
-    element.addEventListener('touchmove', handleTouchMove, { passive: false });
-    element.addEventListener('touchend', handleTouchEnd, { passive: false });
+    // Use passive listeners when we don't need to prevent scroll
+    const passiveOptions = { passive: !preventScrollOnSwipe };
+    const nonPassiveOptions = { passive: false };
+
+    element.addEventListener('touchstart', handleTouchStart, passiveOptions);
+    element.addEventListener('touchmove', handleTouchMove, preventScrollOnSwipe ? nonPassiveOptions : passiveOptions);
+    element.addEventListener('touchend', handleTouchEnd, passiveOptions);
 
     return () => {
       element.removeEventListener('touchstart', handleTouchStart);
@@ -126,7 +130,7 @@ export const useTouchGestures = (
       element.removeEventListener('touchend', handleTouchEnd);
       clearLongPressTimer();
     };
-  }, [handleTouchStart, handleTouchMove, handleTouchEnd, clearLongPressTimer]);
+  }, [handleTouchStart, handleTouchMove, handleTouchEnd, clearLongPressTimer, preventScrollOnSwipe]);
 
   return elementRef;
 };

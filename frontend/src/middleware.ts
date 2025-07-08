@@ -57,7 +57,7 @@ const securityHeaders = {
     "img-src 'self' data: blob: https: http://localhost:* https://*.supabase.co https://*.supabase.in",
     "media-src 'self' blob: https:",
     "connect-src 'self' https://*.supabase.co https://*.supabase.in https://va.vercel-scripts.com wss://*.supabase.co",
-    "frame-src 'none'",
+    "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
@@ -75,7 +75,7 @@ const developmentCSP = [
   "img-src 'self' data: blob: https: http:",
   "media-src 'self' blob: https: http:",
   "connect-src 'self' https: http: ws: wss:",
-  "frame-src 'self'",
+  "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com",
   "object-src 'none'"
 ].join('; ');
 

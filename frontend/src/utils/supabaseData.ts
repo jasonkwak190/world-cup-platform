@@ -165,19 +165,44 @@ export async function getWorldCupById(id: string) {
   return withRetry(async () => {
     console.log('🔍 getWorldCupById called with ID:', id);
     
-    const { data, error } = await supabase
+    // 1. 먼저 월드컵 기본 정보 조회
+    const { data: worldcupData, error: worldcupError } = await supabase
       .from('worldcups')
       .select(`
         *,
-        author:users(id, username, profile_image_url),
-        worldcup_items(
-          id, title, image_url, description, order_index,
-          media_type, video_url, video_id, video_start_time, 
-          video_end_time, video_thumbnail, video_duration, video_metadata
-        )
+        author:users(id, username, profile_image_url)
       `)
       .eq('id', id)
       .single();
+
+    if (worldcupError) {
+      console.error('❌ Error fetching worldcup:', worldcupError);
+      throw worldcupError;
+    }
+
+    // 2. 별도로 아이템들 조회
+    const { data: itemsData, error: itemsError } = await supabase
+      .from('worldcup_items')
+      .select(`
+        id, title, image_url, description, order_index,
+        media_type, video_url, video_id, video_start_time, 
+        video_end_time, video_thumbnail, video_duration, video_metadata
+      `)
+      .eq('worldcup_id', id)
+      .order('order_index');
+
+    if (itemsError) {
+      console.error('❌ Error fetching worldcup items:', itemsError);
+      throw itemsError;
+    }
+
+    // 3. 데이터 합치기
+    const data = {
+      ...worldcupData,
+      worldcup_items: itemsData || []
+    };
+
+    const error = null;
 
     if (error) {
       console.error('❌ Error fetching worldcup:', error);

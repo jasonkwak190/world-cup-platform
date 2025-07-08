@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Play, Eye, Share2, Settings, Users, MessageCircle, Heart, Trophy, Edit3 } from 'lucide-react';
+import { Play, Eye, Share2, Settings, Users, MessageCircle, Heart, Trophy, Edit3, Youtube } from 'lucide-react';
 import dynamic from 'next/dynamic';
+import type { WorldCupMediaItem } from '@/types/media';
 
 // Dynamic import to prevent SSR issues
 const ImageCropper = dynamic(() => import('./ImageCropper'), {
@@ -27,6 +28,7 @@ interface WorldCupData {
   description: string;
   category: string;
   items: WorldCupItem[];
+  videoItems: WorldCupMediaItem[];
   isPublic: boolean;
   thumbnail?: string | File | Blob | null; 
 }
@@ -142,9 +144,10 @@ export default function WorldCupPreview({ data, onGameStateChange, onItemUpdate,
   };
 
   const getTournamentSize = () => {
-    const itemCount = data.items.length;
+    const totalItemCount = data.items.length + data.videoItems.length;
+    if (totalItemCount === 0) return 2; // 최소값
     // Find next power of 2
-    return Math.pow(2, Math.ceil(Math.log2(itemCount)));
+    return Math.pow(2, Math.ceil(Math.log2(totalItemCount)));
   };
 
   const getRoundName = (roundNum: number, totalRounds: number) => {
@@ -159,8 +162,20 @@ export default function WorldCupPreview({ data, onGameStateChange, onItemUpdate,
   };
 
   const startPreview = () => {
-    if (data.items.length >= 2) {
-      const shuffled = [...data.items].sort(() => Math.random() - 0.5);
+    // 이미지와 비디오 아이템을 모두 합쳐서 처리
+    const allItems: WorldCupItem[] = [
+      ...data.items,
+      ...data.videoItems.map(video => ({
+        id: video.id,
+        title: video.title,
+        image: video.videoThumbnail || '', // 유튜브 썸네일 사용
+        description: video.videoMetadata?.channelTitle || '',
+        videoData: video // 비디오 추가 정보 보관
+      } as WorldCupItem & { videoData?: WorldCupMediaItem }))
+    ];
+
+    if (allItems.length >= 2) {
+      const shuffled = [...allItems].sort(() => Math.random() - 0.5);
       setCurrentMatchItems([shuffled[0], shuffled[1]]);
       setIsPlaying(true);
       onGameStateChange?.(true);
@@ -168,8 +183,20 @@ export default function WorldCupPreview({ data, onGameStateChange, onItemUpdate,
   };
 
   const handleChoice = (chosen: WorldCupItem) => {
+    // 모든 아이템 합치기
+    const allItems: WorldCupItem[] = [
+      ...data.items,
+      ...data.videoItems.map(video => ({
+        id: video.id,
+        title: video.title,
+        image: video.videoThumbnail || '',
+        description: video.videoMetadata?.channelTitle || '',
+        videoData: video
+      } as WorldCupItem & { videoData?: WorldCupMediaItem }))
+    ];
+    
     // Simulate next match
-    const remaining = data.items.filter(item => item.id !== currentMatchItems![0].id && item.id !== currentMatchItems![1].id);
+    const remaining = allItems.filter(item => item.id !== currentMatchItems![0].id && item.id !== currentMatchItems![1].id);
     if (remaining.length >= 2) {
       setCurrentMatchItems([chosen, remaining[0]]);
     } else {
@@ -325,7 +352,15 @@ export default function WorldCupPreview({ data, onGameStateChange, onItemUpdate,
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-600">참가 항목</span>
-                  <span className="font-medium text-blue-500">{data.items.length}개</span>
+                  <span className="font-medium text-blue-500">{data.items.length + data.videoItems.length}개</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-500">└ 이미지</span>
+                  <span className="text-gray-500">{data.items.length}개</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-500">└ 동영상</span>
+                  <span className="text-gray-500">{data.videoItems.length}개</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">토너먼트 크기</span>
@@ -480,32 +515,85 @@ export default function WorldCupPreview({ data, onGameStateChange, onItemUpdate,
       )}
 
       {/* Items Preview */}
-      {!isPlaying && data.items.length > 0 && (
-        <div className="bg-white border rounded-lg p-6">
-          <h3 className="font-semibold text-gray-900 mb-4 flex items-center">
-            <Users className="w-5 h-5 mr-2" />
-            등록된 항목 ({data.items.length}개)
-          </h3>
-          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-3">
-            {data.items.slice(0, 20).map((item) => (
-              <div key={item.id} className="aspect-square group">
-                <img
-                  src={getImageUrl(item.image)}
-                  alt={item.title}
-                  className="w-full h-full object-cover rounded-lg"
-                  onError={handleImageError}
-                  loading="lazy"
-                />
+      {!isPlaying && (data.items.length > 0 || data.videoItems.length > 0) && (
+        <div className="space-y-6">
+          {/* 이미지 아이템 */}
+          {data.items.length > 0 && (
+            <div className="bg-white border rounded-lg p-6">
+              <h3 className="font-semibold text-gray-900 mb-4 flex items-center">
+                <Users className="w-5 h-5 mr-2" />
+                등록된 이미지 ({data.items.length}개)
+              </h3>
+              <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-3">
+                {data.items.slice(0, 20).map((item) => (
+                  <div key={item.id} className="aspect-square group relative">
+                    <img
+                      src={getImageUrl(item.image)}
+                      alt={item.title}
+                      className="w-full h-full object-cover rounded-lg"
+                      onError={handleImageError}
+                      loading="lazy"
+                    />
+                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 rounded-lg flex items-center justify-center transition-all duration-200">
+                      <span className="text-white text-xs opacity-0 group-hover:opacity-100 text-center px-1 break-words">
+                        {item.title}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                {data.items.length > 20 && (
+                  <div className="aspect-square bg-gray-100 rounded-lg flex items-center justify-center">
+                    <span className="text-xs text-gray-500 text-center">
+                      +{data.items.length - 20}개
+                    </span>
+                  </div>
+                )}
               </div>
-            ))}
-            {data.items.length > 20 && (
-              <div className="aspect-square bg-gray-100 rounded-lg flex items-center justify-center">
-                <span className="text-xs text-gray-500 text-center">
-                  +{data.items.length - 20}개
-                </span>
+            </div>
+          )}
+
+          {/* 비디오 아이템 */}
+          {data.videoItems.length > 0 && (
+            <div className="bg-white border rounded-lg p-6">
+              <h3 className="font-semibold text-gray-900 mb-4 flex items-center">
+                <Youtube className="w-5 h-5 mr-2 text-red-500" />
+                등록된 동영상 ({data.videoItems.length}개)
+              </h3>
+              <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-3">
+                {data.videoItems.slice(0, 20).map((video) => (
+                  <div key={video.id} className="aspect-square group relative">
+                    <img
+                      src={video.videoThumbnail}
+                      alt={video.title}
+                      className="w-full h-full object-cover rounded-lg"
+                      onError={handleImageError}
+                      loading="lazy"
+                    />
+                    {/* YouTube 플레이 아이콘 오버레이 */}
+                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 rounded-lg flex items-center justify-center transition-all duration-200">
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Play className="w-6 h-6 text-white mb-1" />
+                        <span className="text-white text-xs text-center px-1 break-words block">
+                          {video.title}
+                        </span>
+                      </div>
+                    </div>
+                    {/* YouTube 아이콘 표시 */}
+                    <div className="absolute top-1 right-1 w-4 h-4 bg-red-600 rounded-sm flex items-center justify-center">
+                      <Play className="w-2 h-2 text-white fill-current" />
+                    </div>
+                  </div>
+                ))}
+                {data.videoItems.length > 20 && (
+                  <div className="aspect-square bg-gray-100 rounded-lg flex items-center justify-center">
+                    <span className="text-xs text-gray-500 text-center">
+                      +{data.videoItems.length - 20}개
+                    </span>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
 
