@@ -17,7 +17,7 @@ export async function testSupabaseConnection(): Promise<boolean> {
   }
 }
 
-// 월드컵별 댓글 가져오기
+// 월드컵별 댓글 가져오기 (재시도 로직 포함)
 export async function getCommentsByWorldCupId(worldcupId: string): Promise<Comment[]> {
   try {
     console.log('🚀 [ENTRY] getCommentsByWorldCupId called with:', worldcupId);
@@ -34,57 +34,96 @@ export async function getCommentsByWorldCupId(worldcupId: string): Promise<Comme
     console.log('🔍 Fetching comments for worldcup:', worldcupId);
     const startTime = Date.now();
     
-    // 직접 댓글 쿼리 시도 (디버깅 단계 제거)
-    console.log('📝 Attempting direct comments query...');
+    // 재시도 로직 (최대 3번 시도)
+    let lastError: any = null;
+    let data: any = null;
     
-    // N+1 쿼리 문제 해결: JOIN을 사용하여 한 번에 데이터 가져오기
-    const { data, error } = await supabase
-      .from('comments')
-      .select(`
-        id,
-        worldcup_id,
-        author_id,
-        guest_name,
-        content,
-        parent_id,
-        like_count,
-        created_at,
-        updated_at,
-        guest_session_id,
-        is_deleted,
-        author:author_id (
-          id,
-          username
-        )
-      `)
-      .eq('worldcup_id', worldcupId)
-      .or('is_deleted.is.null,is_deleted.eq.false')
-      .order('created_at', { ascending: true })
-      .limit(100);
-    
-    const elapsed = Date.now() - startTime;
-    console.log(`⏱️ Comments query took ${elapsed}ms`);
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        console.log(`📝 Attempting direct comments query (attempt ${attempt}/3)...`);
+        
+        // 단순 쿼리로 성능 향상 (JOIN 제거)
+        const result = await supabase
+          .from('comments')
+          .select(`
+            id,
+            worldcup_id,
+            author_id,
+            guest_name,
+            content,
+            parent_id,
+            like_count,
+            created_at,
+            updated_at,
+            guest_session_id,
+            is_deleted
+          `)
+          .eq('worldcup_id', worldcupId)
+          .or('is_deleted.is.null,is_deleted.eq.false')
+          .order('created_at', { ascending: true })
+          .limit(100);
+        
+        const elapsed = Date.now() - startTime;
+        console.log(`⏱️ Comments query attempt ${attempt} took ${elapsed}ms`);
+        
+        data = result.data;
+        const error = result.error;
 
-    if (error) {
-      console.error('❌ Error fetching comments:', error);
-      console.error('🔍 Query error details:', {
-        code: error.code,
-        message: error.message,
-        details: error.details,
-        hint: error.hint
-      });
-      console.error('🔍 Query was for worldcup:', worldcupId);
+        if (error) {
+          console.error(`❌ Error fetching comments (attempt ${attempt}):`, error);
+          console.error('🔍 Query error details:', {
+            code: error.code,
+            message: error.message,
+            details: error.details,
+            hint: error.hint
+          });
+          lastError = error;
+          
+          // 마지막 시도가 아니면 재시도
+          if (attempt < 3) {
+            console.log(`🔄 Retrying in ${attempt * 1000}ms...`);
+            await new Promise(resolve => setTimeout(resolve, attempt * 1000));
+            continue;
+          }
+          
+          // 모든 시도 실패
+          console.error('🔍 All attempts failed for worldcup:', worldcupId);
+          return [];
+        }
+
+        if (!data || data.length === 0) {
+          console.log('📭 No comments found, returning empty array');
+          return [];
+        }
+
+        console.log('📝 Found', data.length, 'comments with user data in single query');
+        
+        // 성공적으로 데이터를 가져온 경우 처리로 이동
+        break;
+        
+      } catch (attemptError) {
+        console.error(`❌ Attempt ${attempt} failed:`, attemptError);
+        lastError = attemptError;
+        
+        // 마지막 시도가 아니면 재시도
+        if (attempt < 3) {
+          console.log(`🔄 Retrying in ${attempt * 1000}ms...`);
+          await new Promise(resolve => setTimeout(resolve, attempt * 1000));
+          continue;
+        }
+        
+        // 모든 시도 실패
+        console.error('🔍 All attempts failed for worldcup:', worldcupId);
+        return [];
+      }
+    }
+    
+    // 여기서 data는 성공적으로 가져온 데이터
+    if (!data) {
+      console.error('❌ No data received after all attempts');
       return [];
     }
-
-    if (!data || data.length === 0) {
-      console.log('📭 No comments found, returning empty array');
-      return [];
-    }
-
-    console.log('📝 Found', data.length, 'comments with user data in single query');
     
-    // 이미 JOIN으로 사용자 정보가 포함된 데이터 사용
     const fullData = data;
 
     // 댓글을 계층 구조로 변환

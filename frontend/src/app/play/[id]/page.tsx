@@ -8,7 +8,7 @@ import GameResult from '@/components/GameResult';
 import { getTournamentProgress, getRoundName, getCurrentMatch } from '@/utils/tournament';
 import TournamentSelector from '@/components/TournamentSelector';
 
-const GameScreen = dynamic(() => import('@/components/GameScreen'), {
+const GameScreen = dynamic(() => import('@/components/game/GameScreen'), {
   ssr: false,
   loading: () => (
     <div className="flex items-center justify-center min-h-screen">

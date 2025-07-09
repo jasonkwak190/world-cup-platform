@@ -15,6 +15,7 @@ interface WorldCupCardProps {
   isLiked?: boolean;
   isBookmarked?: boolean;
   isLoggedIn?: boolean; // 로그인 상태 추가
+  isPlayLoading?: boolean; // 시작하기 버튼 로딩 상태
   onPlay: () => void;
   onLike: () => void;
   onBookmark: () => void;
@@ -35,6 +36,7 @@ export default function WorldCupCard({
   isLiked = false,
   isBookmarked = false,
   isLoggedIn = false,
+  isPlayLoading = false,
   onPlay,
   onLike,
   onBookmark,
@@ -225,9 +227,21 @@ export default function WorldCupCard({
           <div className="flex items-stretch gap-2">
             <button
               onClick={onPlay}
-              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 px-4 rounded-lg transition-colors font-medium flex items-center justify-center h-[40px]"
+              disabled={isPlayLoading}
+              className={`flex-1 py-2.5 px-4 rounded-lg transition-colors font-medium flex items-center justify-center h-[40px] ${
+                isPlayLoading
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+              }`}
             >
-              시작하기
+              {isPlayLoading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                  로딩 중...
+                </>
+              ) : (
+                '시작하기'
+              )}
             </button>
             {onViewRanking && (
               <button

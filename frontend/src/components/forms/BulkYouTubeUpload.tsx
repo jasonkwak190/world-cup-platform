@@ -9,6 +9,7 @@ import type { WorldCupMediaItem, VideoMetadata } from '@/types/media';
 interface BulkYouTubeUploadProps {
   onVideosProcessed: (videos: WorldCupMediaItem[]) => void;
   maxVideos?: number;
+  existingVideoIds?: string[]; // 이미 등록된 비디오 ID 목록
 }
 
 interface VideoProcessingItem {
@@ -23,13 +24,15 @@ interface VideoProcessingItem {
 
 export default function BulkYouTubeUpload({ 
   onVideosProcessed, 
-  maxVideos = 64 
+  maxVideos = 64,
+  existingVideoIds = [] 
 }: BulkYouTubeUploadProps) {
   const [urls, setUrls] = useState('');
   const [videoItems, setVideoItems] = useState<VideoProcessingItem[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processedCount, setProcessedCount] = useState(0);
   const [previewVideoId, setPreviewVideoId] = useState<string | null>(null);
+  const [isTimeSettingPhase, setIsTimeSettingPhase] = useState(false); // 시간 설정 단계 여부
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // URL 텍스트에서 개별 URL 추출
@@ -56,20 +59,32 @@ export default function BulkYouTubeUpload({
       const videoId = extractVideoId(url);
       const existingItem = videoItems.find(item => extractVideoId(item.url) === videoId);
       
+      // 중복 검사: 이미 등록된 비디오인지 확인
+      const isDuplicate = existingVideoIds.includes(videoId || '');
+      
       return existingItem || {
         id: videoId || Math.random().toString(36),
         url,
-        status: 'pending' as const
+        status: isDuplicate ? 'error' as const : 'pending' as const,
+        error: isDuplicate ? '이미 등록된 동영상입니다.' : undefined
       };
     });
 
     setVideoItems(newItems);
-  }, [extractUrls, videoItems]);
+  }, [extractUrls, videoItems, existingVideoIds]);
 
   // 대량 처리 시작
   const handleBulkProcess = async () => {
     if (videoItems.length === 0) {
       alert('처리할 YouTube URL이 없습니다.');
+      return;
+    }
+    
+    // 중복이 아닌 아이템만 처리
+    const validItems = videoItems.filter(item => item.status !== 'error');
+    
+    if (validItems.length === 0) {
+      alert('처리할 수 있는 유효한 URL이 없습니다. 중복된 동영상이 있는지 확인해주세요.');
       return;
     }
 
@@ -89,17 +104,17 @@ export default function BulkYouTubeUpload({
       const youtubeService = getYouTubeService();
       console.log('🔧 YouTube Service created successfully');
       
-      // 비디오 ID 추출
-      const videoIds = videoItems
+      // 유효한 비디오 ID만 추출
+      const videoIds = validItems
         .map(item => extractVideoId(item.url))
         .filter(Boolean) as string[];
 
-      console.log(`🎥 Processing ${videoIds.length} videos in batch...`);
+      console.log(`🎥 Processing ${videoIds.length} valid videos in batch...`);
 
-      // 처리 상태를 processing으로 업데이트
+      // 유효한 아이템만 처리 상태로 업데이트 (중복 아이템은 그대로 유지)
       setVideoItems(prev => prev.map(item => ({
         ...item,
-        status: 'processing' as const
+        status: item.status === 'error' ? 'error' : 'processing' as const
       })));
 
       // 배치로 메타데이터 가져오기
@@ -107,8 +122,13 @@ export default function BulkYouTubeUpload({
       
       console.log('🎥 Batch processing result:', result);
 
-      // 결과를 상태에 반영
+      // 결과를 상태에 반영 (중복 아이템은 그대로 유지)
       const updatedItems = videoItems.map(item => {
+        // 이미 에러 상태인 아이템(중복)은 그대로 유지
+        if (item.status === 'error' && item.error === '이미 등록된 동영상입니다.') {
+          return item;
+        }
+        
         const videoId = extractVideoId(item.url);
         const successfulVideo = result.successful.find(v => v.videoId === videoId);
         const failedVideo = result.failed.find(f => f.videoId === videoId);
@@ -118,8 +138,8 @@ export default function BulkYouTubeUpload({
             ...item,
             status: 'success' as const,
             metadata: successfulVideo,
-            startTime: 0,
-            endTime: undefined
+            startTime: item.startTime || 0,
+            endTime: item.endTime
           };
         } else if (failedVideo) {
           return {
@@ -139,23 +159,8 @@ export default function BulkYouTubeUpload({
       setVideoItems(updatedItems);
       setProcessedCount(result.successful.length);
 
-      // 성공한 아이템들을 WorldCupMediaItem으로 변환하여 부모에게 전달
-      const processedVideos: WorldCupMediaItem[] = updatedItems
-        .filter(item => item.status === 'success' && item.metadata)
-        .map(item => ({
-          id: item.id,
-          title: item.metadata!.title,
-          mediaType: 'video' as const,
-          videoUrl: item.url,
-          videoId: item.metadata!.videoId,
-          videoStartTime: item.startTime || 0,
-          videoEndTime: item.endTime,
-          videoThumbnail: youtubeService.getThumbnailUrl(item.metadata!.videoId),
-          videoDuration: item.metadata!.duration,
-          videoMetadata: item.metadata
-        }));
-
-      onVideosProcessed(processedVideos);
+      // 🔄 시간 설정 단계로 전환 (바로 전달하지 않음)
+      setIsTimeSettingPhase(true);
 
     } catch (error) {
       console.error('❌ Bulk processing failed:', error);
@@ -177,6 +182,36 @@ export default function BulkYouTubeUpload({
   // 개별 아이템 삭제
   const removeItem = (itemId: string) => {
     setVideoItems(prev => prev.filter(item => item.id !== itemId));
+  };
+
+  // 🎯 최종 등록 함수
+  const handleFinalSubmit = () => {
+    const youtubeService = getYouTubeService();
+    
+    // 성공한 아이템들을 WorldCupMediaItem으로 변환하여 부모에게 전달
+    const processedVideos: WorldCupMediaItem[] = videoItems
+      .filter(item => item.status === 'success' && item.metadata)
+      .map(item => ({
+        id: item.id,
+        title: item.metadata!.title,
+        mediaType: 'video' as const,
+        videoUrl: item.url,
+        videoId: item.metadata!.videoId,
+        videoStartTime: item.startTime || 0,
+        videoEndTime: item.endTime,
+        videoThumbnail: youtubeService.getThumbnailUrl(item.metadata!.videoId),
+        videoDuration: item.metadata!.duration,
+        videoMetadata: item.metadata
+      }));
+
+    console.log('🎯 Final submission:', processedVideos);
+    onVideosProcessed(processedVideos);
+    
+    // 상태 초기화
+    setIsTimeSettingPhase(false);
+    setVideoItems([]);
+    setUrls('');
+    setProcessedCount(0);
   };
 
   // 예시 텍스트 붙여넣기
@@ -235,12 +270,19 @@ https://youtu.be/kffacxfA7G4`;
       </div>
 
       {/* URL 입력 영역 */}
-      <div className="bg-blue-50 rounded-lg p-6 text-black">
+      <div className={`rounded-lg p-6 text-black ${isTimeSettingPhase ? 'bg-gray-100' : 'bg-blue-50'}`}>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-blue-900">📝 URL 입력</h3>
+          <h3 className={`text-lg font-semibold ${isTimeSettingPhase ? 'text-gray-700' : 'text-blue-900'}`}>
+            {isTimeSettingPhase ? '📝 URL 입력 (완료)' : '📝 URL 입력'}
+          </h3>
           <button
             onClick={pasteExample}
-            className="flex items-center space-x-1 text-sm text-blue-600 hover:text-blue-800"
+            disabled={isTimeSettingPhase}
+            className={`flex items-center space-x-1 text-sm ${
+              isTimeSettingPhase 
+                ? 'text-gray-400 cursor-not-allowed' 
+                : 'text-blue-600 hover:text-blue-800'
+            }`}
           >
             <FileText className="w-4 h-4" />
             <span>예시 붙여넣기</span>
@@ -251,6 +293,7 @@ https://youtu.be/kffacxfA7G4`;
           ref={textareaRef}
           value={urls}
           onChange={handleUrlsChange}
+          disabled={isTimeSettingPhase}
           placeholder={`YouTube URL을 한 줄에 하나씩 입력하거나 복사해서 붙여넣으세요...
 
 예시:
@@ -259,12 +302,21 @@ https://youtu.be/jNQXAC9IVRw
 https://www.youtube.com/watch?v=9bZkp7q19f0
 
 혹은 여러 URL이 포함된 텍스트를 그대로 붙여넣어도 자동으로 추출됩니다.`}
-          className="w-full h-40 p-4 border border-blue-200 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className={`w-full h-40 p-4 border rounded-lg resize-none ${
+            isTimeSettingPhase 
+              ? 'border-gray-300 bg-gray-50 text-gray-500 cursor-not-allowed' 
+              : 'border-blue-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
+          }`}
         />
         
         <div className="flex items-center justify-between mt-4">
           <div className="text-sm text-blue-700">
             감지된 URL: <span className="font-semibold">{videoItems.length}개</span>
+            {videoItems.filter(item => item.status === 'error' && item.error === '이미 등록된 동영상입니다.').length > 0 && (
+              <span className="text-red-600 ml-2">
+                (중복 {videoItems.filter(item => item.status === 'error' && item.error === '이미 등록된 동영상입니다.').length}개 발견)
+              </span>
+            )}
             {videoItems.length > maxVideos && (
               <span className="text-red-600 ml-2">
                 (최대 {maxVideos}개까지만 처리됩니다)
@@ -274,13 +326,18 @@ https://www.youtube.com/watch?v=9bZkp7q19f0
           
           <button
             onClick={handleBulkProcess}
-            disabled={videoItems.length === 0 || isProcessing}
+            disabled={videoItems.length === 0 || isProcessing || isTimeSettingPhase}
             className="flex items-center space-x-2 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
             {isProcessing ? (
               <>
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 <span>처리 중... ({processedCount}/{videoItems.length})</span>
+              </>
+            ) : isTimeSettingPhase ? (
+              <>
+                <Check className="w-4 h-4" />
+                <span>처리 완료</span>
               </>
             ) : (
               <>
@@ -296,7 +353,11 @@ https://www.youtube.com/watch?v=9bZkp7q19f0
       {videoItems.length > 0 && (
         <div className="bg-white rounded-lg border p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            🎬 동영상 목록 ({videoItems.filter(item => item.status === 'success').length}/{videoItems.length}개 성공)
+            {isTimeSettingPhase ? (
+              <>⏰ 시간 구간 설정 ({videoItems.filter(item => item.status === 'success').length}/{videoItems.length}개 성공)</>
+            ) : (
+              <>🎬 동영상 목록 ({videoItems.filter(item => item.status === 'success').length}/{videoItems.length}개 성공)</>
+            )}
           </h3>
           
           <div className="space-y-4 max-h-96 overflow-y-auto">
@@ -609,18 +670,35 @@ https://www.youtube.com/watch?v=9bZkp7q19f0
             </div>
           )}
 
-          {/* 성공 요약 */}
+          {/* 성공 요약 및 최종 등록 버튼 */}
           {processedCount > 0 && (
             <div className="mt-4 p-4 bg-green-100 border border-green-200 rounded-lg">
-              <div className="flex items-center space-x-2">
-                <Check className="w-5 h-5 text-green-600" />
-                <span className="text-green-800 font-medium">
-                  {processedCount}개의 동영상이 성공적으로 처리되었습니다!
-                </span>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <Check className="w-5 h-5 text-green-600" />
+                    <span className="text-green-800 font-medium">
+                      {processedCount}개의 동영상이 성공적으로 처리되었습니다!
+                    </span>
+                  </div>
+                  <p className="text-sm text-green-700 mt-1">
+                    {isTimeSettingPhase ? 
+                      '시간 구간을 조정한 후 최종 등록을 눌러주세요.' : 
+                      '시간 구간을 설정한 후 월드컵에 추가하실 수 있습니다.'
+                    }
+                  </p>
+                </div>
+                
+                {isTimeSettingPhase && (
+                  <button
+                    onClick={handleFinalSubmit}
+                    className="flex items-center space-x-2 bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>최종 등록</span>
+                  </button>
+                )}
               </div>
-              <p className="text-sm text-green-700 mt-1">
-                시간 구간을 설정한 후 월드컵에 추가하실 수 있습니다.
-              </p>
             </div>
           )}
         </div>

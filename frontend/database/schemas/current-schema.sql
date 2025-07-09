@@ -68,6 +68,11 @@ CREATE TABLE IF NOT EXISTS worldcup_items (
     video_url TEXT,
     video_start_time INTEGER DEFAULT 0,
     video_end_time INTEGER,
+    video_id VARCHAR(20), -- YouTube video ID (11자리)
+    media_type VARCHAR(10) DEFAULT 'image', -- 'image' or 'video'
+    video_thumbnail TEXT, -- YouTube thumbnail URL
+    video_duration INTEGER, -- 비디오 길이 (초)
+    video_metadata JSONB, -- YouTube 메타데이터
     source_url TEXT,
     attribution TEXT,
     total_appearances INTEGER DEFAULT 0,

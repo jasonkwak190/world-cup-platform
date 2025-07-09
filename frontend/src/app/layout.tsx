@@ -2,8 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { GeistSans } from 'geist/font/sans';
 import { GeistMono } from 'geist/font/mono';
 import "./globals.css";
-import { AuthProvider } from "@/contexts/AuthContext";
-import ErrorBoundary from "@/components/ErrorBoundary";
+import ClientProviders from "@/components/ClientProviders";
 
 
 
@@ -59,26 +58,12 @@ export default function RootLayout({
       <body
         className={`${GeistSans.variable} ${GeistMono.variable} antialiased`}
       >
-        <AuthProvider>
-          <ErrorBoundary fallback={undefined}>
-            {children}
-          </ErrorBoundary>
-        </AuthProvider>
+        <ClientProviders>
+          {children}
+        </ClientProviders>
         <script
           dangerouslySetInnerHTML={{
             __html: `
-              // 화면 전환 오류 방지를 위한 글로벌 에러 핸들러
-              window.addEventListener('error', function(e) {
-                if (e.message.includes('reading \\'call\\'') || e.message.includes('Cannot read properties of undefined')) {
-                  console.warn('⚠️ Module loading error caught, reloading...', e.message);
-                  // 심각한 모듈 로딩 오류시에만 새로고침
-                  if (e.filename && e.filename.includes('_next/static')) {
-                    setTimeout(() => window.location.reload(), 100);
-                  }
-                  e.preventDefault();
-                  return false;
-                }
-              });
 
               // 🚀 스크롤 성능 최적화: passive 이벤트 리스너 설정 및 경고 억제
               (function() {

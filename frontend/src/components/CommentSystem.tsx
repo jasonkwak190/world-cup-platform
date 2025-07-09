@@ -251,15 +251,15 @@ export default function CommentSystem({ worldcupId, initialCommentCount: _initia
       }
       console.log('🔄 Starting to load comments for worldcup:', worldcupId);
       
-      // 타임아웃 설정 (10초)
+      // 타임아웃 설정 (20초로 증가)
       const timeout = setTimeout(() => {
         console.warn('⚠️ Comments loading timeout - showing empty state');
         if (showLoadingUI) {
           setComments([]);
           setIsLoading(false);
-          showToast('댓글 로딩이 지연되고 있습니다. 새로고침해보세요.', 'info');
+          showToast('댓글 로딩에 시간이 걸리고 있습니다. 네트워크 상태를 확인하거나 잠시 후 다시 시도해보세요.', 'warning');
         }
-      }, 10000);
+      }, 20000);
       
       const fetchedComments = await getCommentsByWorldCupId(worldcupId);
       clearTimeout(timeout);

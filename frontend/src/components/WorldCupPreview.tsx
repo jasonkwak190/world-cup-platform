@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { Play, Eye, Share2, Settings, Users, MessageCircle, Heart, Trophy, Edit3, Youtube } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import type { WorldCupMediaItem } from '@/types/media';
+import YouTubePlayer from './YouTubePlayer';
 
 // Dynamic import to prevent SSR issues
 const ImageCropper = dynamic(() => import('./ImageCropper'), {
@@ -21,6 +22,7 @@ interface WorldCupItem {
   title: string;
   image: string | File;
   description?: string;
+  videoData?: WorldCupMediaItem; // 비디오 데이터 추가
 }
 
 interface WorldCupData {
@@ -171,7 +173,7 @@ export default function WorldCupPreview({ data, onGameStateChange, onItemUpdate,
         image: video.videoThumbnail || '', // 유튜브 썸네일 사용
         description: video.videoMetadata?.channelTitle || '',
         videoData: video // 비디오 추가 정보 보관
-      } as WorldCupItem & { videoData?: WorldCupMediaItem }))
+      }))
     ];
 
     if (allItems.length >= 2) {
@@ -418,24 +420,35 @@ export default function WorldCupPreview({ data, onGameStateChange, onItemUpdate,
               <div className="flex-1 max-w-xl mx-4 cursor-pointer transition-all duration-500"
                    onClick={() => handleChoice(currentMatchItems[0])}>
                 <div className="bg-white rounded-3xl p-8 shadow-2xl hover:shadow-emerald-500/25 transition-all duration-300">
-                  {/* Item Image */}
+                  {/* Item Image/Video */}
                   <div className="aspect-square bg-gradient-to-br from-emerald-100 to-blue-100 rounded-2xl mb-4 overflow-hidden">
-                    {currentMatchItems[0].image ? (
+                    {currentMatchItems[0].videoData ? (
+                      <YouTubePlayer
+                        videoId={currentMatchItems[0].videoData.videoId!}
+                        startTime={currentMatchItems[0].videoData.videoStartTime || 0}
+                        endTime={currentMatchItems[0].videoData.videoEndTime}
+                        autoplay={false}
+                        controls={true}
+                        playInGame={true}
+                        className="w-full h-full"
+                      />
+                    ) : currentMatchItems[0].image ? (
                       <img 
                         src={getImageUrl(currentMatchItems[0].image)} 
                         alt={currentMatchItems[0].title}
                         className="w-full h-full object-cover"
                         onError={handleImageError}
                       />
-                    ) : null}
-                    <div className={`w-full h-full flex items-center justify-center ${currentMatchItems[0].image ? 'hidden' : ''}`}>
-                      <div className="text-center">
-                        <div className="text-9xl mb-2">🎭</div>
-                        <div className="text-gray-600 font-medium text-xl">
-                          {currentMatchItems[0].title}
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <div className="text-center">
+                          <div className="text-9xl mb-2">🎭</div>
+                          <div className="text-gray-600 font-medium text-xl">
+                            {currentMatchItems[0].title}
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                   
                   {/* Item Info */}
@@ -463,24 +476,35 @@ export default function WorldCupPreview({ data, onGameStateChange, onItemUpdate,
               <div className="flex-1 max-w-xl mx-4 cursor-pointer transition-all duration-500"
                    onClick={() => handleChoice(currentMatchItems[1])}>
                 <div className="bg-white rounded-3xl p-8 shadow-2xl hover:shadow-emerald-500/25 transition-all duration-300">
-                  {/* Item Image */}
+                  {/* Item Image/Video */}
                   <div className="aspect-square bg-gradient-to-br from-purple-100 to-pink-100 rounded-2xl mb-4 overflow-hidden">
-                    {currentMatchItems[1].image ? (
+                    {currentMatchItems[1].videoData ? (
+                      <YouTubePlayer
+                        videoId={currentMatchItems[1].videoData.videoId!}
+                        startTime={currentMatchItems[1].videoData.videoStartTime || 0}
+                        endTime={currentMatchItems[1].videoData.videoEndTime}
+                        autoplay={false}
+                        controls={true}
+                        playInGame={true}
+                        className="w-full h-full"
+                      />
+                    ) : currentMatchItems[1].image ? (
                       <img 
                         src={getImageUrl(currentMatchItems[1].image)} 
                         alt={currentMatchItems[1].title}
                         className="w-full h-full object-cover"
                         onError={handleImageError}
                       />
-                    ) : null}
-                    <div className={`w-full h-full flex items-center justify-center ${currentMatchItems[1].image ? 'hidden' : ''}`}>
-                      <div className="text-center">
-                        <div className="text-9xl mb-2">🎨</div>
-                        <div className="text-gray-600 font-medium text-xl">
-                          {currentMatchItems[1].title}
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <div className="text-center">
+                          <div className="text-9xl mb-2">🎨</div>
+                          <div className="text-gray-600 font-medium text-xl">
+                            {currentMatchItems[1].title}
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                   
                   {/* Item Info */}

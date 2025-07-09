@@ -7,6 +7,7 @@ import { createTournament, getCurrentMatch, selectWinner, getRoundName, getTourn
 import { getWorldCupById } from '@/utils/storage';
 import { getWorldCupById as getSupabaseWorldCupById } from '@/utils/supabaseData';
 import { withRetry } from '@/utils/supabaseConnection';
+import { YouTubeService } from '@/lib/youtube';
 
 export function usePlayPageLogic(params: Promise<{ id: string; }> | { id: string; }) {
   const router = useRouter();
@@ -54,26 +55,69 @@ export function usePlayPageLogic(params: Promise<{ id: string; }> | { id: string
           console.log('🔍 Loading worldcup from Supabase with ID:', id);
           setConnectionError(null); // 에러 초기화
           
-          const supabaseWorldCup = await withRetry(
-            () => getSupabaseWorldCupById(id),
-            `Loading worldcup ${id}`
-          );
+          // Race condition 해결을 위한 고급 재시도 로직
+          let supabaseWorldCup = null;
+          let attempts = 0;
+          const maxAttempts = 8;
+          const baseDelay = 1000;
           
-          console.log('📊 Supabase worldcup result:', supabaseWorldCup);
+          while (attempts < maxAttempts && !supabaseWorldCup) {
+            attempts++;
+            try {
+              console.log(`🔍 Attempt ${attempts}/${maxAttempts} to load worldcup...`);
+              supabaseWorldCup = await getSupabaseWorldCupById(id);
+              
+              if (supabaseWorldCup && supabaseWorldCup.items && supabaseWorldCup.items.length > 0) {
+                console.log('✅ Successfully loaded worldcup with items');
+                break;
+              } else if (supabaseWorldCup) {
+                console.log('⚠️ Worldcup loaded but no items found, retrying...');
+                supabaseWorldCup = null; // 아이템이 없으면 재시도
+              }
+            } catch (error) {
+              console.warn(`❌ Attempt ${attempts} failed:`, error);
+              supabaseWorldCup = null;
+            }
+            
+            if (attempts < maxAttempts) {
+              const delay = baseDelay * Math.pow(1.5, attempts - 1); // 지수 백오프
+              console.log(`⏱️ Waiting ${delay}ms before next attempt...`);
+              await new Promise(resolve => setTimeout(resolve, delay));
+            }
+          }
+          
+          console.log('📊 Final Supabase worldcup result:', supabaseWorldCup);
           
           if (supabaseWorldCup && supabaseWorldCup.items && supabaseWorldCup.items.length > 0) {
             console.log('✅ Supabase worldcup has items:', supabaseWorldCup.items.length);
+            
+            // 🔧 중요: supabaseData.ts에서 이미 변환된 데이터를 받으므로, 
+            // 추가 변환 없이 그대로 사용하되 tournament 로직에 맞게 id만 조정
             loadedData = {
               id: supabaseWorldCup.id,
               title: supabaseWorldCup.title,
               description: supabaseWorldCup.description,
-              items: supabaseWorldCup.items.map(item => ({
-                id: item.title, // Use title as id for consistency with tournament logic
-                title: item.title,
-                description: item.description || '',
-                image: item.image,
-                uuid: item.id, // Store actual UUID for database operations
-              })) as WorldCupItem[]
+              items: supabaseWorldCup.items.map(item => {
+                console.log('✅ Already processed item from supabaseData:', {
+                  title: item.title,
+                  mediaType: item.mediaType,
+                  hasVideoId: !!item.videoId,
+                  hasVideoUrl: !!item.videoUrl,
+                  data: {
+                    videoId: item.videoId,
+                    videoUrl: item.videoUrl,
+                    videoStartTime: item.videoStartTime,
+                    videoEndTime: item.videoEndTime
+                  }
+                });
+                
+                // 이미 처리된 데이터를 그대로 사용하되, tournament ID만 title로 설정
+                return {
+                  ...item,
+                  id: item.title, // tournament 로직을 위해 title을 id로 사용
+                  uuid: item.id, // 원본 UUID는 별도 보관
+                } as WorldCupItem;
+              })
             };
           }
         } catch (supabaseError: any) {

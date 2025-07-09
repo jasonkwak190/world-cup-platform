@@ -157,24 +157,64 @@ export default function GameScreen({ match, round, totalRounds, worldcupId, onCh
 
   // 미디어 렌더링 함수 (이미지 또는 동영상)
   const renderMediaContent = (item: WorldCupItem, gradientClass: string) => {
-    // 동영상 아이템인지 확인
-    const isVideo = item.mediaType === 'video' || (item.videoId && item.videoUrl);
+    // 🔍 더 강력한 동영상 아이템 감지 로직
+    const hasVideoUrl = !!(item.videoUrl && item.videoUrl.trim());
+    const hasVideoId = !!(item.videoId && item.videoId.trim());
+    const isVideoType = item.mediaType === 'video';
+    const hasYouTubeUrl = !!(item.videoUrl && item.videoUrl.includes('youtube.com'));
     
-    if (isVideo && item.videoId) {
+    // 여러 조건 중 하나라도 만족하면 비디오로 판단
+    const isVideo = isVideoType || hasVideoId || hasYouTubeUrl;
+    
+    // 디버깅: 모든 아이템에 대해 상세 로그
+    console.log('🔍 Media item analysis:', {
+      title: item.title,
+      mediaType: item.mediaType,
+      checks: {
+        hasVideoUrl,
+        hasVideoId,
+        isVideoType,
+        hasYouTubeUrl
+      },
+      finalIsVideo: isVideo,
+      data: {
+        videoId: item.videoId,
+        videoUrl: item.videoUrl ? item.videoUrl.substring(0, 50) + '...' : null,
+        startTime: item.videoStartTime,
+        endTime: item.videoEndTime
+      }
+    });
+    
+    if (isVideo) {
+      console.log('🎥 ✅ CONFIRMED: Rendering as video player');
+    } else {
+      console.log('🖼️ Rendering as image');
+    }
+    
+    // 🔧 긴급 처리: YouTube URL이 있지만 videoId가 없는 경우 추출 시도
+    let finalVideoId = item.videoId;
+    if (isVideo && !finalVideoId && item.videoUrl) {
+      // 간단한 YouTube ID 추출
+      const youtubeRegex = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/;
+      const match = item.videoUrl.match(youtubeRegex);
+      if (match) {
+        finalVideoId = match[1];
+        console.log('🔧 Extracted YouTube ID from URL:', finalVideoId);
+      }
+    }
+    
+    if (isVideo && finalVideoId) {
       return (
         <div className="relative w-full h-full">
           <YouTubePlayer
-            videoId={item.videoId}
+            videoId={finalVideoId}
             startTime={item.videoStartTime || 0}
             endTime={item.videoEndTime}
             autoplay={false}
             controls={true}
+            playInGame={false}
             className="w-full h-full rounded-xl"
           />
-          {/* YouTube 아이콘 오버레이 */}
-          <div className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded">
-            <Youtube className="w-4 h-4" />
-          </div>
         </div>
       );
     } else if (item.image) {

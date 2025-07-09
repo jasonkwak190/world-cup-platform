@@ -10,46 +10,67 @@ interface WorldCupItem {
   description?: string;
 }
 
+interface ThumbnailSource {
+  type: 'image' | 'video';
+  source: string | File;
+  title: string;
+}
+
 /**
- * 업로드된 이미지 중 랜덤하게 2개를 선택하여 썸네일을 생성합니다.
- * @param items 월드컵 아이템 배열
+ * 업로드된 이미지나 비디오 썸네일 중 랜덤하게 2개를 선택하여 썸네일을 생성합니다.
+ * @param items 월드컵 아이템 배열 또는 썸네일 소스 배열
  * @returns Promise<string> Base64 인코딩된 썸네일 이미지
  */
-export async function generateAutoThumbnail(items: WorldCupItem[]): Promise<string> {
+export async function generateAutoThumbnail(items: WorldCupItem[] | ThumbnailSource[]): Promise<string> {
   if (items.length < 2) {
     throw new Error('썸네일 생성을 위해서는 최소 2개의 이미지가 필요합니다.');
   }
 
   console.log('🎨 Starting auto thumbnail generation with', items.length, 'items');
 
-  // 이미지가 있는 아이템들만 필터링
-  const itemsWithImages = items.filter(item => {
-    const hasImage = item.image && 
-      (typeof item.image === 'string' || item.image instanceof File);
-    if (!hasImage) {
-      console.warn('⚠️ Item without valid image skipped:', item.title);
-    }
-    return hasImage;
-  });
+  // 새로운 ThumbnailSource 구조인지 기존 WorldCupItem 구조인지 확인
+  const isThumbnailSourceArray = items.length > 0 && 'type' in items[0];
+  let validSources: { source: string | File; title: string }[] = [];
 
-  if (itemsWithImages.length < 2) {
+  if (isThumbnailSourceArray) {
+    // 새로운 ThumbnailSource 구조
+    const thumbnailSources = items as ThumbnailSource[];
+    validSources = thumbnailSources
+      .filter(item => item.source && (typeof item.source === 'string' || item.source instanceof File))
+      .map(item => ({ source: item.source, title: item.title }));
+  } else {
+    // 기존 WorldCupItem 구조
+    const worldCupItems = items as WorldCupItem[];
+    validSources = worldCupItems
+      .filter(item => {
+        const hasImage = item.image && 
+          (typeof item.image === 'string' || item.image instanceof File);
+        if (!hasImage) {
+          console.warn('⚠️ Item without valid image skipped:', item.title);
+        }
+        return hasImage;
+      })
+      .map(item => ({ source: item.image, title: item.title }));
+  }
+
+  if (validSources.length < 2) {
     throw new Error('유효한 이미지가 있는 아이템이 2개 미만입니다.');
   }
 
   // 랜덤하게 2개 아이템 선택
-  const shuffled = [...itemsWithImages].sort(() => 0.5 - Math.random());
-  const selectedItems = shuffled.slice(0, 2);
+  const shuffled = [...validSources].sort(() => 0.5 - Math.random());
+  const selectedSources = shuffled.slice(0, 2);
   
-  console.log('🎲 Selected items for thumbnail:', selectedItems.map(item => item.title));
+  console.log('🎲 Selected sources for thumbnail:', selectedSources.map(source => source.title));
 
   try {
     // 이미지 로드
     console.log('📥 Loading images for thumbnail generation...');
     const images = await Promise.all(
-      selectedItems.map(async (item, index) => {
+      selectedSources.map(async (source, index) => {
         try {
-          console.log(`📷 Loading image ${index + 1}:`, item.title);
-          return await loadImage(item.image);
+          console.log(`📷 Loading image ${index + 1}:`, source.title);
+          return await loadImage(source.source);
         } catch (error) {
           console.error(`❌ Failed to load image ${index + 1}:`, error);
           throw error;

@@ -22,6 +22,7 @@ export default function Header({ searchQuery = '', onSearchChange, userWorldCupC
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [isFromCreateButton, setIsFromCreateButton] = useState(false);
+  const [isCreateLoading, setIsCreateLoading] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   // 외부 클릭 시 사용자 메뉴 닫기
@@ -81,7 +82,7 @@ export default function Header({ searchQuery = '', onSearchChange, userWorldCupC
     }
   };
 
-  const handleCreateClick = (e: React.MouseEvent) => {
+  const handleCreateClick = async (e: React.MouseEvent) => {
     e.preventDefault();
     
     // 로그인되지 않은 경우 로그인 모달 표시
@@ -98,8 +99,21 @@ export default function Header({ searchQuery = '', onSearchChange, userWorldCupC
       return;
     }
     
-    // 로그인된 경우 create 페이지로 이동
-    router.push('/create');
+    // 로딩 상태 시작
+    setIsCreateLoading(true);
+    
+    try {
+      // 로그인된 경우 create 페이지로 이동
+      router.push('/create');
+      
+      // 페이지 이동 후 약간의 지연
+      setTimeout(() => {
+        setIsCreateLoading(false);
+      }, 1000);
+    } catch (error) {
+      console.error('Navigation error:', error);
+      setIsCreateLoading(false);
+    }
   };
 
   return (
@@ -143,10 +157,24 @@ export default function Header({ searchQuery = '', onSearchChange, userWorldCupC
             <div className="flex items-center space-x-4">
               <button 
                 onClick={handleCreateClick}
-                className="flex items-center space-x-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors"
+                disabled={isCreateLoading}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                  isCreateLoading
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-emerald-600 hover:bg-emerald-700'
+                } text-white`}
               >
-                <Plus className="w-4 h-4" />
-                <span>만들기</span>
+                {isCreateLoading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>로딩 중...</span>
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4" />
+                    <span>만들기</span>
+                  </>
+                )}
               </button>
 
               {/* Auth Section */}

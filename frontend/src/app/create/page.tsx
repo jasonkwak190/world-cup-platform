@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import DragDropUpload from '@/components/DragDropUpload';
 import BulkYouTubeUpload from '@/components/forms/BulkYouTubeUpload';
+import YouTubeThumbnailUpload from '@/components/forms/YouTubeThumbnailUpload';
 import WorldCupPreview from '@/components/WorldCupPreview';
 import TournamentSettings from '@/components/TournamentSettings';
 import AuthModal from '@/components/AuthModal';
@@ -24,6 +25,7 @@ const ImageCropper = dynamic(() => import('@/components/ImageCropper'), {
 import { saveWorldCupToSupabase } from '@/utils/supabaseWorldCup';
 import { getUserWorldCups } from '@/utils/supabaseData';
 import { supabase } from '@/lib/supabase';
+import { convertAllBlobUrls, validateNoBlobUrls } from '@/utils/blobConverter';
 import type { WorldCupMediaItem } from '@/types/media';
 
 interface WorldCupItem {
@@ -52,6 +54,7 @@ export default function CreatePage() {
   const [isCreating, setIsCreating] = useState(false);
   const [creationProgress, setCreationProgress] = useState(0);
   const [creationStatus, setCreationStatus] = useState('');
+  const [nextButtonLoading, setNextButtonLoading] = useState(false);
   const [activeMediaTab, setActiveMediaTab] = useState<'images' | 'videos'>('images');
   const [worldCupData, setWorldCupData] = useState<WorldCupData>({
     title: '',
@@ -137,14 +140,35 @@ export default function CreatePage() {
     
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
+      // 스크롤을 맨 위로 이동
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
       router.push('/');
     }
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentStep < steps.length) {
-      setCurrentStep(currentStep + 1);
+      // 로딩 상태 시작
+      setNextButtonLoading(true);
+      
+      try {
+        // 약간의 지연 효과 (로딩 상태 시각적 피드백)
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // 유튜브만 있고 이미지가 없는 경우 이미지 편집 단계(3단계) 건너뛰기
+        if (currentStep === 2 && worldCupData.items.length === 0 && worldCupData.videoItems.length > 0) {
+          setCurrentStep(4); // 미리보기로 바로 이동
+        } else {
+          setCurrentStep(currentStep + 1);
+        }
+        
+        // 스크롤을 맨 위로 이동
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } finally {
+        // 로딩 상태 종료
+        setNextButtonLoading(false);
+      }
     }
   };
 
@@ -347,6 +371,7 @@ export default function CreatePage() {
                 <BulkYouTubeUpload
                   onVideosProcessed={handleVideosProcessed}
                   maxVideos={64}
+                  existingVideoIds={worldCupData.videoItems.map(video => video.videoId || '').filter(Boolean)}
                 />
                 
                 {/* 추가된 동영상 목록 */}
@@ -384,6 +409,15 @@ export default function CreatePage() {
                       ))}
                     </div>
                   </div>
+                )}
+
+                {/* 유튜브 전용 썸네일 업로드 */}
+                {worldCupData.videoItems.length > 0 && (
+                  <YouTubeThumbnailUpload
+                    videoItems={worldCupData.videoItems}
+                    thumbnail={worldCupData.thumbnail}
+                    onThumbnailUpload={handleThumbnailUpload}
+                  />
                 )}
               </div>
             )}
@@ -549,14 +583,21 @@ export default function CreatePage() {
               {currentStep < steps.length ? (
                 <button
                   onClick={handleNext}
-                  disabled={!canProceed()}
+                  disabled={!canProceed() || nextButtonLoading}
                   className={`px-8 py-2 rounded-lg font-medium transition-colors ${
-                    canProceed()
+                    canProceed() && !nextButtonLoading
                       ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
                       : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                   }`}
                 >
-                  다음
+                  {nextButtonLoading ? (
+                    <div className="flex items-center space-x-2">
+                      <div className="w-4 h-4 border-2 border-gray-300 border-t-transparent rounded-full animate-spin"></div>
+                      <span>로딩 중...</span>
+                    </div>
+                  ) : (
+                    '다음'
+                  )}
                 </button>
               ) : (
                 <button
@@ -588,11 +629,38 @@ export default function CreatePage() {
                         });
                       });
 
+                      // Blob URL 변환 처리
+                      setCreationProgress(5);
+                      setCreationStatus('이미지 데이터를 준비하고 있습니다...');
+                      
+                      let processedWorldCupData = worldCupData;
+                      
+                      try {
+                        // Blob URL을 File 객체로 변환
+                        processedWorldCupData = await convertAllBlobUrls(worldCupData);
+                        
+                        // 개발 환경에서 blob URL 검증
+                        if (process.env.NODE_ENV === 'development') {
+                          const hasNoBlobUrls = validateNoBlobUrls(processedWorldCupData);
+                          if (!hasNoBlobUrls) {
+                            throw new Error('Blob URL 변환이 완료되지 않았습니다.');
+                          }
+                          console.log('✅ Blob URL validation passed');
+                        }
+                        
+                        setCreationProgress(10);
+                        setCreationStatus('데이터 검증 완료, 월드컵을 생성합니다...');
+                        
+                      } catch (blobError) {
+                        console.error('❌ Blob URL conversion failed:', blobError);
+                        throw new Error(`이미지 처리 중 오류가 발생했습니다: ${blobError.message}`);
+                      }
+
                       // 월드컵 생성 완료 로직
-                      console.log('Creating worldcup:', worldCupData);
+                      console.log('Creating worldcup with converted data:', processedWorldCupData);
                       
                       // Supabase에 저장 (진행률 콜백 포함)
-                      const result = await saveWorldCupToSupabase(worldCupData, (progress, status) => {
+                      const result = await saveWorldCupToSupabase(processedWorldCupData, (progress, status) => {
                         setCreationProgress(progress);
                         setCreationStatus(status);
                       });
@@ -666,7 +734,10 @@ export default function CreatePage() {
               <p className="text-sm text-gray-500">{creationProgress}% 완료</p>
               
               <div className="mt-4 text-xs text-gray-400">
-                잠시만 기다려주세요. 이미지를 처리하고 있습니다...
+                {creationProgress < 10 ? '이미지 데이터를 준비하고 있습니다...' :
+                 creationProgress < 40 ? '월드컵 정보를 생성하고 있습니다...' :
+                 creationProgress < 90 ? '이미지를 업로드하고 있습니다...' :
+                 '월드컵 생성을 완료하고 있습니다...'}
               </div>
             </div>
           </div>

@@ -14,6 +14,7 @@ interface VirtualizedWorldCupGridProps {
   likedItems: Set<string>;
   bookmarkedItems: Set<string>;
   isLoggedIn: boolean;
+  playLoadingStates?: Set<string>;
   onPlay: (id: string) => void;
   onLike: (id: string) => void;
   onBookmark: (id: string) => void;
@@ -30,6 +31,7 @@ interface GridItemProps {
     likedItems: Set<string>;
     bookmarkedItems: Set<string>;
     isLoggedIn: boolean;
+    playLoadingStates?: Set<string>;
     onPlay: (id: string) => void;
     onLike: (id: string) => void;
     onBookmark: (id: string) => void;
@@ -45,6 +47,7 @@ const GridItem: React.FC<GridItemProps> = ({ columnIndex, rowIndex, style, data 
     likedItems,
     bookmarkedItems,
     isLoggedIn,
+    playLoadingStates,
     onPlay,
     onLike,
     onBookmark,
@@ -66,6 +69,7 @@ const GridItem: React.FC<GridItemProps> = ({ columnIndex, rowIndex, style, data 
         isLiked={likedItems.has(worldcup.id)}
         isBookmarked={bookmarkedItems.has(worldcup.id)}
         isLoggedIn={isLoggedIn}
+        isPlayLoading={playLoadingStates?.has(worldcup.id) || false}
         onPlay={() => onPlay(worldcup.id)}
         onLike={() => onLike(worldcup.id)}
         onBookmark={() => onBookmark(worldcup.id)}
@@ -83,6 +87,7 @@ export default function VirtualizedWorldCupGrid({
   likedItems,
   bookmarkedItems,
   isLoggedIn,
+  playLoadingStates = new Set(),
   onPlay,
   onLike,
   onBookmark,
@@ -126,6 +131,7 @@ export default function VirtualizedWorldCupGrid({
     likedItems,
     bookmarkedItems,
     isLoggedIn,
+    playLoadingStates,
     onPlay,
     onLike,
     onBookmark,
@@ -136,6 +142,7 @@ export default function VirtualizedWorldCupGrid({
     likedItems,
     bookmarkedItems,
     isLoggedIn,
+    playLoadingStates,
     onPlay,
     onLike,
     onBookmark,

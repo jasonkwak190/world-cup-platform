@@ -42,7 +42,7 @@ export default function WorldCupGrid({ category: _category, sortBy: _sortBy, sea
   const [isLoading, setIsLoading] = useState(true);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [loginPromptAction, setLoginPromptAction] = useState<() => void>(() => {});
-  const [commentCounts, setCommentCounts] = useState<Map<string, number>>(new Map());
+  const [playLoadingStates, setPlayLoadingStates] = useState<Set<string>>(new Set());
 
   // Supabase에서 월드컵 데이터 로드
   useEffect(() => {
@@ -438,8 +438,11 @@ export default function WorldCupGrid({ category: _category, sortBy: _sortBy, sea
   };
 
   const handlePlay = async (id: string) => {
-    // API를 통한 안전한 플레이 횟수 업데이트
+    // 로딩 상태 시작
+    setPlayLoadingStates(prev => new Set([...prev, id]));
+    
     try {
+      // API를 통한 안전한 플레이 횟수 업데이트
       const result = await incrementPlayCount(id);
       
       if (result.success && result.playCount) {
@@ -461,6 +464,15 @@ export default function WorldCupGrid({ category: _category, sortBy: _sortBy, sea
     
     // Navigate to worldcup play page using Next.js router
     router.push(`/play/${id}`);
+    
+    // 페이지 이동 후 로딩 상태 정리 (약간의 지연 후)
+    setTimeout(() => {
+      setPlayLoadingStates(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(id);
+        return newSet;
+      });
+    }, 1000);
   };
 
   const handleShare = async (id: string) => {
@@ -590,6 +602,7 @@ export default function WorldCupGrid({ category: _category, sortBy: _sortBy, sea
                 isLiked={likedItems.has(worldcup.id)}
                 isBookmarked={bookmarkedItems.has(worldcup.id)}
                 isLoggedIn={!!(user && user.id)}
+                isPlayLoading={playLoadingStates.has(worldcup.id)}
                 onPlay={() => handlePlay(worldcup.id)}
                 onLike={() => handleLike(worldcup.id)}
                 onBookmark={() => handleBookmark(worldcup.id)}

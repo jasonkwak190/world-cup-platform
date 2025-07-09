@@ -4,12 +4,10 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 
-// Redis 클라이언트 초기화 (환경변수 또는 메모리 기반)
+// Redis 클라이언트 초기화 (환경에 따라 자동 선택)
+// fromEnv()는 Edge 런타임에서는 REST API를, Node.js에서는 TCP 연결을 사용
 const redis = process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
-  ? new Redis({
-      url: process.env.UPSTASH_REDIS_REST_URL,
-      token: process.env.UPSTASH_REDIS_REST_TOKEN,
-    })
+  ? Redis.fromEnv()
   : undefined;
 
 // 개발환경에서는 메모리 기반 Rate Limiting 사용

@@ -56,24 +56,42 @@ export async function saveWorldCupToSupabase(worldCupData: any, onProgress?: (pr
       
       console.log('🎲 썸네일이 없어 자동 생성을 시도합니다...');
       
-      // 이미지가 있는 아이템들만 필터링
+      // 이미지가 있는 아이템들과 유튜브 썸네일이 있는 아이템들 수집
       const itemsWithImages = worldCupData.items?.filter((item: any) => 
         item.image && (typeof item.image === 'string' || item.image instanceof File)
       ) || [];
       
-      if (itemsWithImages.length >= 2) {
+      const videoItemsWithThumbnails = worldCupData.videoItems?.filter((item: any) => 
+        item.videoThumbnail && typeof item.videoThumbnail === 'string'
+      ) || [];
+      
+      // 이미지와 유튜브 썸네일을 통합하여 자동 썸네일 생성용 아이템 생성
+      const allThumbnailSources = [
+        ...itemsWithImages.map((item: any) => ({
+          type: 'image',
+          source: item.image,
+          title: item.title
+        })),
+        ...videoItemsWithThumbnails.map((item: any) => ({
+          type: 'video',
+          source: item.videoThumbnail,
+          title: item.title
+        }))
+      ];
+      
+      if (allThumbnailSources.length >= 2) {
         try {
           // 자동 썸네일 생성 (Base64 문자열 반환)
-          const autoThumbnail = await generateAutoThumbnail(itemsWithImages);
+          const autoThumbnail = await generateAutoThumbnail(allThumbnailSources);
           if (autoThumbnail) {
             thumbnailToUpload = autoThumbnail;
-            console.log('✅ 자동 썸네일 생성 완료');
+            console.log('✅ 자동 썸네일 생성 완료 (이미지+비디오 통합)');
           }
         } catch (error) {
           console.warn('⚠️ 자동 썸네일 생성 실패:', error);
         }
       } else {
-        console.log('ℹ️ 자동 썸네일 생성을 위한 이미지가 부족합니다 (최소 2개 필요)');
+        console.log(`ℹ️ 자동 썸네일 생성을 위한 미디어가 부족합니다 (현재 ${allThumbnailSources.length}개, 최소 2개 필요)`);
       }
     } else {
       console.log('📷 사용자가 설정한 썸네일을 사용합니다');
@@ -248,138 +266,167 @@ export async function saveWorldCupToSupabase(worldCupData: any, onProgress?: (pr
 
       console.log(`✅ ${items.length} items created`);
 
-      // 5. 이미지 아이템들만 업로드 처리 (동영상은 이미 썸네일이 설정됨)
+      // 5. 이미지 아이템들을 병렬로 처리 (동영상은 이미 썸네일이 설정됨)
       const imageItems = allMediaItems.filter(item => item.mediaType === 'image');
       const imageCount = imageItems.length;
       
       if (imageCount > 0) {
-        onProgress?.(40, `이미지를 업로드하고 있습니다... (0/${imageCount})`);
+        onProgress?.(40, `이미지를 병렬로 업로드하고 있습니다... (0/${imageCount})`);
         
-        let imageProcessedCount = 0;
+        // 이미지 아이템들만 추출하여 병렬 처리
+        const imageItemsWithRecords = allMediaItems
+          .map((item, index) => ({ item, record: items[index], index }))
+          .filter(({ item }) => item.mediaType === 'image');
         
-        for (let i = 0; i < allMediaItems.length; i++) {
-          const item = allMediaItems[i];
-          const itemRecord = items[i];
-          
-          // 동영상 아이템은 건너뛰기 (이미 썸네일이 설정됨)
-          if (item.mediaType === 'video') {
-            console.log(`🎥 Skipping video item ${i + 1}: ${item.title} (thumbnail already set)`);
-            continue;
-          }
-          
+        let processedCount = 0;
+        
+        // 병렬 처리 함수 정의
+        const processImageItem = async ({ item, record, index }: { item: any; record: any; index: number }) => {
           try {
-          
-            console.log(`🖼️ Processing image item ${i + 1}/${allMediaItems.length}: ${item.title}`);
+            console.log(`🖼️ Processing image item ${index + 1}/${allMediaItems.length}: ${item.title}`);
             
-            imageProcessedCount++;
+            let imageFile: File | null = null;
             
-            // 진행률 업데이트 (40% ~ 90% 사이에서 이미지 개수에 따라 분배)
-            const imageProgress = 40 + Math.floor((imageProcessedCount / imageCount) * 50);
-            onProgress?.(imageProgress, `이미지를 업로드하고 있습니다... (${imageProcessedCount}/${imageCount})`);
-          
-          let imageFile: File | null = null;
-          
-          if (item.image) {
-            // 🚨 DEBUG: Log the image type and value for debugging localhost issue
-            console.log(`🔍 DEBUG - Item ${i + 1} image details:`, {
-              type: typeof item.image,
-              isFile: item.image instanceof File,
-              isString: typeof item.image === 'string',
-              value: typeof item.image === 'string' ? item.image : 'File object',
-              startsWithBlob: typeof item.image === 'string' && item.image.startsWith('blob:'),
-              includesLocalhost: typeof item.image === 'string' && item.image.includes('localhost')
-            });
+            if (item.image) {
+              // 🚨 DEBUG: Log the image type and value for debugging localhost issue
+              console.log(`🔍 DEBUG - Item ${index + 1} image details:`, {
+                type: typeof item.image,
+                isFile: item.image instanceof File,
+                isString: typeof item.image === 'string',
+                value: typeof item.image === 'string' ? item.image : 'File object',
+                startsWithBlob: typeof item.image === 'string' && item.image.startsWith('blob:'),
+                includesLocalhost: typeof item.image === 'string' && item.image.includes('localhost')
+              });
 
-            if (item.image instanceof File) {
-              // 이미 File 객체인 경우
-              imageFile = item.image;
-              console.log(`📁 Using File object for item ${i + 1}`);
-            } else if (typeof item.image === 'string') {
-              // 🚨 CRITICAL: Check for blob URLs that might be causing localhost issues
-              if (item.image.startsWith('blob:')) {
-                console.error(`❌ FOUND BLOB URL IN SAVE PROCESS for item ${i + 1}: ${item.image}`);
-                console.error('❌ This should not happen - blob URLs should not reach the save process');
-                console.error('❌ Blob URLs are for display only and should be converted to File objects');
-                // Skip this item to prevent storing blob URLs
-                console.warn(`⚠️ Skipping item ${i + 1} due to blob URL`);
-                continue;
-              }
+              if (item.image instanceof File) {
+                // 이미 File 객체인 경우
+                imageFile = item.image;
+                console.log(`📁 Using File object for item ${index + 1}`);
+              } else if (typeof item.image === 'string') {
+                // 🚨 CRITICAL: Check for blob URLs that might be causing localhost issues
+                if (item.image.startsWith('blob:')) {
+                  console.error(`❌ FOUND BLOB URL IN SAVE PROCESS for item ${index + 1}: ${item.image}`);
+                  console.error('❌ This should not happen - blob URLs should not reach the save process');
+                  console.error('❌ Blob URLs are for display only and should be converted to File objects');
+                  // Skip this item to prevent storing blob URLs
+                  console.warn(`⚠️ Skipping item ${index + 1} due to blob URL`);
+                  throw new Error(`Blob URL detected for item ${index + 1}: ${item.title}`);
+                }
 
-              if (item.image.includes('localhost')) {
-                console.error(`❌ FOUND LOCALHOST URL IN SAVE PROCESS for item ${i + 1}: ${item.image}`);
-                console.error('❌ This should not happen - localhost URLs should not be in the data');
-                // Skip this item to prevent storing localhost URLs
-                console.warn(`⚠️ Skipping item ${i + 1} due to localhost URL`);
-                continue;
-              }
+                if (item.image.includes('localhost')) {
+                  console.error(`❌ FOUND LOCALHOST URL IN SAVE PROCESS for item ${index + 1}: ${item.image}`);
+                  console.error('❌ This should not happen - localhost URLs should not be in the data');
+                  // Skip this item to prevent storing localhost URLs
+                  console.warn(`⚠️ Skipping item ${index + 1} due to localhost URL`);
+                  throw new Error(`Localhost URL detected for item ${index + 1}: ${item.title}`);
+                }
 
-              if (item.image.startsWith('data:image/')) {
-                // Base64 이미지인 경우
-                console.log(`🔤 Converting base64 to file for item ${i + 1}`);
-                imageFile = convertBase64ToFile(item.image, `item_${i + 1}.jpg`);
-              } else if (isValidImageUrl(item.image)) {
-                // URL 이미지인 경우 - 먼저 Supabase Storage 업로드 시도, 실패하면 URL 그대로 저장
-                console.log(`🌐 Processing URL for item ${i + 1}: ${item.image.substring(0, 50)}...`);
-                
-                try {
-                  // 이미지 로드 테스트
-                  const canLoad = await testImageLoad(item.image);
-                  if (!canLoad) {
-                    console.warn(`⚠️ Cannot load image from URL for item ${i + 1}, storing URL directly...`);
-                    // URL 그대로 저장
+                if (item.image.startsWith('data:image/')) {
+                  // Base64 이미지인 경우
+                  console.log(`🔤 Converting base64 to file for item ${index + 1}`);
+                  imageFile = convertBase64ToFile(item.image, `item_${index + 1}.jpg`);
+                } else if (isValidImageUrl(item.image)) {
+                  // URL 이미지인 경우 - 먼저 Supabase Storage 업로드 시도, 실패하면 URL 그대로 저장
+                  console.log(`🌐 Processing URL for item ${index + 1}: ${item.image.substring(0, 50)}...`);
+                  
+                  try {
+                    // 이미지 로드 테스트
+                    const canLoad = await testImageLoad(item.image);
+                    if (!canLoad) {
+                      console.warn(`⚠️ Cannot load image from URL for item ${index + 1}, storing URL directly...`);
+                      // URL 그대로 저장
+                      await supabase
+                        .from('worldcup_items')
+                        .update({ image_url: item.image })
+                        .eq('id', record.id);
+                      console.log(`💾 Item ${index + 1} URL stored directly`);
+                      return { success: true, itemId: record.id };
+                    }
+                    
+                    imageFile = await urlToFile(item.image, `item_${index + 1}.jpg`);
+                  } catch (urlError) {
+                    console.warn(`⚠️ Failed to convert URL for item ${index + 1}:`, urlError);
+                    
+                    // CORS 블록되거나 다른 이유로 실패한 경우 URL 그대로 저장
+                    console.log(`💾 Storing original URL for item ${index + 1} due to conversion failure`);
                     await supabase
                       .from('worldcup_items')
                       .update({ image_url: item.image })
-                      .eq('id', itemRecord.id);
-                    console.log(`💾 Item ${i + 1} URL stored directly`);
-                    continue;
+                      .eq('id', record.id);
+                    console.log(`✅ Item ${index + 1} URL stored directly (fallback)`);
+                    return { success: true, itemId: record.id };
                   }
-                  
-                  imageFile = await urlToFile(item.image, `item_${i + 1}.jpg`);
-                } catch (urlError) {
-                  console.warn(`⚠️ Failed to convert URL for item ${i + 1}:`, urlError);
-                  
-                  // CORS 블록되거나 다른 이유로 실패한 경우 URL 그대로 저장
-                  console.log(`💾 Storing original URL for item ${i + 1} due to conversion failure`);
-                  await supabase
-                    .from('worldcup_items')
-                    .update({ image_url: item.image })
-                    .eq('id', itemRecord.id);
-                  console.log(`✅ Item ${i + 1} URL stored directly (fallback)`);
-                  continue;
+                } else {
+                  console.warn(`⚠️ Invalid image format for item ${index + 1}: ${typeof item.image}`);
+                  throw new Error(`Invalid image format for item ${index + 1}: ${item.title}`);
                 }
-              } else {
-                console.warn(`⚠️ Invalid image format for item ${i + 1}: ${typeof item.image}`);
-                continue;
               }
             }
             
             if (imageFile) {
-              console.log(`📤 Uploading image for item ${i + 1}:`, {
+              console.log(`📤 Uploading image for item ${index + 1}:`, {
                 name: imageFile.name,
                 size: imageFile.size,
                 type: imageFile.type
               });
               
-              const imageResult = await uploadWorldCupItemImage(imageFile, worldCup.id, itemRecord.id);
+              const imageResult = await uploadWorldCupItemImage(imageFile, worldCup.id, record.id);
               if (imageResult.success) {
                 await supabase
                   .from('worldcup_items')
                   .update({ image_url: imageResult.url })
-                  .eq('id', itemRecord.id);
-                console.log(`✅ Item ${i + 1} image uploaded successfully`);
+                  .eq('id', record.id);
+                console.log(`✅ Item ${index + 1} image uploaded successfully`);
+                return { success: true, itemId: record.id };
               } else {
-                console.error(`❌ Item ${i + 1} image upload failed:`, imageResult.error);
+                console.error(`❌ Item ${index + 1} image upload failed:`, imageResult.error);
+                throw new Error(`Image upload failed for item ${index + 1}: ${imageResult.error}`);
               }
+            } else {
+              console.log(`ℹ️ No image provided for item ${index + 1}`);
+              return { success: true, itemId: record.id };
             }
-          } else {
-            console.log(`ℹ️ No image provided for item ${i + 1}`);
-          }
           } catch (error) {
-            console.error(`❌ Item ${i + 1} image processing error:`, error);
-            // 개별 이미지 실패는 전체 프로세스를 중단하지 않음
+            console.error(`❌ Item ${index + 1} image processing error:`, error);
+            throw error;
+          }
+        };
+        
+        // 병렬 처리 실행 (최대 5개씩 동시 처리)
+        const batchSize = 5;
+        const results = [];
+        
+        for (let i = 0; i < imageItemsWithRecords.length; i += batchSize) {
+          const batch = imageItemsWithRecords.slice(i, i + batchSize);
+          
+          try {
+            const batchResults = await Promise.allSettled(
+              batch.map(processImageItem)
+            );
+            
+            results.push(...batchResults);
+            
+            // 진행률 업데이트
+            const completedBatches = Math.min(i + batchSize, imageItemsWithRecords.length);
+            const progress = 40 + Math.floor((completedBatches / imageItemsWithRecords.length) * 50);
+            onProgress?.(progress, `이미지 업로드 중... (${completedBatches}/${imageItemsWithRecords.length})`);
+            
+          } catch (batchError) {
+            console.error(`❌ Batch ${i / batchSize + 1} processing error:`, batchError);
+            // 개별 배치 실패는 전체 프로세스를 중단하지 않음
           }
         }
+        
+        // 결과 로깅
+        const successCount = results.filter(r => r.status === 'fulfilled').length;
+        const failedCount = results.filter(r => r.status === 'rejected').length;
+        
+        console.log(`✅ Image processing completed: ${successCount} successful, ${failedCount} failed`);
+        
+        if (failedCount > 0) {
+          console.warn(`⚠️ ${failedCount} images failed to process, but continuing with successful ones`);
+        }
+        
       } else {
         console.log('ℹ️ No image items to process, only videos present');
       }
