@@ -95,68 +95,285 @@ export default function YouTubeThumbnailUpload({
       // 각 이미지의 크기 (좌우 분할)
       const halfWidth = thumbnailWidth / 2;
 
-      // 첫 번째 이미지 로드
+      // CORS 문제를 해결하기 위해 프록시를 통해 이미지 로드
       const img1 = new Image();
-      img1.crossOrigin = 'anonymous';
-      
-      const img1Promise = new Promise<void>((resolve, reject) => {
-        img1.onload = () => resolve();
-        img1.onerror = () => reject(new Error('첫 번째 이미지 로드 실패'));
-        img1.src = selectedVideos[0].videoThumbnail!;
-      });
-
-      // 두 번째 이미지 로드
       const img2 = new Image();
+      
+      // CORS 설정
+      img1.crossOrigin = 'anonymous';
       img2.crossOrigin = 'anonymous';
       
+      const img1Promise = new Promise<void>((resolve, reject) => {
+        img1.onload = () => {
+          console.log('✅ 첫 번째 이미지 로드 성공:', {
+            width: img1.width,
+            height: img1.height,
+            naturalWidth: img1.naturalWidth,
+            naturalHeight: img1.naturalHeight
+          });
+          resolve();
+        };
+        img1.onerror = () => {
+          console.error('❌ 첫 번째 이미지 로드 실패:', selectedVideos[0].videoThumbnail);
+          reject(new Error(`프록시 이미지 로드 실패: ${selectedVideos[0].videoThumbnail!}`));
+        };
+        // 프록시를 통해 이미지 로드 (CORS 회피)
+        const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(selectedVideos[0].videoThumbnail!)}`;
+        console.log('🔗 프록시 URL 1:', proxyUrl);
+        img1.src = proxyUrl;
+      });
+
       const img2Promise = new Promise<void>((resolve, reject) => {
-        img2.onload = () => resolve();
-        img2.onerror = () => reject(new Error('두 번째 이미지 로드 실패'));
-        img2.src = selectedVideos[1].videoThumbnail!;
+        img2.onload = () => {
+          console.log('✅ 두 번째 이미지 로드 성공:', {
+            width: img2.width,
+            height: img2.height,
+            naturalWidth: img2.naturalWidth,
+            naturalHeight: img2.naturalHeight
+          });
+          resolve();
+        };
+        img2.onerror = () => {
+          console.error('❌ 두 번째 이미지 로드 실패:', selectedVideos[1].videoThumbnail);
+          reject(new Error(`프록시 이미지 로드 실패: ${selectedVideos[1].videoThumbnail!}`));
+        };
+        // 프록시를 통해 이미지 로드 (CORS 회피)
+        const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(selectedVideos[1].videoThumbnail!)}`;
+        console.log('🔗 프록시 URL 2:', proxyUrl);
+        img2.src = proxyUrl;
       });
 
       // 두 이미지 모두 로드 완료 대기
       await Promise.all([img1Promise, img2Promise]);
 
+      // 이미지 로드 상태 검증
+      if (!img1.complete || !img2.complete || img1.naturalWidth === 0 || img2.naturalWidth === 0) {
+        throw new Error('이미지 로드가 완료되지 않았습니다.');
+      }
+
+      console.log('🖼️ Image dimensions:', {
+        img1: { width: img1.width, height: img1.height, naturalWidth: img1.naturalWidth, naturalHeight: img1.naturalHeight },
+        img2: { width: img2.width, height: img2.height, naturalWidth: img2.naturalWidth, naturalHeight: img2.naturalHeight },
+        canvas: { width: thumbnailWidth, height: thumbnailHeight }
+      });
+
       // 배경색 설정
       ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, thumbnailWidth, thumbnailHeight);
 
-      // 첫 번째 이미지 (왼쪽)
-      ctx.drawImage(img1, 0, 0, halfWidth, thumbnailHeight);
+      try {
+        // 첫 번째 이미지 (왼쪽) - 정확히 반반 분할, 비율 무시하고 꽉 채우기
+        const img1Width = img1.naturalWidth || img1.width;
+        const img1Height = img1.naturalHeight || img1.height;
+        
+        if (img1Width <= 0 || img1Height <= 0) {
+          throw new Error(`첫 번째 이미지 크기가 유효하지 않습니다: ${img1Width}x${img1Height}`);
+        }
+        
+        // 왼쪽 절반 영역 (0, 0, halfWidth, thumbnailHeight)에 꽉 채우기
+        console.log('🎨 Drawing img1 (left half):', {
+          original: { width: img1Width, height: img1Height },
+          drawArea: { x: 0, y: 0, width: halfWidth, height: thumbnailHeight }
+        });
+        
+        ctx.drawImage(img1, 0, 0, halfWidth, thumbnailHeight);
 
-      // 두 번째 이미지 (오른쪽)
-      ctx.drawImage(img2, halfWidth, 0, halfWidth, thumbnailHeight);
+        // 두 번째 이미지 (오른쪽) - 정확히 반반 분할, 비율 무시하고 꽉 채우기
+        const img2Width = img2.naturalWidth || img2.width;
+        const img2Height = img2.naturalHeight || img2.height;
+        
+        if (img2Width <= 0 || img2Height <= 0) {
+          throw new Error(`두 번째 이미지 크기가 유효하지 않습니다: ${img2Width}x${img2Height}`);
+        }
+        
+        // 오른쪽 절반 영역 (halfWidth, 0, halfWidth, thumbnailHeight)에 꽉 채우기
+        console.log('🎨 Drawing img2 (right half):', {
+          original: { width: img2Width, height: img2Height },
+          drawArea: { x: halfWidth, y: 0, width: halfWidth, height: thumbnailHeight }
+        });
+        
+        ctx.drawImage(img2, halfWidth, 0, halfWidth, thumbnailHeight);
+        
+      } catch (drawError) {
+        console.error('❌ Canvas drawing error:', drawError);
+        throw new Error(`이미지 그리기 실패: ${drawError.message}`);
+      }
 
-      // 중앙에 VS 텍스트 추가
-      const centerX = thumbnailWidth / 2;
-      const centerY = thumbnailHeight / 2;
+      console.log('🎨 Canvas drawing completed - no VS text needed');
+
+      // Canvas 데이터를 검증하고 Blob으로 변환
+      console.log('🔍 Canvas validation:', {
+        width: canvas.width,
+        height: canvas.height,
+        data: ctx.getImageData(0, 0, 10, 10).data.slice(0, 16) // 첫 4픽셀 데이터 확인
+      });
       
-      // VS 배경 원
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, 30, 0, 2 * Math.PI);
-      ctx.fill();
-
-      // VS 텍스트
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 20px Arial';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('VS', centerX, centerY);
-
-      // Canvas를 Blob으로 변환
-      canvas.toBlob((blob) => {
-        if (blob && onThumbnailUpload) {
-          // Blob을 File 객체로 변환
-          const file = new File([blob], 'auto-thumbnail.png', { type: 'image/png' });
+      // Canvas를 Data URL로도 테스트
+      const dataUrl = canvas.toDataURL('image/png');
+      console.log('🔍 Canvas toDataURL test:', {
+        dataUrlLength: dataUrl.length,
+        dataUrlStart: dataUrl.substring(0, 50),
+        isValidDataUrl: dataUrl.startsWith('data:image/png;base64,')
+      });
+      
+      // Canvas toBlob 대신 toDataURL을 사용해서 JSON 문제 우회
+      try {
+        const dataUrl = canvas.toDataURL('image/png');
+        console.log('🔄 Using toDataURL instead of toBlob to avoid JSON issue');
+        
+        // DataURL을 File 객체로 변환
+        const base64Data = dataUrl.split(',')[1];
+        const byteCharacters = atob(base64Data);
+        const byteNumbers = new Array(byteCharacters.length);
+        
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'image/png' });
+        const file = new File([blob], 'auto-thumbnail.png', { 
+          type: 'image/png',
+          lastModified: Date.now()
+        });
+        
+        console.log('✅ DataURL to File conversion successful:', {
+          fileName: file.name,
+          fileType: file.type,
+          fileSize: file.size,
+          sizeKB: Math.round(file.size / 1024)
+        });
+        
+        if (onThumbnailUpload) {
           onThumbnailUpload(file);
-          console.log('✅ Auto thumbnail generated successfully');
+        }
+        setIsGenerating(false);
+        
+      } catch (dataUrlError) {
+        console.error('❌ DataURL conversion failed, fallback to toBlob:', dataUrlError);
+        
+        // 폴백: 원래 toBlob 방식
+        canvas.toBlob((blob) => {
+        if (blob && blob.size > 0 && onThumbnailUpload) {
+          // Blob 유효성 재검증
+          console.log('🔍 Blob validation:', {
+            type: blob.type,
+            size: blob.size,
+            constructor: blob.constructor.name
+          });
+          
+          // Blob 내용을 직접 확인
+          const blobReader = new FileReader();
+          blobReader.onload = (e) => {
+            const arrayBuffer = e.target?.result as ArrayBuffer;
+            if (arrayBuffer) {
+              const bytes = new Uint8Array(arrayBuffer);
+              const isPNG = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47;
+              
+              // 첫 100바이트를 문자열로 변환해서 JSON 여부 확인
+              const firstBytesAsString = new TextDecoder('utf-8', { fatal: false }).decode(bytes.slice(0, 100));
+              const looksLikeJSON = firstBytesAsString.includes('{') || firstBytesAsString.includes('[');
+              
+              console.log('🔍 RAW Blob content validation:', {
+                isPNG,
+                firstBytes: Array.from(bytes.slice(0, 16)).map(b => '0x' + b.toString(16).padStart(2, '0')),
+                size: arrayBuffer.byteLength,
+                looksLikeJSON,
+                firstBytesAsString: firstBytesAsString.substring(0, 50)
+              });
+              
+              if (!isPNG) {
+                console.error('❌ Canvas toBlob produced invalid PNG data!');
+                if (looksLikeJSON) {
+                  console.error('❌ Canvas toBlob produced JSON data instead of PNG!');
+                }
+              }
+            }
+          };
+          blobReader.readAsArrayBuffer(blob);
+          
+          // Blob 타입이 올바르지 않으면 새로 생성
+          let correctBlob = blob;
+          if (blob.type !== 'image/png') {
+            console.log('🔧 Fixing blob type from', blob.type, 'to image/png');
+            correctBlob = new Blob([blob], { type: 'image/png' });
+          }
+          
+          // Blob을 File 객체로 변환 (PNG 확장자 사용)
+          // Content-Type 강제 설정으로 application/json 문제 해결
+          const file = new File([correctBlob], 'auto-thumbnail.png', { 
+            type: 'image/png',
+            lastModified: Date.now()
+          });
+          
+          // File 객체의 타입이 제대로 설정되었는지 확인
+          console.log('🔍 File object type verification:', {
+            fileName: file.name,
+            fileType: file.type,
+            blobType: blob.type,
+            typeMatch: file.type === 'image/png',
+            isCorrectType: file.type === 'image/png' && blob.type === 'image/png'
+          });
+          
+          // File 객체 검증
+          console.log('✅ Auto thumbnail generated:', {
+            fileName: file.name,
+            fileType: file.type,
+            fileSize: file.size,
+            sizeKB: Math.round(file.size / 1024),
+            canvasSize: { width: canvas.width, height: canvas.height },
+            blobValid: blob.size > 0,
+            fileConstructor: file.constructor.name,
+            lastModified: file.lastModified
+          });
+          
+          // File을 다시 Blob으로 변환해서 검증
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const arrayBuffer = e.target?.result as ArrayBuffer;
+            if (arrayBuffer) {
+              const bytes = new Uint8Array(arrayBuffer);
+              const isPNG = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47;
+              
+              // 첫 100바이트를 문자열로 변환해서 JSON 여부 확인
+              const firstBytesAsString = new TextDecoder('utf-8', { fatal: false }).decode(bytes.slice(0, 100));
+              const looksLikeJSON = firstBytesAsString.includes('{') || firstBytesAsString.includes('[');
+              
+              console.log('🔍 File format validation:', {
+                isPNG,
+                firstBytes: Array.from(bytes.slice(0, 8)).map(b => '0x' + b.toString(16).padStart(2, '0')),
+                size: arrayBuffer.byteLength,
+                looksLikeJSON,
+                firstBytesAsString: firstBytesAsString.substring(0, 50)
+              });
+              
+              if (!isPNG) {
+                console.error('❌ Generated file is not a valid PNG!');
+                if (looksLikeJSON) {
+                  console.error('❌ File appears to be JSON data instead of PNG!');
+                }
+                alert('생성된 파일이 올바른 PNG 형식이 아닙니다.');
+                setIsGenerating(false);
+                return;
+              }
+            }
+          };
+          reader.readAsArrayBuffer(file);
+          
+          onThumbnailUpload(file);
         } else {
+          console.error('❌ Canvas toBlob failed - blob is null, undefined, or empty:', {
+            blob: !!blob,
+            size: blob?.size || 0
+          });
           throw new Error('썸네일 생성에 실패했습니다.');
         }
         setIsGenerating(false);
-      }, 'image/png', 0.9);
+        }, 'image/png'); // PNG 무손실 포맷 사용
+        
+        // Canvas toBlob 호출 후 추가 검증
+        console.log('🔍 Canvas toBlob call completed with PNG type');
+      } // dataUrlError catch 블록 끝
 
     } catch (error) {
       console.error('❌ Auto thumbnail generation failed:', error);

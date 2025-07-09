@@ -5,6 +5,32 @@ import type { WorldCupMediaItem, VideoMetadata } from '@/types/media';
 import { withRetry } from './supabaseConnection';
 import { cache } from './cache';
 
+// Storage URL에서 파일 경로를 추출하는 헬퍼 함수
+function extractStoragePath(url: string, bucket: string): string | null {
+  if (!url) return null;
+  
+  try {
+    // Supabase Storage URL 패턴: /storage/v1/object/public/{bucket}/{path}
+    const pathSegment = `/storage/v1/object/public/${bucket}/`;
+    
+    if (url.includes(pathSegment)) {
+      const pathStart = url.indexOf(pathSegment) + pathSegment.length;
+      const path = url.substring(pathStart).split('?')[0]; // 쿼리 파라미터 제거
+      return decodeURIComponent(path);
+    }
+    
+    // 상대 경로인 경우 (예: "worldcup-id/thumbnail.png")
+    if (!url.startsWith('http')) {
+      return url;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error extracting storage path:', error);
+    return null;
+  }
+}
+
 // 월드컵 목록 가져오기 (RLS 정책 사용) - 성능 최적화 및 재시도 로직
 export async function getWorldCups() {
   const cacheKey = 'worldcups_list';
@@ -454,9 +480,14 @@ export async function updateWorldCupStats(id: string, stats: { participants?: nu
   }
 }
 
-// 🗑️ 강화된 월드컵 완전 삭제 함수
-export async function deleteWorldCup(id: string) {
+// 🗑️ 월드컵 완전 삭제 - 직접 Storage 스캔 방식
+export async function deleteWorldCup(id: string): Promise<{
+  success: boolean;
+  error?: string;
+  storageErrors?: string[];
+}> {
   try {
+    const startTime = Date.now();
     console.log('🗑️ Starting complete worldcup deletion:', id);
     
     // 1. 먼저 월드컵 데이터 조회하여 존재 여부 확인
@@ -468,7 +499,10 @@ export async function deleteWorldCup(id: string) {
 
     if (fetchError || !worldcup) {
       console.error('❌ Worldcup not found:', fetchError);
-      return false;
+      return {
+        success: false,
+        error: 'Worldcup not found or could not be fetched'
+      };
     }
 
     console.log('📋 Found worldcup to delete:', {
@@ -477,90 +511,223 @@ export async function deleteWorldCup(id: string) {
       hasThumbnail: !!worldcup.thumbnail_url
     });
 
-    // 2. 아이템들과 연결된 이미지 URL들 조회
-    const { data: items, error: itemsError } = await supabase
-      .from('worldcup_items')
-      .select('id, title, image_url')
-      .eq('worldcup_id', id);
-
-    if (itemsError) {
-      console.warn('⚠️ Error fetching items for deletion:', itemsError);
-    } else {
-      console.log(`📊 Found ${items?.length || 0} items to delete`);
-    }
-
-    // 3. Storage에서 관련 파일들 완전 삭제
+    // 2. 직접 Storage 스캔으로 실제 파일들 찾기
     let storageDeleteCount = 0;
+    let storageDeleteErrors: string[] = [];
+    const filesToDelete: { bucket: string; path: string }[] = [];
     
     try {
-      // 썸네일 삭제 (모든 가능한 확장자 시도)
-      const thumbnailExtensions = ['webp', 'jpg', 'jpeg', 'png', 'gif'];
-      console.log('🖼️ Deleting thumbnails...');
+      console.log('🔍 Scanning Storage for actual files...');
       
-      for (const ext of thumbnailExtensions) {
-        const { error } = await supabase.storage
+      // 썸네일 타입 체크 및 Storage 스캔 여부 결정
+      const isExternalThumbnail = worldcup.thumbnail_url && 
+        (worldcup.thumbnail_url.startsWith('http') && 
+         !worldcup.thumbnail_url.includes('supabase.co/storage'));
+      
+      console.log('🔍 Thumbnail URL analysis:', {
+        thumbnailUrl: worldcup.thumbnail_url,
+        isExternalThumbnail,
+        startsWithHttp: worldcup.thumbnail_url?.startsWith('http'),
+        includesSupabaseStorage: worldcup.thumbnail_url?.includes('supabase.co/storage')
+      });
+      
+      if (isExternalThumbnail) {
+        console.log('🌐 Thumbnail is external URL (likely YouTube), skipping Storage scan for thumbnail');
+        console.log('📄 External thumbnail URL:', worldcup.thumbnail_url);
+      } else {
+        console.log('🏠 Thumbnail is likely in Storage, proceeding with scan...');
+        // 썸네일 스캔 - worldcup-thumbnails 버킷에서 해당 월드컵 ID 폴더 내 모든 파일 찾기
+        console.log(`🔍 Scanning 'worldcup-thumbnails' bucket for folder: ${id}`);
+        const { data: thumbnailFiles, error: thumbnailScanError } = await supabase.storage
           .from('worldcup-thumbnails')
-          .remove([`${id}/thumbnail.${ext}`]);
+          .list(id);
         
-        if (!error) {
-          storageDeleteCount++;
-          console.log(`✅ Deleted thumbnail: ${id}/thumbnail.${ext}`);
-        }
-      }
-      
-      // 아이템 이미지들 삭제 - 더 철저한 방식
-      console.log('🗂️ Deleting item images...');
-      
-      // 1) Storage에서 파일 목록 가져오기
-      const { data: files, error: listError } = await supabase.storage
-        .from('worldcup-images')
-        .list(`${id}/items`);
-
-      if (listError) {
-        console.warn('⚠️ Error listing files:', listError);
-      } else if (files && files.length > 0) {
-        console.log(`📁 Found ${files.length} files in storage`);
-        
-        const filePaths = files.map(file => `${id}/items/${file.name}`);
-        const { data: deleteResult, error: deleteError } = await supabase.storage
-          .from('worldcup-images')
-          .remove(filePaths);
-        
-        if (deleteError) {
-          console.error('❌ Storage deletion error:', deleteError);
+        if (thumbnailScanError) {
+          console.warn('⚠️ Error scanning thumbnails:', thumbnailScanError);
         } else {
-          storageDeleteCount += filePaths.length;
-          console.log(`✅ Deleted ${filePaths.length} item images from storage`);
-        }
-      }
-      
-      // 2) DB에서 참조하는 이미지들도 개별적으로 삭제 시도
-      if (items && items.length > 0) {
-        for (const item of items) {
-          if (item.image_url && item.image_url.includes('supabase')) {
-            // Supabase URL에서 파일 경로 추출
-            const pathMatch = item.image_url.match(/\/storage\/v1\/object\/public\/worldcup-images\/(.+)/);
-            if (pathMatch) {
-              const filePath = pathMatch[1];
-              const { error } = await supabase.storage
-                .from('worldcup-images')
-                .remove([filePath]);
-              
-              if (!error) {
-                console.log(`✅ Deleted individual file: ${filePath}`);
-                storageDeleteCount++;
-              }
-            }
+          console.log(`📸 Thumbnail scan result: ${thumbnailFiles?.length || 0} files found`);
+          if (thumbnailFiles && thumbnailFiles.length > 0) {
+            console.log('📸 Found thumbnail files:', thumbnailFiles.map(f => ({
+              name: f.name,
+              id: f.id,
+              size: f.metadata?.size
+            })));
+            thumbnailFiles.forEach(file => {
+              filesToDelete.push({ bucket: 'worldcup-thumbnails', path: `${id}/${file.name}` });
+            });
+          } else {
+            console.log('📸 No thumbnail files found in Storage folder');
           }
         }
       }
       
-      console.log(`✅ Storage cleanup completed. Total files deleted: ${storageDeleteCount}`);
+      // 아이템 이미지 스캔 전에 실제 Storage 파일 여부 확인
+      console.log('🔍 Checking item image types (Storage files vs external URLs)...');
+      
+      // 월드컵 아이템들 조회하여 이미지 타입 분석
+      const { data: itemsData, error: itemsError } = await supabase
+        .from('worldcup_items')
+        .select('id, title, image_url, media_type, video_thumbnail')
+        .eq('worldcup_id', id);
+      
+      if (itemsError) {
+        console.warn('⚠️ Error fetching items for storage analysis:', itemsError);
+      } else if (itemsData && itemsData.length > 0) {
+        let storageImageCount = 0;
+        let externalImageCount = 0;
+        
+        itemsData.forEach(item => {
+          if (item.image_url) {
+            const isExternalImage = item.image_url.startsWith('http') && 
+              !item.image_url.includes('supabase.co/storage');
+            
+            if (isExternalImage) {
+              externalImageCount++;
+              console.log(`🌐 External image detected: ${item.title} (${item.media_type || 'image'})`);
+            } else {
+              storageImageCount++;
+            }
+          }
+        });
+        
+        console.log(`📊 Image analysis: ${storageImageCount} Storage files, ${externalImageCount} external URLs`);
+        
+        // Storage 파일이 있는 경우에만 스캔 실행
+        if (storageImageCount > 0) {
+          console.log('📂 Scanning Storage for actual image files...');
+          
+          const { data: imageFiles, error: imageScanError } = await supabase.storage
+            .from('worldcup-images')
+            .list(id, { limit: 1000 }); // 많은 파일 대비
+          
+          if (imageScanError) {
+            console.warn('⚠️ Error scanning images:', imageScanError);
+          } else if (imageFiles && imageFiles.length > 0) {
+            console.log(`🖼️ Found ${imageFiles.length} image files/folders:`, imageFiles.map(f => f.name));
+            
+            // 폴더와 파일 모두 처리
+            for (const file of imageFiles) {
+              if (file.name === 'items') {
+                // items 폴더 내부 스캔
+                const { data: itemFiles, error: itemsScanError } = await supabase.storage
+                  .from('worldcup-images')
+                  .list(`${id}/items`);
+                
+                if (itemsScanError) {
+                  console.warn('⚠️ Error scanning items folder:', itemsScanError);
+                } else if (itemFiles && itemFiles.length > 0) {
+                  console.log(`📁 Found ${itemFiles.length} files in items folder:`, itemFiles.map(f => f.name));
+                  itemFiles.forEach(itemFile => {
+                    filesToDelete.push({ bucket: 'worldcup-images', path: `${id}/items/${itemFile.name}` });
+                  });
+                }
+              } else {
+                // 직접 파일
+                filesToDelete.push({ bucket: 'worldcup-images', path: `${id}/${file.name}` });
+              }
+            }
+          } else {
+            console.log('ℹ️ No image files found in Storage');
+          }
+        } else {
+          console.log('ℹ️ All images are external URLs (likely YouTube thumbnails), skipping Storage scan');
+        }
+      } else {
+        console.log('ℹ️ No items found or no images to process');
+      }
+      
+      console.log(`🎯 Total files to delete: ${filesToDelete.length}`);
+      filesToDelete.forEach(file => {
+        console.log(`  - ${file.bucket}: ${file.path}`);
+      });
+      
+      // 3. 실제 파일 삭제 실행
+      if (filesToDelete.length > 0) {
+        console.log('🗑️ Starting bulk file deletion...');
+        
+        // 버킷별로 그룹화해서 삭제
+        const filesByBucket = filesToDelete.reduce((acc, file) => {
+          if (!acc[file.bucket]) acc[file.bucket] = [];
+          acc[file.bucket].push(file.path);
+          return acc;
+        }, {} as Record<string, string[]>);
+        
+        for (const [bucket, paths] of Object.entries(filesByBucket)) {
+          console.log(`🗂️ Deleting ${paths.length} files from ${bucket}...`);
+          
+          // 한 번에 삭제 (Supabase Storage는 bulk 삭제 지원)
+          const { error: bulkDeleteError } = await supabase.storage
+            .from(bucket)
+            .remove(paths);
+          
+          if (bulkDeleteError) {
+            console.error(`❌ Bulk deletion failed for ${bucket}:`, bulkDeleteError);
+            storageDeleteErrors.push(`${bucket}: ${bulkDeleteError.message}`);
+          } else {
+            storageDeleteCount += paths.length;
+            console.log(`✅ Successfully deleted ${paths.length} files from ${bucket}`);
+          }
+        }
+      }
+      
+      // 4. 폴더 정리 (빈 폴더 삭제)
+      console.log('🗂️ Cleaning up empty folders...');
+      
+      // items 폴더 삭제 시도
+      const { error: itemsFolderError } = await supabase.storage
+        .from('worldcup-images')
+        .remove([`${id}/items/`]);
+      
+      if (!itemsFolderError) {
+        console.log('✅ Items folder cleaned up');
+      } else {
+        console.log('ℹ️ Items folder cleanup skipped (may not exist or not empty)');
+      }
+      
+      // 메인 폴더 삭제 시도
+      const { error: mainFolderError } = await supabase.storage
+        .from('worldcup-images')
+        .remove([`${id}/`]);
+      
+      if (!mainFolderError) {
+        console.log('✅ Main images folder cleaned up');
+      } else {
+        console.log('ℹ️ Main images folder cleanup skipped (may not exist or not empty)');
+      }
+      
+      // 썸네일 폴더 삭제 시도
+      const { error: thumbnailFolderError } = await supabase.storage
+        .from('worldcup-thumbnails')
+        .remove([`${id}/`]);
+      
+      if (!thumbnailFolderError) {
+        console.log('✅ Thumbnail folder cleaned up');
+      } else {
+        console.log('ℹ️ Thumbnail folder cleanup skipped (may not exist or not empty)');
+      }
+      
+      const elapsed = Date.now() - startTime;
+      console.log(`✅ Storage cleanup completed in ${elapsed}ms. Total files deleted: ${storageDeleteCount}`);
+      
     } catch (storageError) {
       console.error('❌ Storage cleanup failed:', storageError);
+      storageDeleteErrors.push(`Storage error: ${storageError.message}`);
     }
     
-    // 4. 데이터베이스에서 완전 삭제
+    // 🚨 중요: Storage 삭제 실패가 있으면 DB 삭제를 중단
+    if (storageDeleteErrors.length > 0) {
+      console.error('🚫 Storage deletion errors detected:', storageDeleteErrors);
+      console.error('🚫 Aborting database deletion to prevent orphaned data');
+      console.error('🚫 Please resolve Storage issues and retry deletion');
+      
+      return {
+        success: false,
+        error: `Storage deletion failed: ${storageDeleteErrors.join(', ')}`,
+        storageErrors: storageDeleteErrors
+      };
+    }
+    
+    // 5. 데이터베이스에서 완전 삭제 (Storage 삭제 성공 시에만)
     console.log('🗄️ Deleting from database...');
     
     // 먼저 월드컵 아이템들 삭제
@@ -571,6 +738,10 @@ export async function deleteWorldCup(id: string) {
 
     if (itemDeleteError) {
       console.error('❌ Error deleting worldcup items:', itemDeleteError);
+      return {
+        success: false,
+        error: `Database deletion failed: ${itemDeleteError.message}`
+      };
     } else {
       console.log('✅ Worldcup items deleted from database');
     }
@@ -583,40 +754,59 @@ export async function deleteWorldCup(id: string) {
 
     if (worldcupDeleteError) {
       console.error('❌ Error deleting worldcup from database:', worldcupDeleteError);
-      return false;
+      return {
+        success: false,
+        error: `Database deletion failed: ${worldcupDeleteError.message}`
+      };
     }
 
-    // 5. 삭제 검증
+    // 6. 삭제 검증 (에러 무시 - 삭제되어야 정상)
     console.log('🔍 Verifying deletion...');
     
-    const { data: verifyWorldcup } = await supabase
+    const { data: verifyWorldcup, error: verifyError } = await supabase
       .from('worldcups')
       .select('id')
       .eq('id', id)
-      .single();
+      .maybeSingle(); // single() 대신 maybeSingle() 사용
 
     const { data: verifyItems } = await supabase
       .from('worldcup_items')
       .select('id')
       .eq('worldcup_id', id);
 
-    if (verifyWorldcup) {
+    if (verifyWorldcup && !verifyError) {
       console.error('❌ Worldcup still exists in database!');
-      return false;
+      return {
+        success: false,
+        error: 'Verification failed: Worldcup still exists in database'
+      };
     }
 
     if (verifyItems && verifyItems.length > 0) {
       console.error('❌ Some items still exist in database!');
-      return false;
+      return {
+        success: false,
+        error: 'Verification failed: Some items still exist in database'
+      };
     }
 
-    console.log('🎉 Worldcup completely deleted and verified');
-    console.log(`📊 Deletion summary: ${storageDeleteCount} storage files deleted`);
+    const totalElapsed = Date.now() - startTime;
+    console.log(`🎉 Worldcup completely deleted and verified in ${totalElapsed}ms`);
+    console.log(`📊 Final summary: ${storageDeleteCount} storage files deleted`);
     
-    return true;
+    if (storageDeleteCount === 0) {
+      console.log('ℹ️ No storage files were deleted (likely YouTube-only worldcup with external URLs)');
+    }
+    
+    return {
+      success: true
+    };
   } catch (error) {
     console.error('❌ Critical error in deleteWorldCup:', error);
-    return false;
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
   }
 }
 

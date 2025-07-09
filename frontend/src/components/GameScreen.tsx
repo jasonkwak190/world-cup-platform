@@ -377,9 +377,11 @@ export default function GameScreen({ match, round, totalRounds, worldcupId, onCh
           }}
           className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30"
         >
-          <div className="w-12 h-12 sm:w-16 sm:h-16 md:w-20 md:h-20 lg:w-24 lg:h-24 xl:w-28 xl:h-28 2xl:w-32 2xl:h-32 bg-gradient-to-r from-orange-500 to-red-500 rounded-full flex items-center justify-center shadow-2xl border-2 sm:border-4 border-white">
-            <span className="text-sm sm:text-lg md:text-xl lg:text-2xl xl:text-3xl 2xl:text-4xl font-bold text-white">VS</span>
-          </div>
+          <img 
+            src="/vs-cute.png" 
+            alt="VS" 
+            className="w-48 h-48 sm:w-56 sm:h-56 md:w-64 md:h-64 lg:w-72 lg:h-72 object-contain drop-shadow-2xl"
+          />
         </motion.div>
 
         {/* Item 2 */}

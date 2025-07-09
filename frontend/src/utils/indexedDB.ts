@@ -74,19 +74,20 @@ class WorldCupDB {
     });
   }
 
-  async deleteWorldCup(id: string): Promise<void> {
-    if (!this.db) await this.init();
-    
-    return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction(['worldcups'], 'readwrite');
-      const store = transaction.objectStore('worldcups');
-      
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error);
-      
-      store.delete(id);
-    });
-  }
+  // 월드컵 삭제 - 더 이상 사용되지 않음 (supabaseData.ts의 deleteWorldCup 사용)
+  // async deleteWorldCup(id: string): Promise<void> {
+  //   if (!this.db) await this.init();
+  //   
+  //   return new Promise((resolve, reject) => {
+  //     const transaction = this.db!.transaction(['worldcups'], 'readwrite');
+  //     const store = transaction.objectStore('worldcups');
+  //     
+  //     transaction.oncomplete = () => resolve();
+  //     transaction.onerror = () => reject(transaction.error);
+  //     
+  //     store.delete(id);
+  //   });
+  // }
 
   async updateWorldCupStats(id: string, updates: Partial<StoredWorldCup>): Promise<void> {
     if (!this.db) await this.init();

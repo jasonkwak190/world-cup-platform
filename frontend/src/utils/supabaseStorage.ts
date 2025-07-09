@@ -1,11 +1,32 @@
 // Supabase Storage 관련 유틸리티 함수
 import { supabase } from '@/lib/supabase';
 
-// 이미지 압축 함수 (GIF는 압축하지 않음)
+// 이미지 압축 함수 (GIF, PNG는 압축하지 않음)
 async function compressImage(file: File, maxWidth = 800, maxHeight = 600, quality = 0.7): Promise<File> {
   // GIF 파일은 압축하지 않고 원본 그대로 반환
   if (file.type === 'image/gif') {
     console.log('🎬 GIF detected, skipping compression:', file.name);
+    return file;
+  }
+  
+  // 자동 생성된 썸네일은 이미 최적화되어 있으므로 압축하지 않음
+  if (file.name.includes('auto-thumbnail')) {
+    console.log('🖼️ Auto-generated thumbnail detected, skipping compression:', {
+      name: file.name,
+      type: file.type,
+      size: file.size,
+      sizeKB: Math.round(file.size / 1024)
+    });
+    
+    // PNG 타입 강제 설정 (혹시 모를 타입 변질 방지)
+    if (file.type !== 'image/png' && file.name.endsWith('.png')) {
+      console.log('🔧 Forcing PNG type for auto-thumbnail');
+      return new File([file], file.name, { 
+        type: 'image/png',
+        lastModified: file.lastModified
+      });
+    }
+    
     return file;
   }
 
@@ -22,15 +43,24 @@ async function compressImage(file: File, maxWidth = 800, maxHeight = 600, qualit
 
       ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-      // 원본 형식 유지 (JPEG, PNG 등)
+      // 원본 형식 유지 (JPEG, PNG 등) - PNG는 투명도 보존을 위해 그대로 유지
       const outputType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+      // PNG의 경우 품질 매개변수가 무시되므로 무손실 압축
       
       canvas.toBlob((blob) => {
-        if (blob) {
+        if (blob && blob.size > 0) {
           // 원본 확장자 유지
           const originalExt = file.name.split('.').pop()?.toLowerCase();
           const newExt = outputType === 'image/png' ? 'png' : 'jpg';
           const newName = file.name.replace(/\.[^/.]+$/, `.${originalExt || newExt}`);
+          
+          console.log('🔧 Compression toBlob result:', {
+            originalFile: file.name,
+            newName,
+            outputType,
+            blobSize: blob.size,
+            originalSize: file.size
+          });
           
           const compressedFile = new File([blob], newName, {
             type: outputType,
@@ -38,9 +68,10 @@ async function compressImage(file: File, maxWidth = 800, maxHeight = 600, qualit
           });
           resolve(compressedFile);
         } else {
+          console.warn('⚠️ Compression toBlob failed, returning original file');
           resolve(file);
         }
-      }, outputType, quality);
+      }, outputType, outputType === 'image/png' ? undefined : quality); // PNG는 품질 매개변수 사용 안함
     };
 
     img.src = URL.createObjectURL(file);
@@ -88,11 +119,56 @@ export async function uploadProfileImage(file: File, userId: string) {
 // 월드컵 썸네일 업로드
 export async function uploadWorldCupThumbnail(file: File, worldcupId: string) {
   try {
+    console.log('📤 Uploading thumbnail:', {
+      fileName: file.name,
+      fileType: file.type,
+      fileSize: file.size,
+      sizeKB: Math.round(file.size / 1024)
+    });
+    
+    // File 객체 유효성 검증
+    if (!file || file.size === 0) {
+      throw new Error('Invalid file: file is empty or null');
+    }
+    
+    if (!file.type.startsWith('image/')) {
+      throw new Error(`Invalid file type: ${file.type}. Expected image file.`);
+    }
+    
+    console.log('🔍 File validation passed, proceeding with compression...');
     const compressedFile = await compressImage(file, 600, 400, 0.8);
     
-    const fileExt = 'webp';
+    console.log('📊 Compression result:', {
+      originalSize: file.size,
+      compressedSize: compressedFile.size,
+      originalType: file.type,
+      compressedType: compressedFile.type,
+      compressionRatio: ((file.size - compressedFile.size) / file.size * 100).toFixed(1) + '%'
+    });
+    
+    // 파일 타입에 따라 적절한 확장자 사용
+    let fileExt = 'jpg'; // 기본값
+    if (file.type === 'image/png' || file.name.toLowerCase().endsWith('.png')) {
+      fileExt = 'png';
+    } else if (file.type === 'image/webp' || file.name.toLowerCase().endsWith('.webp')) {
+      fileExt = 'webp';
+    } else if (file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif')) {
+      fileExt = 'gif';
+    }
+    
     const fileName = `${worldcupId}/thumbnail.${fileExt}`;
-
+    console.log('📁 Thumbnail storage path:', fileName);
+    
+    // 최종 파일 검증
+    console.log('🔍 Final file validation before upload:', {
+      fileName,
+      fileType: compressedFile.type,
+      fileSize: compressedFile.size,
+      hasValidSize: compressedFile.size > 0,
+      isImageType: compressedFile.type.startsWith('image/')
+    });
+    
+    // Content-Type 헤더 문제가 해결되었으므로 File 객체를 직접 업로드
     const { data, error } = await supabase.storage
       .from('worldcup-thumbnails')
       .upload(fileName, compressedFile, {
@@ -101,12 +177,21 @@ export async function uploadWorldCupThumbnail(file: File, worldcupId: string) {
       });
 
     if (error) {
+      console.error('❌ Supabase upload error:', error);
       throw error;
     }
+    
+    console.log('✅ Supabase upload successful:', {
+      path: data.path,
+      id: data.id,
+      fullPath: data.fullPath
+    });
 
     const { data: { publicUrl } } = supabase.storage
       .from('worldcup-thumbnails')
       .getPublicUrl(fileName);
+      
+    console.log('🌐 Generated public URL:', publicUrl);
 
     return { success: true, url: publicUrl };
   } catch (error) {
@@ -215,42 +300,42 @@ export async function deleteImage(bucket: string, path: string) {
   }
 }
 
-// 월드컵 관련 모든 이미지 삭제
-export async function deleteWorldCupImages(worldcupId: string) {
-  try {
-    console.log('🗑️ Deleting worldcup images for:', worldcupId);
-    
-    // 썸네일 삭제 (다양한 확장자 시도)
-    const thumbnailExtensions = ['webp', 'jpg', 'jpeg', 'png', 'gif'];
-    for (const ext of thumbnailExtensions) {
-      try {
-        await deleteImage('worldcup-thumbnails', `${worldcupId}/thumbnail.${ext}`);
-      } catch (error) {
-        // 파일이 없는 경우 무시
-      }
-    }
-    
-    // 아이템 이미지들 삭제
-    const { data: files } = await supabase.storage
-      .from('worldcup-images')
-      .list(`${worldcupId}/items`);
+// 월드컵 관련 모든 이미지 삭제 - 더 이상 사용되지 않음 (supabaseData.ts의 deleteWorldCup에 통합됨)
+// export async function deleteWorldCupImages(worldcupId: string) {
+//   try {
+//     console.log('🗑️ Deleting worldcup images for:', worldcupId);
+//     
+//     // 썸네일 삭제 (다양한 확장자 시도)
+//     const thumbnailExtensions = ['webp', 'jpg', 'jpeg', 'png', 'gif'];
+//     for (const ext of thumbnailExtensions) {
+//       try {
+//         await deleteImage('worldcup-thumbnails', `${worldcupId}/thumbnail.${ext}`);
+//       } catch (error) {
+//         // 파일이 없는 경우 무시
+//       }
+//     }
+//     
+//     // 아이템 이미지들 삭제
+//     const { data: files } = await supabase.storage
+//       .from('worldcup-images')
+//       .list(`${worldcupId}/items`);
 
-    if (files && files.length > 0) {
-      const filePaths = files.map(file => `${worldcupId}/items/${file.name}`);
-      const { error: deleteError } = await supabase.storage
-        .from('worldcup-images')
-        .remove(filePaths);
-      
-      if (deleteError) {
-        console.warn('⚠️ Some item images could not be deleted:', deleteError);
-      } else {
-        console.log(`✅ Deleted ${filePaths.length} item images`);
-      }
-    }
+//     if (files && files.length > 0) {
+//       const filePaths = files.map(file => `${worldcupId}/items/${file.name}`);
+//       const { error: deleteError } = await supabase.storage
+//         .from('worldcup-images')
+//         .remove(filePaths);
+//       
+//       if (deleteError) {
+//         console.warn('⚠️ Some item images could not be deleted:', deleteError);
+//       } else {
+//         console.log(`✅ Deleted ${filePaths.length} item images`);
+//       }
+//     }
 
-    return { success: true };
-  } catch (error) {
-    console.error('Error deleting worldcup images:', error);
-    return { success: false, error: '이미지 삭제 중 오류가 발생했습니다.' };
-  }
-}
+//     return { success: true };
+//   } catch (error) {
+//     console.error('Error deleting worldcup images:', error);
+//     return { success: false, error: '이미지 삭제 중 오류가 발생했습니다.' };
+//   }
+// }

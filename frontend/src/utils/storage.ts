@@ -143,12 +143,12 @@ export const getWorldCupById = (id: string): StoredWorldCup | null => {
   return worldcups.find(wc => wc.id === id) || null;
 };
 
-// 월드컵 삭제
-export const deleteWorldCup = (id: string): void => {
-  const existing = getStoredWorldCups();
-  const filtered = existing.filter(wc => wc.id !== id);
-  localStorage.setItem('worldcups', JSON.stringify(filtered));
-};
+// 월드컵 삭제 - 더 이상 사용되지 않음 (supabaseData.ts의 deleteWorldCup 사용)
+// export const deleteWorldCup = (id: string): void => {
+//   const existing = getStoredWorldCups();
+//   const filtered = existing.filter(wc => wc.id !== id);
+//   localStorage.setItem('worldcups', JSON.stringify(filtered));
+// };
 
 // 월드컵 업데이트 (좋아요, 참여자 수 등)
 export const updateWorldCupStats = (id: string, updates: Partial<Pick<StoredWorldCup, 'participants' | 'likes' | 'comments'>>): void => {

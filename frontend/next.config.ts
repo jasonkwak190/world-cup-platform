@@ -16,7 +16,7 @@ const nextConfig: NextConfig = {
               "default-src 'self'",
               "script-src 'self' 'unsafe-inline'",
               "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com",
-              "connect-src 'self' https://rctoxfcyzzsiikopbsne.supabase.co https://www.googleapis.com",
+              "connect-src 'self' https://rctoxfcyzzsiikopbsne.supabase.co https://www.googleapis.com https://googleads.g.doubleclick.net",
               "img-src 'self' data: blob: https: https://i.ytimg.com https://img.youtube.com",
               "media-src 'self' https: data: blob:",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",

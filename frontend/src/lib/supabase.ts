@@ -19,8 +19,9 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   global: {
     headers: {
       'User-Agent': 'worldcup-platform/1.0',
-      'Accept': 'application/json',
-      'Content-Type': 'application/json'
+      'Accept': 'application/json'
+      // ❌ Content-Type을 제거: 파일 업로드 시 브라우저가 자동으로 설정하도록 함
+      // 'Content-Type': 'application/json' - 이것이 PNG를 JSON으로 변환하는 원인!
     }
   },
   db: {
