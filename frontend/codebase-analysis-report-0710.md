@@ -1,7 +1,7 @@
 # 📋 World Cup Platform - 코드베이스 분석 보고서
 **분석 날짜:** 2024.07.10  
 **분석 대상:** `/Users/jaehyeok/world-cup-platform/frontend/src`  
-**분석 도구:** Claude + Gemini AI 협력 분석
+**분석 도구:** Claude AI 분석
 
 ---
 
@@ -63,7 +63,7 @@
 ### **2.1 완전히 사용되지 않는 파일**
 1. **`/src/utils/comments-clean.ts`** - 대체 댓글 구현체 (미사용)
 2. **`/src/utils/passiveEvents.ts`** - 패시브 이벤트 유틸리티
-3. **`/src/utils/pikuStats.ts`** - PIKU 통계 연동 (레거시)
+3. **`/src/utils/legacyStats.ts`** - 레거시 통계 연동 (미사용)
 4. **`/src/utils/dataMigration.ts`** - 데이터 마이그레이션 유틸리티
 5. **`/src/utils/blobConverter.ts`** - Blob 변환 유틸리티
 6. **`/src/utils/commentEvents.ts`** - 댓글 이벤트 핸들러
@@ -270,4 +270,4 @@ fallback.innerHTML = `
 
 **분석 완료일:** 2024.07.10  
 **다음 검토 예정일:** 2024.07.17  
-**담당자:** Claude + Gemini AI 협력 분석
+**담당자:** Claude AI 분석

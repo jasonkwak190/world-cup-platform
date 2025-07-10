@@ -31,6 +31,24 @@ const nextConfig: NextConfig = {
   
   // Webpack 설정 최적화
   webpack: (config, { isServer, dev }) => {
+    // 프로덕션 빌드에서 console 로깅 제거
+    if (!dev) {
+      config.optimization = {
+        ...config.optimization,
+        minimizer: [
+          ...config.optimization.minimizer,
+          new (require('terser-webpack-plugin'))({
+            terserOptions: {
+              compress: {
+                drop_console: true,
+                drop_debugger: true,
+              },
+            },
+          }),
+        ],
+      };
+    }
+
     // 클라이언트 사이드에서 모듈 해석 안정성 향상
     if (!isServer) {
       config.resolve.fallback = {

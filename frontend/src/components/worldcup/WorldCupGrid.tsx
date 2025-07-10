@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import WorldCupCard from './WorldCupCard';
+import WorldCupCard from '../WorldCupCard';
 import VirtualizedWorldCupGrid from './VirtualizedWorldCupGrid';
 import { getStoredWorldCups, type StoredWorldCup } from '@/utils/storage';
 import { getWorldCups as getSupabaseWorldCups } from '@/utils/supabaseData';

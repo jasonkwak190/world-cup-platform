@@ -51,7 +51,7 @@ const securityHeaders = {
   // 콘텐츠 보안 정책
   'Content-Security-Policy': [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.vercel-insights.com https://va.vercel-scripts.com",
+    "script-src 'self' https://cdn.vercel-insights.com https://va.vercel-scripts.com",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data: blob: https: http://localhost:* https://*.supabase.co https://*.supabase.in",

@@ -164,15 +164,29 @@ export const showToast = (message: string, type: 'success' | 'error' | 'info' = 
     }
   };
 
-  toast.innerHTML = `
-    <div class="flex items-center space-x-3 px-4 py-3 rounded-lg shadow-lg ${getColors()}">
-      <span class="text-lg">${getIcon()}</span>
-      <span class="text-sm font-medium">${message}</span>
-      <button class="ml-2 hover:bg-black hover:bg-opacity-10 rounded-full p-1 transition-colors toast-close">
-        <span class="text-sm">✕</span>
-      </button>
-    </div>
-  `;
+  // 안전한 DOM 요소 생성 (XSS 방지)
+  const toastInner = document.createElement('div');
+  toastInner.className = `flex items-center space-x-3 px-4 py-3 rounded-lg shadow-lg ${getColors()}`;
+  
+  const iconSpan = document.createElement('span');
+  iconSpan.className = 'text-lg';
+  iconSpan.textContent = getIcon();
+  
+  const messageSpan = document.createElement('span');
+  messageSpan.className = 'text-sm font-medium';
+  messageSpan.textContent = message; // textContent로 안전하게 처리
+  
+  const closeButton = document.createElement('button');
+  closeButton.className = 'ml-2 hover:bg-black hover:bg-opacity-10 rounded-full p-1 transition-colors toast-close';
+  const closeSpan = document.createElement('span');
+  closeSpan.className = 'text-sm';
+  closeSpan.textContent = '✕';
+  closeButton.appendChild(closeSpan);
+  
+  toastInner.appendChild(iconSpan);
+  toastInner.appendChild(messageSpan);
+  toastInner.appendChild(closeButton);
+  toast.appendChild(toastInner);
 
   document.body.appendChild(toast);
 

@@ -1,21 +1,21 @@
-// PIKU 스타일 통계 유틸리티 함수
+// 레거시 스타일 통계 유틸리티 함수
 import { supabase } from '@/lib/supabase';
-import { PikuItemStats, WorldcupStatsSummary, PikuRankingData } from '@/types/pikuStats';
+import { LegacyItemStats, WorldcupStatsSummary, LegacyRankingData } from '@/types/legacyStats';
 
 /**
- * 특정 월드컵의 PIKU 스타일 랭킹 조회
+ * 특정 월드컵의 레거시 스타일 랭킹 조회
  * 사용자들이 얼마나 많이 선택했는지 기준으로 순위 매김
  */
-export async function getPikuRanking(worldcupId: string): Promise<PikuRankingData> {
+export async function getLegacyRanking(worldcupId: string): Promise<LegacyRankingData> {
   try {
-    console.log('📊 Fetching PIKU-style ranking for worldcup:', worldcupId);
+    console.log('📊 Fetching legacy-style ranking for worldcup:', worldcupId);
 
-    // 1. PIKU 스타일 랭킹 데이터 조회
+    // 1. 레거시 스타일 랭킹 데이터 조회
     const { data: rankingData, error: rankingError } = await supabase
       .rpc('get_piku_ranking', { target_worldcup_id: worldcupId });
 
     if (rankingError) {
-      console.error('❌ Error fetching PIKU ranking:', rankingError);
+      console.error('❌ Error fetching legacy ranking:', rankingError);
       throw rankingError;
     }
 
@@ -28,7 +28,7 @@ export async function getPikuRanking(worldcupId: string): Promise<PikuRankingDat
       throw summaryError;
     }
 
-    const stats: PikuItemStats[] = rankingData || [];
+    const stats: LegacyItemStats[] = rankingData || [];
     const summary: WorldcupStatsSummary = summaryData?.[0] || {
       total_players: 0,
       total_matches: 0,
@@ -38,7 +38,7 @@ export async function getPikuRanking(worldcupId: string): Promise<PikuRankingDat
       most_popular_rate: 0
     };
 
-    console.log('✅ PIKU ranking loaded:', {
+    console.log('✅ Legacy ranking loaded:', {
       items: stats.length,
       totalPlayers: summary.total_players,
       totalMatches: summary.total_matches
@@ -51,7 +51,7 @@ export async function getPikuRanking(worldcupId: string): Promise<PikuRankingDat
     };
 
   } catch (error) {
-    console.error('❌ Error in getPikuRanking:', error);
+    console.error('❌ Error in getLegacyRanking:', error);
     throw error;
   }
 }
@@ -104,7 +104,7 @@ export async function updateAllSelectionStatistics(): Promise<void> {
 }
 
 /**
- * 선택률을 PIKU 스타일로 포맷팅
+ * 선택률을 레거시 스타일로 포맷팅
  */
 export function formatSelectionRate(rate: number): string {
   return `${rate.toFixed(2)}%`;
@@ -132,10 +132,10 @@ export function getSelectionBarWidth(rate: number, maxRate: number): number {
 }
 
 /**
- * PIKU 스타일 통계를 기존 ItemStats 형식으로 변환 (호환성)
+ * 레거시 스타일 통계를 기존 ItemStats 형식으로 변환 (호환성)
  */
-export function convertPikuToItemStats(pikuStats: PikuItemStats[]): any[] {
-  return pikuStats.map(item => ({
+export function convertLegacyToItemStats(legacyStats: LegacyItemStats[]): any[] {
+  return legacyStats.map(item => ({
     id: item.item_id,
     title: item.title,
     image: item.image_url,
@@ -144,13 +144,13 @@ export function convertPikuToItemStats(pikuStats: PikuItemStats[]): any[] {
     totalGames: item.total_appearances,
     winRate: item.selection_rate, // 선택률
     totalAppearances: item.total_appearances,
-    championshipWins: 0, // PIKU 스타일에서는 사용하지 않음
+    championshipWins: 0, // 레거시 스타일에서는 사용하지 않음
     rank: item.popularity_rank,
     roundStats: {},
-    // PIKU 전용 필드 추가
+    // 레거시 전용 필드 추가
     selectionRate: item.selection_rate,
     totalSelections: item.total_selections,
     popularityRank: item.popularity_rank,
-    isPikuStyle: true
+    isLegacyStyle: true
   }));
 }

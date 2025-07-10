@@ -49,6 +49,20 @@ export default function WorldCupPreview({ data, onGameStateChange, onItemUpdate,
   const [currentMatchItems, setCurrentMatchItems] = useState<[WorldCupItem, WorldCupItem] | null>(null);
   const [showImageEditor, setShowImageEditor] = useState(false);
   
+  // 디버깅: 데이터 변화 감지
+  useEffect(() => {
+    console.log('📊 WorldCupPreview data updated:', {
+      title: data.title,
+      imageItems: data.items.length,
+      videoItems: data.videoItems.length,
+      totalItems: data.items.length + data.videoItems.length,
+      videoItemsSample: data.videoItems.slice(0, 2).map(item => ({
+        id: item.id,
+        title: item.title
+      }))
+    });
+  }, [data.items.length, data.videoItems.length]);
+  
   // getImageUrl 함수를 먼저 정의
   const getImageUrl = (image: string | File | Blob | undefined | null): string => {
     try {
@@ -128,20 +142,76 @@ export default function WorldCupPreview({ data, onGameStateChange, onItemUpdate,
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
-    img.style.display = 'none';
+    console.error('❌ Image failed to load:', img.src);
     
-    // Create a fallback div if it doesn't exist
-    const parent = img.parentElement;
-    if (parent && !parent.querySelector('.fallback-placeholder')) {
-      const fallback = document.createElement('div');
-      fallback.className = 'fallback-placeholder w-full h-full flex items-center justify-center bg-gray-200 text-gray-500';
-      fallback.innerHTML = `
-        <div class="text-center p-4">
-          <div class="text-2xl mb-2">🖼️</div>
-          <div class="text-xs">이미지 로딩 실패</div>
-        </div>
-      `;
-      parent.appendChild(fallback);
+    // For YouTube thumbnails, try alternative thumbnail URLs and sizes
+    if (img.src.includes('youtube.com') || img.src.includes('img.youtube.com')) {
+      const videoId = img.src.match(/\/vi\/([^\/]+)\//)?.[1];
+      console.log('🔍 Extracted video ID:', videoId);
+      
+      if (videoId) {
+        // Store the attempted URLs to prevent infinite loops
+        const attemptedUrls = img.dataset.attemptedUrls ? JSON.parse(img.dataset.attemptedUrls) : [];
+        
+        // Comprehensive list of YouTube thumbnail alternatives
+        // i.ytimg.com is generally more reliable than img.youtube.com
+        const alternatives = [
+          `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+          `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
+          `https://i.ytimg.com/vi/${videoId}/sddefault.jpg`,
+          `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`,
+          `https://i.ytimg.com/vi/${videoId}/default.jpg`,
+          `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+          `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
+          `https://img.youtube.com/vi/${videoId}/sddefault.jpg`,
+          `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
+          `https://img.youtube.com/vi/${videoId}/default.jpg`,
+          // 추가 백업 - 다른 크기들
+          `https://i.ytimg.com/vi_webp/${videoId}/hqdefault.webp`,
+          `https://i.ytimg.com/vi_webp/${videoId}/mqdefault.webp`
+        ].filter(url => !attemptedUrls.includes(url)); // Only try URLs not yet attempted
+        
+        console.log(`🔄 Available alternatives for ${videoId}:`, alternatives);
+        
+        if (alternatives.length > 0) {
+          const nextUrl = alternatives[0];
+          attemptedUrls.push(img.src); // Mark current URL as attempted
+          img.dataset.attemptedUrls = JSON.stringify(attemptedUrls);
+          
+          console.log(`🔄 Trying alternative thumbnail: ${nextUrl}`);
+          img.src = nextUrl;
+          
+          // Set up handlers for the new attempt
+          img.onload = () => {
+            console.log('✅ Alternative thumbnail loaded successfully:', nextUrl);
+            delete img.dataset.attemptedUrls; // Clean up
+          };
+          
+          img.onerror = handleImageError; // Recursive call for next alternative
+        } else {
+          console.error('❌ All YouTube thumbnail alternatives exhausted for:', videoId);
+          // Instead of hiding, replace with fallback content
+          img.style.display = 'none';
+          const parent = img.parentElement;
+          if (parent) {
+            parent.innerHTML = `
+              <div class="w-full h-full bg-gray-800 rounded-lg flex items-center justify-center">
+                <div class="text-center">
+                  <div class="text-red-500 text-xs mb-1">⚠️</div>
+                  <div class="text-white text-xs px-1 break-words">썸네일 로드 실패</div>
+                </div>
+              </div>
+            `;
+          }
+        }
+      } else {
+        console.error('❌ Could not extract video ID from URL:', img.src);
+        img.style.display = 'none';
+      }
+    } else {
+      // For regular images, just hide
+      console.log('❌ Non-YouTube image failed to load, hiding:', img.src);
+      img.style.display = 'none';
     }
   };
 
@@ -584,30 +654,102 @@ export default function WorldCupPreview({ data, onGameStateChange, onItemUpdate,
                 등록된 동영상 ({data.videoItems.length}개)
               </h3>
               <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-3">
-                {data.videoItems.slice(0, 20).map((video) => (
-                  <div key={video.id} className="aspect-square group relative">
-                    <img
-                      src={video.videoThumbnail}
-                      alt={video.title}
-                      className="w-full h-full object-cover rounded-lg"
-                      onError={handleImageError}
-                      loading="lazy"
-                    />
-                    {/* YouTube 플레이 아이콘 오버레이 */}
-                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 rounded-lg flex items-center justify-center transition-all duration-200">
-                      <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Play className="w-6 h-6 text-white mb-1" />
-                        <span className="text-white text-xs text-center px-1 break-words block">
-                          {video.title}
-                        </span>
-                      </div>
+                {data.videoItems.slice(0, 20).map((video) => {
+                  // YouTube 썸네일 URL 생성 - 더 robust한 방식
+                  let thumbnailUrl = null;
+                  
+                  // 1순위: 저장된 썸네일 URL 사용
+                  if (video.videoThumbnail && video.videoThumbnail.trim()) {
+                    thumbnailUrl = video.videoThumbnail;
+                  } 
+                  // 2순위: videoId로 YouTube 썸네일 생성 (더 reliable한 도메인 순서)
+                  else if (video.videoId) {
+                    // 가장 안정적인 YouTube 썸네일 URL들을 우선순위대로 시도
+                    const ytThumbnailOptions = [
+                      `https://i.ytimg.com/vi/${video.videoId}/hqdefault.jpg`,
+                      `https://img.youtube.com/vi/${video.videoId}/hqdefault.jpg`,
+                      `https://i.ytimg.com/vi/${video.videoId}/mqdefault.jpg`,
+                      `https://img.youtube.com/vi/${video.videoId}/mqdefault.jpg`
+                    ];
+                    thumbnailUrl = ytThumbnailOptions[0]; // 가장 안정적인 것부터 시작
+                  }
+                  
+                  console.log('🖼️ Video thumbnail debug:', {
+                    id: video.id,
+                    title: video.title,
+                    videoId: video.videoId,
+                    originalThumbnail: video.videoThumbnail,
+                    finalThumbnailUrl: thumbnailUrl,
+                    hasThumbnail: !!thumbnailUrl
+                  });
+
+                  return (
+                    <div key={video.id} className="aspect-square group relative">
+                      {thumbnailUrl ? (
+                        <>
+                          <div className="w-full h-full bg-gray-200 rounded-lg overflow-hidden relative">
+                            {/* 로딩 인디케이터 */}
+                            <div className="absolute inset-0 bg-gray-300 animate-pulse rounded-lg flex items-center justify-center">
+                              <div className="text-gray-500 text-xs">로딩 중...</div>
+                            </div>
+                            <img
+                              src={thumbnailUrl}
+                              alt={video.title}
+                              className="w-full h-full object-cover rounded-lg relative z-10"
+                              onError={(e) => {
+                                console.error('❌ Thumbnail failed to load:', {
+                                  url: thumbnailUrl,
+                                  videoId: video.videoId,
+                                  naturalWidth: e.currentTarget.naturalWidth,
+                                  naturalHeight: e.currentTarget.naturalHeight,
+                                  src: e.currentTarget.src
+                                });
+                                handleImageError(e);
+                              }}
+                              onLoad={(e) => {
+                                console.log('✅ Thumbnail loaded successfully:', {
+                                  url: thumbnailUrl,
+                                  videoId: video.videoId,
+                                  naturalWidth: e.currentTarget.naturalWidth,
+                                  naturalHeight: e.currentTarget.naturalHeight,
+                                  loadTime: Date.now()
+                                });
+                                // 로딩 인디케이터 숨기기
+                                const loadingDiv = e.currentTarget.previousElementSibling as HTMLElement;
+                                if (loadingDiv) {
+                                  loadingDiv.style.display = 'none';
+                                }
+                              }}
+                              loading="lazy"
+                            />
+                          </div>
+                          {/* YouTube 플레이 아이콘 오버레이 */}
+                          <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 rounded-lg flex items-center justify-center transition-all duration-200">
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Play className="w-6 h-6 text-white mb-1" />
+                              <span className="text-white text-xs text-center px-1 break-words block">
+                                {video.title}
+                              </span>
+                            </div>
+                          </div>
+                          {/* YouTube 아이콘 표시 */}
+                          <div className="absolute top-1 right-1 w-4 h-4 bg-red-600 rounded-sm flex items-center justify-center">
+                            <Play className="w-2 h-2 text-white fill-current" />
+                          </div>
+                        </>
+                      ) : (
+                        <div className="w-full h-full bg-gray-800 rounded-lg flex items-center justify-center">
+                          <div className="text-center">
+                            <Play className="w-8 h-8 text-white mx-auto mb-1" />
+                            <span className="text-white text-xs px-1 break-words">
+                              {video.title}
+                            </span>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    {/* YouTube 아이콘 표시 */}
-                    <div className="absolute top-1 right-1 w-4 h-4 bg-red-600 rounded-sm flex items-center justify-center">
-                      <Play className="w-2 h-2 text-white fill-current" />
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
                 {data.videoItems.length > 20 && (
                   <div className="aspect-square bg-gray-100 rounded-lg flex items-center justify-center">
                     <span className="text-xs text-gray-500 text-center">

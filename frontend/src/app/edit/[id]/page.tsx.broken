@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Upload, Image, Settings, Play, X } from 'lucide-react';
+import { ArrowLeft, Upload, Image, Settings, Play, Youtube, X } from 'lucide-react';
 import { useRouter, useParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import DragDropUpload from '@/components/DragDropUpload';
 import BulkYouTubeUpload from '@/components/forms/BulkYouTubeUpload';
+import YouTubeThumbnailUpload from '@/components/forms/YouTubeThumbnailUpload';
 import WorldCupPreview from '@/components/WorldCupPreview';
 import TournamentSettings from '@/components/TournamentSettings';
 import TournamentCreationCelebration from '@/components/TournamentCreationCelebration';
@@ -24,7 +25,7 @@ const ImageCropper = dynamic(() => import('@/components/ImageCropper'), {
 import { getWorldCupById } from '@/utils/storage';
 import { getWorldCupById as getSupabaseWorldCupById } from '@/utils/supabaseData';
 import { generateAutoThumbnail } from '@/utils/thumbnailGenerator';
-import { updateWorldCupInSupabase } from '@/utils/supabaseWorldCup';
+import { saveWorldCupToSupabase, updateWorldCupInSupabase } from '@/utils/supabaseWorldCup';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatTimeRange } from '@/utils/timeFormat';
@@ -129,47 +130,60 @@ function EditPageContent() {
         }
 
         // 4. 기존 데이터를 편집 가능한 형태로 변환
-        // 이미지와 비디오 아이템 분리
-        const imageItems = existingWorldCup.items?.filter((item: any) => 
-          !item.mediaType || item.mediaType === 'image'
-        ) || [];
-        
-        const videoItems = existingWorldCup.items?.filter((item: any) => 
-          item.mediaType === 'video'
-        ).map((item: any) => ({
-          id: item.id,
-          title: item.title,
-          videoUrl: item.videoUrl || '',
-          videoId: item.videoId || '',
-          videoStartTime: item.videoStartTime || 0,
-          videoEndTime: item.videoEndTime,
-          videoThumbnail: item.videoThumbnail || item.image || '',
-          videoDuration: item.videoDuration,
-          videoMetadata: item.videoMetadata,
-          mediaType: 'video' as const
-        })) || [];
+        // 이미지와 동영상 아이템 분리
+        const imageItems: WorldCupItem[] = [];
+        const videoItems: WorldCupMediaItem[] = [];
+
+        existingWorldCup.items.forEach((item: any) => {
+          if (item.mediaType === 'video') {
+            // 동영상 아이템
+            videoItems.push({
+              id: item.id,
+              title: item.title,
+              videoUrl: item.videoUrl,
+              videoId: item.videoId,
+              videoStartTime: item.videoStartTime,
+              videoEndTime: item.videoEndTime,
+              videoThumbnail: item.videoThumbnail,
+              videoDuration: item.videoDuration,
+              videoMetadata: item.videoMetadata,
+              mediaType: 'video' // 중요: mediaType 필드 추가
+            });
+          } else {
+            // 이미지 아이템
+            imageItems.push({
+              id: item.id,
+              title: item.title,
+              image: item.image || '',
+              description: item.description || '',
+            });
+          }
+        });
+
+        // 어떤 타입의 아이템이 더 많은지에 따라 기본 탭 설정
+        let defaultTab: 'images' | 'videos';
+        if (videoItems.length > imageItems.length) {
+          defaultTab = 'videos';
+          console.log(`📺 Setting default tab to 'videos' (${videoItems.length} videos > ${imageItems.length} images)`);
+        } else if (imageItems.length > videoItems.length) {
+          defaultTab = 'images';
+          console.log(`🖼️ Setting default tab to 'images' (${imageItems.length} images > ${videoItems.length} videos)`);
+        } else {
+          // 동일한 개수이거나 둘 다 0개인 경우 이미지를 기본으로
+          defaultTab = 'images';
+          console.log(`⚖️ Setting default tab to 'images' (equal count: ${imageItems.length} = ${videoItems.length})`);
+        }
+        setActiveMediaTab(defaultTab);
 
         setWorldCupData({
           title: existingWorldCup.title,
           description: existingWorldCup.description || '',
           category: existingWorldCup.category || 'entertainment',
-          items: imageItems.map((item: any) => ({
-            id: item.id,
-            title: item.title,
-            image: item.image || '', // 이미지 URL 또는 base64
-            description: item.description || '',
-          })),
+          items: imageItems,
           videoItems: videoItems,
           isPublic: existingWorldCup.isPublic !== false,
           thumbnail: existingWorldCup.thumbnail,
         });
-
-        // 동영상이 더 많으면 동영상 탭을 기본으로 선택
-        if (videoItems.length > imageItems.length) {
-          setActiveMediaTab('videos');
-        } else {
-          setActiveMediaTab('images');
-        }
 
         setIsLoading(false);
         
@@ -206,7 +220,12 @@ function EditPageContent() {
 
   const handleNext = () => {
     if (currentStep < steps.length) {
-      setCurrentStep(currentStep + 1);
+      // 유튜브만 있고 이미지가 없는 경우 이미지 편집 단계(3단계) 건너뛰기
+      if (currentStep === 2 && worldCupData.items.length === 0 && worldCupData.videoItems.length > 0) {
+        setCurrentStep(4); // 미리보기로 바로 이동
+      } else {
+        setCurrentStep(currentStep + 1);
+      }
     }
   };
 
@@ -240,27 +259,12 @@ function EditPageContent() {
     }));
   };
 
-  const handleVideoItemsUpload = (videoItems: WorldCupMediaItem[]) => {
-    console.log('🎬 Adding video items to worldCupData:', {
-      newVideoItems: videoItems.length,
-      currentVideoItems: worldCupData.videoItems.length,
-      totalAfterAdd: worldCupData.videoItems.length + videoItems.length
-    });
-    
-    setWorldCupData(prev => {
-      const updated = {
-        ...prev,
-        videoItems: [...prev.videoItems, ...videoItems]
-      };
-      
-      console.log('🎬 WorldCupData state updated:', {
-        imageItems: updated.items.length,
-        videoItems: updated.videoItems.length,
-        totalItems: updated.items.length + updated.videoItems.length
-      });
-      
-      return updated;
-    });
+  // 동영상 아이템 처리 함수
+  const handleVideosProcessed = (videos: WorldCupMediaItem[]) => {
+    setWorldCupData(prev => ({
+      ...prev,
+      videoItems: [...prev.videoItems, ...videos]
+    }));
   };
 
   const handleVideoItemDelete = (itemId: string) => {
@@ -271,17 +275,17 @@ function EditPageContent() {
   };
 
   const canProceed = () => {
-    const totalMediaItems = worldCupData.items.length + worldCupData.videoItems.length;
+    const totalItems = worldCupData.items.length + worldCupData.videoItems.length;
     
     switch (currentStep) {
       case 1:
         return worldCupData.title.trim() !== '';
       case 2:
-        return totalMediaItems >= 4;
+        return totalItems >= 4;
       case 3:
         return true;
       case 4:
-        return totalMediaItems >= 4;
+        return totalItems >= 4;
       default:
         return false;
     }
@@ -299,35 +303,61 @@ function EditPageContent() {
       case 2:
         return (
           <div className="space-y-6">
-            {/* Media Type Tabs */}
-            <div className="flex justify-center">
-              <div className="bg-gray-100 p-1 rounded-lg inline-flex">
+            {/* 미디어 타입 탭 */}
+            <div className="border-b border-gray-200">
+              <nav className="-mb-px flex space-x-8">
                 <button
                   onClick={() => setActiveMediaTab('images')}
-                  className={`px-6 py-2 rounded-md font-medium transition-colors ${
+                  className={`py-4 px-1 border-b-2 font-medium text-sm ${
                     activeMediaTab === 'images'
-                      ? 'bg-white text-emerald-600 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
+                      ? 'border-emerald-500 text-emerald-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
                 >
-                  <Image className="w-4 h-4 inline mr-2" />
-                  이미지 업로드
+                  <div className="flex items-center space-x-2">
+                    <Image className="w-5 h-5" />
+                    <span>이미지 ({worldCupData.items.length}개)</span>
+                  </div>
                 </button>
                 <button
                   onClick={() => setActiveMediaTab('videos')}
-                  className={`px-6 py-2 rounded-md font-medium transition-colors ${
+                  className={`py-4 px-1 border-b-2 font-medium text-sm ${
                     activeMediaTab === 'videos'
-                      ? 'bg-white text-emerald-600 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
+                      ? 'border-red-500 text-red-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
                 >
-                  <Play className="w-4 h-4 inline mr-2" />
-                  동영상 업로드
+                  <div className="flex items-center space-x-2">
+                    <Youtube className="w-5 h-5" />
+                    <span>YouTube 동영상 ({worldCupData.videoItems.length}개)</span>
+                  </div>
                 </button>
+              </nav>
+            </div>
+
+            {/* 전체 아이템 수 표시 */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                  <span className="text-blue-800 font-medium">
+                    총 {worldCupData.items.length + worldCupData.videoItems.length}개 아이템
+                  </span>
+                </div>
+                <div className="text-sm text-blue-700">
+                  {worldCupData.items.length + worldCupData.videoItems.length >= 4 
+                    ? '✅ 최소 조건 충족' 
+                    : `⚠️ ${4 - (worldCupData.items.length + worldCupData.videoItems.length)}개 더 필요`
+                  }
+                </div>
+              </div>
+              <div className="mt-2 text-xs text-blue-600">
+                이미지 {worldCupData.items.length}개 + 동영상 {worldCupData.videoItems.length}개 = 
+                총 {worldCupData.items.length + worldCupData.videoItems.length}개 (최소 4개 필요)
               </div>
             </div>
 
-            {/* Tab Content */}
+            {/* 탭 내용 */}
             {activeMediaTab === 'images' ? (
               <DragDropUpload
                 items={worldCupData.items}
@@ -339,7 +369,7 @@ function EditPageContent() {
             ) : (
               <div className="space-y-6">
                 <BulkYouTubeUpload
-                  onVideosProcessed={handleVideoItemsUpload}
+                  onVideosProcessed={handleVideosProcessed}
                   maxVideos={64}
                   existingVideoIds={worldCupData.videoItems.map(video => video.videoId || '').filter(Boolean)}
                 />
@@ -379,6 +409,15 @@ function EditPageContent() {
                       ))}
                     </div>
                   </div>
+                )}
+
+                {/* 유튜브 전용 썸네일 업로드 */}
+                {worldCupData.videoItems.length > 0 && (
+                  <YouTubeThumbnailUpload
+                    videoItems={worldCupData.videoItems}
+                    thumbnail={worldCupData.thumbnail}
+                    onThumbnailUpload={handleThumbnailUpload}
+                  />
                 )}
               </div>
             )}
@@ -552,77 +591,174 @@ function EditPageContent() {
               ) : (
                 <button
                   onClick={async () => {
+                    const startTime = Date.now();
                     try {
-                      console.log('💾 Starting worldcup update...');
+                      console.log('💾 Starting worldcup update...', {
+                        totalItems: worldCupData.items.length + worldCupData.videoItems.length,
+                        imageItems: worldCupData.items.length,
+                        videoItems: worldCupData.videoItems.length,
+                        title: worldCupData.title
+                      });
                       
                       // 월드컵 수정 완료 로직
                       const finalWorldCupData = { ...worldCupData };
                       
                       // 썸네일이 설정되지 않았거나 삭제되었을 때 자동 생성
-                      if ((!worldCupData.thumbnail || worldCupData.thumbnail === null || worldCupData.thumbnail === '') && worldCupData.items.length >= 2) {
+                      const totalMediaItems = (worldCupData.items?.length || 0) + (worldCupData.videoItems?.length || 0);
+                      
+                      if ((!worldCupData.thumbnail || worldCupData.thumbnail === null || worldCupData.thumbnail === '') && totalMediaItems >= 2) {
                         try {
                           console.log('🎨 Generating auto thumbnail (thumbnail was deleted or empty)...');
-                          const autoThumbnail = await generateAutoThumbnail(worldCupData.items);
-                          if (autoThumbnail) {
-                            finalWorldCupData.thumbnail = autoThumbnail;
-                            console.log('✅ Auto thumbnail generated successfully');
+                          
+                          if (worldCupData.items.length >= 2) {
+                            // 이미지 아이템이 2개 이상인 경우 이미지로 썸네일 생성
+                            const autoThumbnail = await generateAutoThumbnail(worldCupData.items);
+                            if (autoThumbnail) {
+                              finalWorldCupData.thumbnail = autoThumbnail;
+                              console.log('✅ Auto thumbnail generated from images');
+                            }
+                          } else if (worldCupData.videoItems.length >= 2) {
+                            // 동영상 아이템만 있는 경우 첫 번째 동영상 썸네일 사용
+                            const firstVideoThumbnail = worldCupData.videoItems[0]?.videoThumbnail;
+                            if (firstVideoThumbnail) {
+                              finalWorldCupData.thumbnail = firstVideoThumbnail;
+                              console.log('✅ Auto thumbnail set from first video thumbnail');
+                            }
                           }
                         } catch (error) {
                           console.warn('⚠️ 자동 썸네일 생성 실패:', error);
                         }
                       }
                       
-                      // 1. Supabase에서 업데이트 시도 - useAuth의 user 사용
+                      // 1. Supabase에서 업데이트 시도 - useAuth()의 user 직접 사용
                       console.log('🔐 Using authenticated user from context...', {
                         hasUser: !!user,
                         userId: user?.id,
                         userEmail: user?.email
                       });
                       
-                      // supabaseUpdateSuccess 변수 제거 (사용하지 않음)
-                      
-                      // Supabase 업데이트 시도 (동기화)
                       let supabaseUpdateSuccess = false;
+                      
                       if (user) {
                         try {
-                          console.log('🔄 Attempting Supabase update...');
+                          console.log('📡 Checking if worldcup exists in Supabase...', {
+                            worldcupId,
+                            authUserId: user.id
+                          });
                           
-                          const updatePromise = updateWorldCupInSupabase(worldcupId, finalWorldCupData, user);
-                          const timeoutPromise = new Promise((_, reject) => 
-                            setTimeout(() => reject(new Error('Update timeout')), 15000) // 15초 타임아웃
-                          );
+                          // 권한 체크 우회하고 바로 업데이트 시도
+                          console.log('🚀 Skipping permission check, attempting direct update...');
                           
-                          const result = await Promise.race([updatePromise, timeoutPromise]);
-                          
-                          if (result && result.success) {
-                            console.log('✅ Supabase update successful');
-                            supabaseUpdateSuccess = true;
+                          try {
+                            console.log('🔄 Updating existing Supabase worldcup with full update...');
+                            
+                            // 완전한 업데이트 (이미지 포함)
+                            console.log('🚀 Calling updateWorldCupInSupabase...');
+                            console.log('📋 Data to update:', {
+                              title: finalWorldCupData.title,
+                              hasItems: !!finalWorldCupData.items,
+                              itemsCount: finalWorldCupData.items?.length || 0,
+                              hasVideoItems: !!finalWorldCupData.videoItems,
+                              videoItemsCount: finalWorldCupData.videoItems?.length || 0,
+                              firstVideoItem: finalWorldCupData.videoItems?.[0] ? {
+                                id: finalWorldCupData.videoItems[0].id,
+                                title: finalWorldCupData.videoItems[0].title,
+                                videoId: finalWorldCupData.videoItems[0].videoId
+                              } : null
+                            });
+                            
+                            console.log('🔄 About to call updateWorldCupInSupabase with:', {
+                              worldcupId,
+                              dataStructure: {
+                                title: finalWorldCupData.title,
+                                description: finalWorldCupData.description,
+                                category: finalWorldCupData.category,
+                                isPublic: finalWorldCupData.isPublic,
+                                itemsCount: finalWorldCupData.items?.length || 0,
+                                videoItemsCount: finalWorldCupData.videoItems?.length || 0,
+                                hasThumbnail: !!finalWorldCupData.thumbnail,
+                                thumbnailType: typeof finalWorldCupData.thumbnail
+                              }
+                            });
+
+                            const updateResult = await updateWorldCupInSupabase(worldcupId, finalWorldCupData, user);
+                            
+                            console.log('📋 Update result received:', updateResult);
+                            
+                            if (updateResult && updateResult.success) {
+                              console.log('✅ Supabase worldcup fully updated');
+                              supabaseUpdateSuccess = true;
+                            } else {
+                              console.error('❌ Supabase full update failed:', {
+                                result: updateResult,
+                                error: updateResult?.error,
+                                success: updateResult?.success,
+                                resultType: typeof updateResult
+                              });
+                            }
                           } else {
-                            console.error('❌ Supabase update failed:', result?.error);
+                            console.log('❌ Permission denied or worldcup not found:', {
+                              hasWorldcup: !!existingSupabaseWorldCup,
+                              worldcupAuthorId: existingSupabaseWorldCup?.author_id,
+                              currentUserId: user.id,
+                              reason: !existingSupabaseWorldCup ? 'Worldcup not found in Supabase' : 'User is not the author'
+                            });
+                            console.log('📱 Trying to create new instead...');
+                            
+                            // Supabase에 새로 저장 (localStorage에서 마이그레이션)
+                            const saveResult = await saveWorldCupToSupabase({
+                              ...finalWorldCupData,
+                              id: worldcupId // 기존 ID 유지
+                            });
+                            
+                            if (saveResult.success) {
+                              console.log('✅ Successfully migrated to Supabase');
+                              supabaseUpdateSuccess = true;
+                            }
+                          } catch (error) {
+                            console.error('❌ Supabase update/create failed:', error);
                           }
-                        } catch (error) {
-                          console.error('❌ Supabase update error:', error);
-                          if (error instanceof Error && error.message.includes('timeout')) {
-                            console.log('⏰ Supabase update timed out, proceeding with localStorage only');
-                          }
+                        } else {
+                          console.log('❌ No authenticated user, skipping Supabase update');
                         }
-                      }
 
                       // 2. localStorage 업데이트 (Supabase 실패시 또는 백업용)
                       try {
                         const existingWorldCup = getWorldCupById(worldcupId);
                         if (existingWorldCup) {
+                          // 이미지와 동영상 아이템을 하나의 배열로 합치기
+                          const allItems = [
+                            // 이미지 아이템
+                            ...finalWorldCupData.items.map(item => ({
+                              id: item.id,
+                              title: item.title,
+                              image: typeof item.image === 'string' ? item.image : '',
+                              description: item.description,
+                              mediaType: 'image'
+                            })),
+                            // 동영상 아이템
+                            ...finalWorldCupData.videoItems.map(video => ({
+                              id: video.id,
+                              title: video.title,
+                              image: video.videoThumbnail || '',
+                              description: '',
+                              mediaType: 'video',
+                              videoUrl: video.videoUrl,
+                              videoId: video.videoId,
+                              videoStartTime: video.videoStartTime,
+                              videoEndTime: video.videoEndTime,
+                              videoThumbnail: video.videoThumbnail,
+                              videoDuration: video.videoDuration,
+                              videoMetadata: video.videoMetadata
+                            }))
+                          ];
+
                           const updatedWorldCup = {
                             ...existingWorldCup,
                             title: finalWorldCupData.title,
                             description: finalWorldCupData.description,
                             category: finalWorldCupData.category,
-                            items: finalWorldCupData.items.map(item => ({
-                              id: item.id,
-                              title: item.title,
-                              image: typeof item.image === 'string' ? item.image : '',
-                              description: item.description,
-                            })),
+                            items: allItems,
                             isPublic: finalWorldCupData.isPublic,
                             thumbnail: typeof finalWorldCupData.thumbnail === 'string' ? finalWorldCupData.thumbnail : '',
                             updatedAt: new Date().toISOString()
@@ -640,18 +776,24 @@ function EditPageContent() {
                         console.warn('⚠️ localStorage update failed:', error);
                       }
                       
-                      // 결과 로그
                       if (supabaseUpdateSuccess) {
-                        console.log('🎉 Worldcup update completed successfully! (Supabase + localStorage)');
+                        console.log('🎉 Worldcup update completed successfully!');
                       } else {
-                        console.log('📱 Worldcup updated in localStorage only (Supabase failed)');
+                        console.log('📱 Worldcup updated in localStorage only');
                       }
                       
                       // 축하 모달 표시
                       setShowCelebration(true);
                     } catch (error) {
                       console.error('❌ Failed to update worldcup:', error);
-                      alert('월드컵 수정 중 오류가 발생했습니다. 다시 시도해주세요.');
+                      
+                      // 에러 메시지를 더 자세히 표시
+                      let errorMessage = '월드컵 수정 중 오류가 발생했습니다.';
+                      if (error instanceof Error) {
+                        errorMessage += `\n\n오류 내용: ${error.message}`;
+                      }
+                      
+                      alert(errorMessage + '\n\n다시 시도해주세요.');
                     }
                   }}
                   disabled={!canProceed()}

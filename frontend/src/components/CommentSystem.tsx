@@ -14,7 +14,7 @@ import {
   incrementWorldCupCommentCount,
   decrementWorldCupCommentCount
 } from '@/utils/comments';
-import { Heart, MessageCircle, Edit3, Trash2, Reply, Send, BarChart3 } from 'lucide-react';
+import { Heart, MessageCircle, Edit3, Trash2, Reply, Send } from 'lucide-react';
 import { showToast } from './Toast';
 import { isGuestCommentOwner, cleanupOldGuestSessions } from '@/utils/guestSession';
 import { cache } from '@/utils/cache';
@@ -23,7 +23,6 @@ interface CommentSystemProps {
   worldcupId: string;
   initialCommentCount?: number;
   onCommentCountChange?: (count: number) => void;
-  onShowRanking?: () => void;
 }
 
 interface CommentItemProps {
@@ -681,15 +680,6 @@ export default function CommentSystem({ worldcupId, initialCommentCount: _initia
             댓글 {totalComments}개
           </h3>
         </div>
-        {onShowRanking && (
-          <button
-            onClick={onShowRanking}
-            className="flex items-center space-x-2 bg-green-100 hover:bg-green-200 text-green-700 px-4 py-2 rounded-lg font-medium transition-colors text-sm"
-          >
-            <BarChart3 className="w-4 h-4" />
-            <span>게임 랭킹</span>
-          </button>
-        )}
       </div>
 
       {/* 댓글 작성 */}

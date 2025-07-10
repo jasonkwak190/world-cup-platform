@@ -4,10 +4,10 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Trophy, Users, BarChart3, TrendingUp, RefreshCw, ArrowLeft, Home } from 'lucide-react';
 import { WorldCupItem } from '@/types/game';
-import { PikuItemStats, PikuRankingData } from '@/types/pikuStats';
-import { getPikuRanking, formatSelectionRate, getPopularityColor, getSelectionBarWidth } from '@/utils/pikuStats';
+import { LegacyItemStats, LegacyRankingData } from '@/types/legacyStats';
+import { getLegacyRanking, formatSelectionRate, getPopularityColor, getSelectionBarWidth } from '@/utils/legacyStats';
 
-interface PikuRankingProps {
+interface LegacyRankingProps {
   tournamentTitle: string;
   worldcupId: string;
   winner: WorldCupItem;
@@ -17,7 +17,7 @@ interface PikuRankingProps {
   refreshTrigger?: number;
 }
 
-export default function PikuRanking({ 
+export default function LegacyRanking({ 
   tournamentTitle, 
   worldcupId,
   winner, 
@@ -25,21 +25,21 @@ export default function PikuRanking({
   onBack,
   onGoHome,
   refreshTrigger
-}: PikuRankingProps) {
-  const [rankingData, setRankingData] = useState<PikuRankingData | null>(null);
+}: LegacyRankingProps) {
+  const [rankingData, setRankingData] = useState<LegacyRankingData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [sortBy, setSortBy] = useState<'popularity' | 'selection_rate' | 'total_selections'>('popularity');
 
-  // PIKU 스타일 랭킹 데이터 로드
-  const loadPikuRanking = async () => {
+  // 레거시 스타일 랭킹 데이터 로드
+  const loadLegacyRanking = async () => {
     setIsLoading(true);
     try {
-      console.log('🔄 Loading PIKU ranking for worldcup:', worldcupId);
-      const data = await getPikuRanking(worldcupId);
-      console.log('📊 PIKU ranking loaded:', data);
+      console.log('🔄 Loading legacy ranking for worldcup:', worldcupId);
+      const data = await getLegacyRanking(worldcupId);
+      console.log('📊 Legacy ranking loaded:', data);
       setRankingData(data);
     } catch (error) {
-      console.error('❌ Failed to load PIKU ranking:', error);
+      console.error('❌ Failed to load legacy ranking:', error);
       setRankingData(null);
     } finally {
       setIsLoading(false);
@@ -48,7 +48,7 @@ export default function PikuRanking({
 
   useEffect(() => {
     if (worldcupId) {
-      loadPikuRanking();
+      loadLegacyRanking();
     }
   }, [worldcupId, refreshTrigger]);
 
@@ -72,7 +72,7 @@ export default function PikuRanking({
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 flex items-center justify-center">
         <div className="text-white text-center">
           <RefreshCw className="w-12 h-12 animate-spin mx-auto mb-4" />
-          <p className="text-xl">PIKU 스타일 랭킹 로딩 중...</p>
+          <p className="text-xl">레거시 스타일 랭킹 로딩 중...</p>
         </div>
       </div>
     );
@@ -105,7 +105,7 @@ export default function PikuRanking({
               </button>
             )}
             <button
-              onClick={loadPikuRanking}
+              onClick={loadLegacyRanking}
               disabled={isLoading}
               className={`flex items-center space-x-2 text-white hover:text-gray-300 transition-colors ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
@@ -202,7 +202,7 @@ export default function PikuRanking({
           <div className="grid grid-cols-12 gap-4 items-center">
             <div className="col-span-1 text-center">순위</div>
             <div className="col-span-4">참가자</div>
-            <div className="col-span-3 text-center">선택률 (PIKU 스타일)</div>
+            <div className="col-span-3 text-center">선택률 (레거시 스타일)</div>
             <div className="col-span-2 text-center">선택횟수</div>
             <div className="col-span-2 text-center">총 등장</div>
           </div>
@@ -263,7 +263,7 @@ export default function PikuRanking({
                   </div>
                 </div>
 
-                {/* 선택률 (PIKU 스타일) */}
+                {/* 선택률 (레거시 스타일) */}
                 <div className="col-span-3 text-center">
                   <div className="flex flex-col items-center space-y-2">
                     <span className="text-lg font-bold text-gray-900">
@@ -298,14 +298,14 @@ export default function PikuRanking({
           ))}
         </motion.div>
 
-        {/* PIKU 스타일 설명 */}
+        {/* 레거시 스타일 설명 */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
           className="mt-8 bg-white/10 backdrop-blur-sm rounded-xl p-6 text-white"
         >
-          <h3 className="text-lg font-semibold mb-3">📊 PIKU 스타일 랭킹이란?</h3>
+          <h3 className="text-lg font-semibold mb-3">📊 레거시 스타일 랭킹이란?</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
             <div>
               <p className="mb-2">

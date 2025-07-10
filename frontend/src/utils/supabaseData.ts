@@ -513,7 +513,7 @@ export async function deleteWorldCup(id: string): Promise<{
 
     // 2. 직접 Storage 스캔으로 실제 파일들 찾기
     let storageDeleteCount = 0;
-    let storageDeleteErrors: string[] = [];
+    const storageDeleteErrors: string[] = [];
     const filesToDelete: { bucket: string; path: string }[] = [];
     
     try {

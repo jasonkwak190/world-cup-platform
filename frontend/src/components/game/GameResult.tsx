@@ -298,9 +298,6 @@ export default function GameResult({
             worldcupId={worldcupId}
             initialCommentCount={0}
             onCommentCountChange={setCommentCount}
-            onShowRanking={() => {
-              setShowRanking(true);
-            }}
           />
         )}
       </div>

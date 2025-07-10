@@ -1,6 +1,6 @@
-// PIKU 스타일 통계 타입 정의
+// 레거시 스타일 통계 타입 정의
 
-export interface PikuItemStats {
+export interface LegacyItemStats {
   item_id: string;
   title: string;
   image_url: string;
@@ -20,8 +20,8 @@ export interface WorldcupStatsSummary {
   most_popular_rate: number;   // 가장 높은 선택률
 }
 
-export interface PikuRankingData {
-  stats: PikuItemStats[];
+export interface LegacyRankingData {
+  stats: LegacyItemStats[];
   summary: WorldcupStatsSummary;
   last_updated: string;
 }

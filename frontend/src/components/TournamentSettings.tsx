@@ -7,6 +7,7 @@ interface WorldCupData {
   description: string;
   category: string;
   items: any[];
+  videoItems?: any[];
   isPublic: boolean;
 }
 

@@ -278,7 +278,6 @@ export async function saveWorldCupToSupabase(worldCupData: any, onProgress?: (pr
           .map((item, index) => ({ item, record: items[index], index }))
           .filter(({ item }) => item.mediaType === 'image');
         
-        let processedCount = 0;
         
         // 병렬 처리 함수 정의
         const processImageItem = async ({ item, record, index }: { item: any; record: any; index: number }) => {
@@ -489,17 +488,33 @@ export async function backupLocalStorageToSupabase() {
 }
 
 // 기존 월드컵 업데이트 (이미지 변경 포함)
-export async function updateWorldCupInSupabase(worldcupId: string, worldCupData: any) {
+export async function updateWorldCupInSupabase(worldcupId: string, worldCupData: any, user?: any) {
   try {
-    console.log('🔄 Updating worldcup in Supabase:', worldcupId);
+    console.log('🔄 Starting updateWorldCupInSupabase:', {
+      worldcupId,
+      hasUser: !!user,
+      userId: user?.id,
+      totalItems: (worldCupData.items?.length || 0) + (worldCupData.videoItems?.length || 0),
+      imageItems: worldCupData.items?.length || 0,
+      videoItems: worldCupData.videoItems?.length || 0,
+      title: worldCupData.title
+    });
     
-    // 현재 로그인된 사용자 확인
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-      throw new Error('로그인이 필요합니다.');
+    // 사용자 확인 - 파라미터로 전달받거나 새로 가져오기
+    let currentUser = user;
+    if (!currentUser) {
+      console.log('👤 Getting user authentication...');
+      const { data: { user: authUser }, error: userError } = await supabase.auth.getUser();
+      if (userError || !authUser) {
+        console.error('❌ User authentication failed:', userError);
+        throw new Error('로그인이 필요합니다.');
+      }
+      currentUser = authUser;
     }
+    console.log('✅ User authenticated:', currentUser.id);
 
     // 1. 월드컵 기본 정보 업데이트
+    console.log('📝 Updating worldcup basic info...');
     const { error: worldCupError } = await supabase
       .from('worldcups')
       .update({
@@ -512,13 +527,18 @@ export async function updateWorldCupInSupabase(worldcupId: string, worldCupData:
       .eq('id', worldcupId);
 
     if (worldCupError) {
-      console.error('WorldCup update error:', worldCupError);
+      console.error('❌ WorldCup update error:', worldCupError);
       throw new Error(`월드컵 업데이트 실패: ${worldCupError.message}`);
     }
 
     console.log('✅ WorldCup basic info updated');
 
     // 2. 썸네일 업데이트 (변경된 경우)
+    console.log('🖼️ Processing thumbnail...', {
+      hasThumbnail: !!worldCupData.thumbnail,
+      thumbnailType: typeof worldCupData.thumbnail
+    });
+    
     if (worldCupData.thumbnail) {
       try {
         let thumbnailFile: File;
@@ -543,23 +563,42 @@ export async function updateWorldCupInSupabase(worldcupId: string, worldCupData:
           thumbnailFile = new File([u8arr], 'thumbnail.jpg', { type: mime });
           needsThumbnailUpload = true;
           console.log('🖼️ Thumbnail: Base64 image converted to File');
-        } else if (typeof worldCupData.thumbnail === 'string' && (worldCupData.thumbnail.startsWith('http') || worldCupData.thumbnail.startsWith('blob:'))) {
-          // 기존 URL인 경우 - 이미지를 다시 다운로드해서 업로드
+        } else if (typeof worldCupData.thumbnail === 'string' && worldCupData.thumbnail.startsWith('http')) {
+          // 기존 Supabase URL인 경우 - 변경되지 않았으면 재업로드 하지 않음
+          if (worldCupData.thumbnail.includes('supabase.co/storage')) {
+            console.log('📎 Thumbnail: Using existing Supabase URL (no re-upload needed)');
+            await supabase
+              .from('worldcups')
+              .update({ thumbnail_url: worldCupData.thumbnail })
+              .eq('id', worldcupId);
+            needsThumbnailUpload = false;
+          } else {
+            // 외부 URL인 경우만 다시 업로드
+            try {
+              console.log('🔄 Thumbnail: Re-uploading external URL image');
+              const response = await fetch(worldCupData.thumbnail);
+              const blob = await response.blob();
+              thumbnailFile = new File([blob], 'thumbnail.jpg', { type: blob.type || 'image/jpeg' });
+              needsThumbnailUpload = true;
+            } catch (error) {
+              console.warn('⚠️ Thumbnail: Failed to fetch external image, using existing URL:', error);
+              await supabase
+                .from('worldcups')
+                .update({ thumbnail_url: worldCupData.thumbnail })
+                .eq('id', worldcupId);
+              needsThumbnailUpload = false;
+            }
+          }
+        } else if (typeof worldCupData.thumbnail === 'string' && worldCupData.thumbnail.startsWith('blob:')) {
+          // Blob URL인 경우만 업로드
           try {
-            console.log('🔄 Thumbnail: Re-uploading existing URL image');
+            console.log('🔄 Thumbnail: Converting blob URL to file');
             const response = await fetch(worldCupData.thumbnail);
             const blob = await response.blob();
             thumbnailFile = new File([blob], 'thumbnail.jpg', { type: blob.type || 'image/jpeg' });
             needsThumbnailUpload = true;
           } catch (error) {
-            console.warn('⚠️ Thumbnail: Failed to fetch existing image, using existing URL:', error);
-            
-            // 기존 URL을 그대로 사용
-            await supabase
-              .from('worldcups')
-              .update({ thumbnail_url: worldCupData.thumbnail })
-              .eq('id', worldcupId);
-            console.log('📎 Thumbnail: Used existing URL');
+            console.warn('⚠️ Thumbnail: Failed to fetch blob URL:', error);
             needsThumbnailUpload = false;
           }
         } else {
@@ -592,47 +631,162 @@ export async function updateWorldCupInSupabase(worldcupId: string, worldCupData:
         .eq('id', worldcupId);
     }
 
-    // 3. 월드컵 아이템들 업데이트 (기존 삭제 후 새로 생성)
-    if (worldCupData.items && worldCupData.items.length > 0) {
+    // 3. 월드컵 아이템들 업데이트 (기존 삭제 후 새로 생성) - 이미지 + 동영상 지원
+    console.log('📋 Processing media items...');
+    const allMediaItems = [
+      ...(worldCupData.items || []).map((item: any) => ({ ...item, mediaType: 'image' })),
+      ...(worldCupData.videoItems || []).map((item: any) => ({ ...item, mediaType: 'video' }))
+    ];
+
+    console.log('📊 Media items prepared:', {
+      totalItems: allMediaItems.length,
+      imageItems: (worldCupData.items || []).length,
+      videoItems: (worldCupData.videoItems || []).length,
+      firstItemSample: allMediaItems[0] ? {
+        title: allMediaItems[0].title,
+        mediaType: allMediaItems[0].mediaType
+      } : null
+    });
+
+    if (allMediaItems.length > 0) {
       try {
+        console.log('🔄 STEP 3: Processing media items...');
+        
         // 기존 아이템들 삭제
+        console.log('🗑️ STEP 3a: Deleting old items...');
         const { error: deleteError } = await supabase
           .from('worldcup_items')
           .delete()
           .eq('worldcup_id', worldcupId);
 
         if (deleteError) {
-          console.warn('⚠️ Failed to delete old items:', deleteError);
+          console.error('❌ STEP 3a FAILED: Delete old items error:', deleteError);
+          throw new Error(`기존 아이템 삭제 실패: ${deleteError.message}`);
         } else {
-          console.log('🗑️ Old items deleted');
+          console.log('✅ STEP 3a SUCCESS: Old items deleted successfully');
         }
 
-        // 새 아이템들 생성
-        const itemInserts = worldCupData.items.map((item: any, index: number) => ({
-          worldcup_id: worldcupId,
-          title: item.title,
-          image_url: '', // 이미지 업로드 후 업데이트
-          description: item.description || '',
-          order_index: index
-        }));
+        // 새 아이템들 생성 (이미지 + 동영상)
+        console.log('🔄 STEP 3b: Creating new items...', { count: allMediaItems.length });
+        const itemInserts = allMediaItems.map((item: any, index: number) => {
+          const baseInsert = {
+            worldcup_id: worldcupId,
+            title: item.title,
+            description: item.description || '',
+            order_index: index,
+            media_type: item.mediaType || 'image'
+          };
 
+          if (item.mediaType === 'video') {
+            // 동영상 아이템 - 필수 필드 검증
+            console.log(`📹 Processing video item ${index + 1}:`, {
+              title: item.title,
+              videoId: item.videoId,
+              videoUrl: item.videoUrl,
+              hasThumbnail: !!item.videoThumbnail
+            });
+            
+            // JSON 직렬화 안전성 확보 - 더 robust한 처리
+            let safeMetadata = null;
+            try {
+              if (item.videoMetadata) {
+                if (typeof item.videoMetadata === 'object') {
+                  // 객체인 경우 JSON 문자열로 변환
+                  safeMetadata = JSON.stringify(item.videoMetadata);
+                } else if (typeof item.videoMetadata === 'string') {
+                  // 이미 문자열인 경우 그대로 사용 (JSON 파싱 체크)
+                  try {
+                    JSON.parse(item.videoMetadata); // 유효한 JSON인지 확인
+                    safeMetadata = item.videoMetadata;
+                  } catch {
+                    // 유효하지 않은 JSON이면 그냥 문자열로 처리
+                    safeMetadata = JSON.stringify({ raw: item.videoMetadata });
+                  }
+                } else {
+                  // 다른 타입이면 문자열로 변환
+                  safeMetadata = JSON.stringify({ value: item.videoMetadata });
+                }
+              }
+            } catch (error) {
+              console.warn('⚠️ Video metadata serialization failed:', error);
+              safeMetadata = null;
+            }
+
+            const videoInsert = {
+              ...baseInsert,
+              image_url: item.videoThumbnail || '', // 썸네일을 image_url로 저장
+              video_url: item.videoUrl || '',
+              video_id: item.videoId || '',
+              video_start_time: item.videoStartTime || 0,
+              video_end_time: item.videoEndTime || null,
+              video_thumbnail: item.videoThumbnail || '',
+              video_duration: item.videoDuration || null,
+              video_metadata: safeMetadata
+            };
+
+            console.log(`📹 Video item ${index + 1} insert data:`, videoInsert);
+            return videoInsert;
+          } else {
+            // 이미지 아이템
+            return {
+              ...baseInsert,
+              image_url: '' // 이미지 업로드 후 업데이트
+            };
+          }
+        });
+
+        console.log('🔄 STEP 3c: Inserting items to database...', { 
+          itemsToInsert: itemInserts.length,
+          sampleInsert: itemInserts[0],
+          allInserts: itemInserts.map((insert, idx) => ({
+            index: idx,
+            mediaType: insert.media_type,
+            title: insert.title,
+            hasVideoId: !!insert.video_id,
+            hasVideoUrl: !!insert.video_url,
+            hasImageUrl: !!insert.image_url,
+            videoMetadataType: typeof insert.video_metadata
+          }))
+        });
+        
         const { data: items, error: itemsError } = await supabase
           .from('worldcup_items')
           .insert(itemInserts)
           .select();
 
         if (itemsError) {
-          console.error('Items creation error:', itemsError);
-          throw new Error(`아이템 생성 실패: ${itemsError.message}`);
+          console.error('❌ Items creation error:', {
+            error: itemsError,
+            message: itemsError.message,
+            details: itemsError.details,
+            hint: itemsError.hint,
+            code: itemsError.code,
+            insertsData: itemInserts
+          });
+          throw new Error(`아이템 생성 실패: ${itemsError.message} (Code: ${itemsError.code})`);
         }
 
-        console.log(`✅ ${items.length} items created`);
+        console.log(`✅ STEP 3c SUCCESS: ${items.length} items created successfully`);
 
-        // 4. 아이템 이미지들 업로드
-        for (let i = 0; i < worldCupData.items.length; i++) {
-          try {
-            const item = worldCupData.items[i];
+        // 4. 이미지 아이템들만 업로드 (동영상은 이미 썸네일이 설정됨)
+        const imageItems = allMediaItems.filter(item => item.mediaType === 'image');
+        
+        console.log(`🖼️ Processing images for upload: ${imageItems.length} image items found`);
+        
+        if (imageItems.length > 0) {
+          console.log('📤 Starting image upload process...');
+          
+          for (let i = 0; i < allMediaItems.length; i++) {
+            const item = allMediaItems[i];
             const itemRecord = items[i];
+            
+            // 동영상 아이템은 이미 썸네일이 설정되어 있으므로 건너뛰기
+            if (item.mediaType === 'video') {
+              console.log(`📹 Item ${i + 1}: Video item, metadata already saved`);
+              continue;
+            }
+            
+            try {
             
             if (item.image) {
               let imageFile: File;
@@ -657,23 +811,42 @@ export async function updateWorldCupInSupabase(worldcupId: string, worldCupData:
                 imageFile = new File([u8arr], `item_${i + 1}.jpg`, { type: mime });
                 needsUpload = true;
                 console.log(`🖼️ Item ${i + 1}: Base64 image converted to File`);
-              } else if (typeof item.image === 'string' && (item.image.startsWith('http') || item.image.startsWith('blob:'))) {
-                // 기존 URL이나 Blob URL인 경우 - 이미지를 다시 다운로드해서 업로드
+              } else if (typeof item.image === 'string' && item.image.startsWith('http')) {
+                // 기존 Supabase URL인 경우 - 변경되지 않았으면 재업로드 하지 않음
+                if (item.image.includes('supabase.co/storage')) {
+                  console.log(`📎 Item ${i + 1}: Using existing Supabase URL (no re-upload needed)`);
+                  await supabase
+                    .from('worldcup_items')
+                    .update({ image_url: item.image })
+                    .eq('id', itemRecord.id);
+                  continue;
+                } else {
+                  // 외부 URL인 경우만 다시 업로드
+                  try {
+                    console.log(`🔄 Item ${i + 1}: Re-uploading external URL image`);
+                    const response = await fetch(item.image);
+                    const blob = await response.blob();
+                    imageFile = new File([blob], `item_${i + 1}.jpg`, { type: blob.type || 'image/jpeg' });
+                    needsUpload = true;
+                  } catch (error) {
+                    console.warn(`⚠️ Item ${i + 1}: Failed to fetch external image, using original URL:`, error);
+                    await supabase
+                      .from('worldcup_items')
+                      .update({ image_url: item.image })
+                      .eq('id', itemRecord.id);
+                    continue;
+                  }
+                }
+              } else if (typeof item.image === 'string' && item.image.startsWith('blob:')) {
+                // Blob URL인 경우만 업로드
                 try {
-                  console.log(`🔄 Item ${i + 1}: Re-uploading existing URL image`);
+                  console.log(`🔄 Item ${i + 1}: Converting blob URL to file`);
                   const response = await fetch(item.image);
                   const blob = await response.blob();
                   imageFile = new File([blob], `item_${i + 1}.jpg`, { type: blob.type || 'image/jpeg' });
                   needsUpload = true;
                 } catch (error) {
-                  console.warn(`⚠️ Item ${i + 1}: Failed to fetch existing image, skipping:`, error);
-                  
-                  // 기존 URL을 그대로 사용
-                  await supabase
-                    .from('worldcup_items')
-                    .update({ image_url: item.image })
-                    .eq('id', itemRecord.id);
-                  console.log(`📎 Item ${i + 1}: Used existing URL`);
+                  console.warn(`⚠️ Item ${i + 1}: Failed to fetch blob URL:`, error);
                   continue;
                 }
               } else {
@@ -700,10 +873,18 @@ export async function updateWorldCupInSupabase(worldcupId: string, worldCupData:
             console.warn(`⚠️ Item ${i + 1} image update failed:`, error);
           }
         }
+        }
+        
+        if (imageItems.length === 0) {
+          console.log('🎬 No image items to upload - all items are videos with metadata only');
+        }
+        
       } catch (error) {
         console.error('❌ Items update failed:', error);
         throw error;
       }
+    } else {
+      console.log('📭 No media items to process');
     }
 
     console.log('🎉 WorldCup updated successfully in Supabase!');

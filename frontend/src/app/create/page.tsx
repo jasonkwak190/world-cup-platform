@@ -26,6 +26,7 @@ import { saveWorldCupToSupabase } from '@/utils/supabaseWorldCup';
 import { getUserWorldCups } from '@/utils/supabaseData';
 import { supabase } from '@/lib/supabase';
 import { convertAllBlobUrls, validateNoBlobUrls } from '@/utils/blobConverter';
+import { formatTimeRange } from '@/utils/timeFormat';
 import type { WorldCupMediaItem } from '@/types/media';
 
 interface WorldCupItem {
@@ -395,7 +396,7 @@ export default function CreatePage() {
                             </p>
                             {video.videoStartTime !== undefined && (
                               <p className="text-xs text-blue-600">
-                                {video.videoStartTime}초 ~ {video.videoEndTime || '끝'}초
+                                {formatTimeRange(video.videoStartTime, video.videoEndTime)}
                               </p>
                             )}
                           </div>
