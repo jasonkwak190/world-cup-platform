@@ -76,7 +76,7 @@ class ErrorBoundaryComponent extends React.Component<ErrorBoundaryProps, ErrorBo
               예상치 못한 오류가 발생했습니다. 잠시 후 다시 시도해주세요.
             </p>
             
-            {process.env.NODE_ENV === 'development' && this.state.error && (
+            {typeof window !== 'undefined' && window.location.hostname === 'localhost' && this.state.error && (
               <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-left">
                 <p className="text-sm font-medium text-red-800 mb-2">개발 모드 에러 정보:</p>
                 <pre className="text-xs text-red-700 overflow-auto">
@@ -112,18 +112,8 @@ class ErrorBoundaryComponent extends React.Component<ErrorBoundaryProps, ErrorBo
   }
 }
 
-// Dynamic import wrapper to prevent SSR issues
-const DynamicErrorBoundary = dynamic(() => Promise.resolve(ErrorBoundaryComponent), {
-  ssr: false,
-  loading: () => null
-});
-
-// Simple wrapper function to export
-const ErrorBoundary = (props: ErrorBoundaryProps) => {
-  return <DynamicErrorBoundary {...props} />;
-};
-
-export default ErrorBoundary;
+// Export the component directly without dynamic import
+export default ErrorBoundaryComponent;
 
 export const withErrorBoundary = <P extends object>(
   Component: React.ComponentType<P>,

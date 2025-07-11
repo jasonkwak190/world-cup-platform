@@ -34,25 +34,25 @@ const createRatelimiter = (requests: number, window: string) => {
 // 다양한 엔드포인트별 Rate Limit 설정
 export const rateLimiters = {
   // 일반 API 호출: 100req/10min
-  api: createRatelimiter(100, "10 m"),
+  api: createRatelimiter(100, "10m"),
   
   // 인증 관련: 5req/min (무차별 대입 공격 방지)
-  auth: createRatelimiter(5, "1 m"),
+  auth: createRatelimiter(5, "1m"),
   
   // 파일 업로드: 10req/hour (리소스 보호)
-  upload: createRatelimiter(10, "1 h"),
+  upload: createRatelimiter(10, "1h"),
   
   // 댓글/리뷰: 20req/10min (스팸 방지)
-  comment: createRatelimiter(20, "10 m"),
+  comment: createRatelimiter(20, "10m"),
   
   // 월드컵 생성: 5req/hour (남용 방지)
-  create: createRatelimiter(5, "1 h"),
+  create: createRatelimiter(5, "1h"),
   
   // 통계 업데이트: 50req/min (게임 플레이)
-  stats: createRatelimiter(50, "1 m"),
+  stats: createRatelimiter(50, "1m"),
   
   // 관리자 작업: 10req/hour (민감한 작업)
-  admin: createRatelimiter(10, "1 h"),
+  admin: createRatelimiter(10, "1h"),
 };
 
 // Rate Limit 체크 헬퍼 함수

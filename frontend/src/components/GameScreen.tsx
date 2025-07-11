@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useEffect } from 'react';
 import { Match, WorldCupItem } from '@/types/game';
 import { motion, AnimatePresence } from 'framer-motion';

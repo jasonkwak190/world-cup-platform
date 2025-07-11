@@ -2,7 +2,6 @@
 
 import { ReactNode } from 'react';
 import { AuthProvider } from '@/contexts/AuthContext';
-import ErrorBoundary from '@/components/ErrorBoundary';
 
 interface ClientProvidersProps {
   children: ReactNode;
@@ -11,9 +10,7 @@ interface ClientProvidersProps {
 export default function ClientProviders({ children }: ClientProvidersProps) {
   return (
     <AuthProvider>
-      <ErrorBoundary>
-        {children}
-      </ErrorBoundary>
+      {children}
     </AuthProvider>
   );
 }

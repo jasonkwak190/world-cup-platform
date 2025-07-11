@@ -555,8 +555,12 @@ function EditPageContent() {
                     try {
                       console.log('💾 Starting worldcup update...');
                       
-                      // 월드컵 수정 완료 로직
-                      const finalWorldCupData = { ...worldCupData };
+                      // 월드컵 수정 완료 로직 - 이미지와 비디오 아이템을 구분하여 전달
+                      const finalWorldCupData = { 
+                        ...worldCupData,
+                        items: worldCupData.items, // 이미 분리되어 있으므로 그대로 사용
+                        videoItems: worldCupData.videoItems // 이미 분리되어 있으므로 그대로 사용
+                      };
                       
                       // 썸네일이 설정되지 않았거나 삭제되었을 때 자동 생성
                       if ((!worldCupData.thumbnail || worldCupData.thumbnail === null || worldCupData.thumbnail === '') && worldCupData.items.length >= 2) {
@@ -587,12 +591,37 @@ function EditPageContent() {
                         try {
                           console.log('🔄 Attempting Supabase update...');
                           
+                          // 더 상세한 진행 상황 표시
+                          const progressIndicator = document.createElement('div');
+                          progressIndicator.id = 'supabase-progress';
+                          progressIndicator.style.cssText = `
+                            position: fixed;
+                            top: 50%;
+                            left: 50%;
+                            transform: translate(-50%, -50%);
+                            background: rgba(0, 0, 0, 0.8);
+                            color: white;
+                            padding: 20px;
+                            border-radius: 10px;
+                            z-index: 10000;
+                            text-align: center;
+                            font-family: monospace;
+                          `;
+                          progressIndicator.innerHTML = `
+                            <div style="margin-bottom: 10px;">🔄 Supabase 업데이트 진행 중...</div>
+                            <div style="font-size: 12px; color: #ccc;">최대 45초 소요될 수 있습니다</div>
+                          `;
+                          document.body.appendChild(progressIndicator);
+                          
                           const updatePromise = updateWorldCupInSupabase(worldcupId, finalWorldCupData, user);
                           const timeoutPromise = new Promise((_, reject) => 
-                            setTimeout(() => reject(new Error('Update timeout')), 15000) // 15초 타임아웃
+                            setTimeout(() => reject(new Error('Update timeout')), 45000) // 45초 타임아웃으로 증가
                           );
                           
                           const result = await Promise.race([updatePromise, timeoutPromise]);
+                          
+                          // 진행 상황 표시 제거
+                          document.body.removeChild(progressIndicator);
                           
                           if (result && result.success) {
                             console.log('✅ Supabase update successful');
@@ -602,8 +631,21 @@ function EditPageContent() {
                           }
                         } catch (error) {
                           console.error('❌ Supabase update error:', error);
+                          
+                          // 진행 상황 표시 제거 (에러 발생 시)
+                          const progressIndicator = document.getElementById('supabase-progress');
+                          if (progressIndicator) {
+                            document.body.removeChild(progressIndicator);
+                          }
+                          
                           if (error instanceof Error && error.message.includes('timeout')) {
                             console.log('⏰ Supabase update timed out, proceeding with localStorage only');
+                            // 사용자에게 타임아웃 알림
+                            alert('데이터베이스 업데이트가 시간 초과되었습니다. 로컬 저장소에만 저장됩니다.');
+                          } else {
+                            console.log('❌ Supabase update failed with error:', error.message);
+                            // 다른 에러에 대한 알림
+                            alert('데이터베이스 업데이트 중 오류가 발생했습니다. 로컬 저장소에만 저장됩니다.');
                           }
                         }
                       }

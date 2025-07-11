@@ -99,7 +99,7 @@ export default function WorldCupCard({
   const thumbnailUrl = getImageUrl(thumbnail);
   
   // 간단한 디버깅 로그 (개발 환경에서만)
-  if (process.env.NODE_ENV === 'development') {
+  if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
     console.log('🖼️ WorldCupCard:', {
       id: id,
       title: title.substring(0, 30) + '...',
@@ -134,7 +134,7 @@ export default function WorldCupCard({
               placeholder="blur"
               blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k="
               onError={(e) => {
-                if (process.env.NODE_ENV === 'development') {
+                if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
                   console.warn('❌ Thumbnail failed to load:', {
                     url: thumbnailUrl.substring(0, 100) + '...',
                     isSupabase: thumbnailUrl.includes('supabase'),
@@ -153,7 +153,7 @@ export default function WorldCupCard({
                 }
               }}
               onLoad={(e) => {
-                if (process.env.NODE_ENV === 'development') {
+                if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
                   console.log('✅ Thumbnail loaded successfully with Next.js Image');
                 }
               }}

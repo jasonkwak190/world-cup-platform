@@ -326,8 +326,8 @@ export default function CommentSystem({ worldcupId, initialCommentCount: _initia
     
     // 환경변수 확인
     console.log('🔍 Environment check:', {
-      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ? 'Set' : 'Missing',
-      supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'Set' : 'Missing'
+      supabaseUrl: typeof process !== 'undefined' && process.env.NEXT_PUBLIC_SUPABASE_URL ? 'Set' : 'Missing',
+      supabaseKey: typeof process !== 'undefined' && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'Set' : 'Missing'
     });
     
     cleanupOldGuestSessions(); // 오래된 게스트 세션 정리

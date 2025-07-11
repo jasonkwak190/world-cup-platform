@@ -27,10 +27,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // 컴포넌트 마운트 시 사용자 정보 확인 (Supabase + localStorage fallback)
   useEffect(() => {
+    let isSubscribed = true; // Prevent state updates if component unmounts
+    
     const initializeAuth = async () => {
       try {
         // 1. Supabase에서 현재 사용자 확인
         const supabaseUser = await getCurrentSupabaseUser();
+        
+        if (!isSubscribed) return; // Component unmounted, don't update state
         
         if (supabaseUser) {
           // Supabase 사용자를 기존 User 타입으로 변환
@@ -60,44 +64,75 @@ export function AuthProvider({ children }: AuthProviderProps) {
         
       } catch (error) {
         console.error('Auth initialization error:', error);
-        setAuthState({
-          user: null,
-          isAuthenticated: false,
-          isLoading: false,
-        });
+        if (isSubscribed) {
+          setAuthState({
+            user: null,
+            isAuthenticated: false,
+            isLoading: false,
+          });
+        }
       }
     };
 
     initializeAuth();
 
     // Supabase Auth 상태 변경 감지
-    const { data: { subscription } } = onAuthStateChange((supabaseUser) => {
-      if (supabaseUser) {
-        const user: User = {
-          id: supabaseUser.id,
-          username: supabaseUser.username,
-          email: supabaseUser.email,
-          role: supabaseUser.role as 'user' | 'admin',
-          createdAt: supabaseUser.created_at,
-          profileImage: supabaseUser.profile_image_url || undefined
-        };
+    let subscription: any = null;
+    try {
+      const authListener = onAuthStateChange((supabaseUser) => {
+        if (!isSubscribed) return; // Prevent state updates if component unmounted
         
-        setAuthState({
-          user,
-          isAuthenticated: true,
-          isLoading: false,
-        });
-      } else {
-        setAuthState({
-          user: null,
-          isAuthenticated: false,
-          isLoading: false,
-        });
+        if (supabaseUser) {
+          const user: User = {
+            id: supabaseUser.id,
+            username: supabaseUser.username,
+            email: supabaseUser.email,
+            role: supabaseUser.role as 'user' | 'admin',
+            createdAt: supabaseUser.created_at,
+            profileImage: supabaseUser.profile_image_url || undefined
+          };
+          
+          setAuthState({
+            user,
+            isAuthenticated: true,
+            isLoading: false,
+          });
+        } else {
+          setAuthState({
+            user: null,
+            isAuthenticated: false,
+            isLoading: false,
+          });
+        }
+      });
+      
+      // Safer subscription handling
+      if (authListener && typeof authListener === 'object') {
+        if (authListener.data && authListener.data.subscription) {
+          subscription = authListener.data.subscription;
+        } else if (authListener.subscription) {
+          subscription = authListener.subscription;
+        } else if (typeof authListener.unsubscribe === 'function') {
+          subscription = authListener; // Sometimes the listener itself has unsubscribe method
+        }
       }
-    });
+    } catch (error) {
+      console.error('Auth state change listener error:', error);
+    }
 
     return () => {
-      subscription?.unsubscribe();
+      isSubscribed = false; // Prevent state updates after unmount
+      try {
+        if (subscription) {
+          if (typeof subscription.unsubscribe === 'function') {
+            subscription.unsubscribe();
+          } else if (typeof subscription === 'function') {
+            subscription(); // Some subscriptions are functions that unsubscribe when called
+          }
+        }
+      } catch (error) {
+        console.error('Subscription unsubscribe error:', error);
+      }
     };
   }, []);
 
@@ -110,20 +145,31 @@ export function AuthProvider({ children }: AuthProviderProps) {
     });
   };
 
-  // 로그아웃 처리 (Supabase만 사용)
+  // 로그아웃 처리 (안전한 방식)
   const handleLogout = async () => {
     try {
       console.log('🔓 Starting secure logout...');
       
-      // 1. Supabase 로그아웃 (HttpOnly 쿠키 자동 처리)
-      await signOutFromSupabase();
-      
-      // 2. 상태 초기화
+      // 1. 즉시 로컬 상태 초기화 (더 빠른 UI 반응)
       setAuthState({
         user: null,
         isAuthenticated: false,
         isLoading: false,
       });
+      
+      // 2. 로컬 스토리지/세션 클리어
+      if (typeof window !== 'undefined') {
+        localStorage.clear();
+        sessionStorage.clear();
+      }
+      
+      // 3. Supabase 로그아웃 (HttpOnly 쿠키 자동 처리)
+      await signOutFromSupabase();
+      
+      // 4. Next.js router로 안전한 리다이렉트
+      if (typeof window !== 'undefined') {
+        window.location.replace('/');
+      }
       
       console.log('✅ Secure logout completed');
     } catch (error) {
@@ -134,6 +180,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
         isAuthenticated: false,
         isLoading: false,
       });
+      
+      // 강제 클리어 및 리다이렉트
+      if (typeof window !== 'undefined') {
+        localStorage.clear();
+        sessionStorage.clear();
+        window.location.replace('/');
+      }
+      
       console.log('⚠️ Forced logout due to error');
     }
   };

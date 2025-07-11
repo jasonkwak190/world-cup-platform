@@ -1,5 +1,4 @@
 // WorldCup Components - Tournament display and management
-export { default as WorldCupCard } from './WorldCupCard';
 export { default as WorldCupGrid } from './WorldCupGrid';
 export { default as WorldCupPreview } from './WorldCupPreview';
 export { default as VirtualizedWorldCupGrid } from './VirtualizedWorldCupGrid';

@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useEffect } from 'react';
 import { RecentComment, RecentCommentsResponse } from '@/app/api/comments/recent/route';
 

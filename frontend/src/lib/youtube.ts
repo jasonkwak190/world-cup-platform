@@ -173,9 +173,9 @@ export class YouTubeService {
   }
 
   /**
-   * 실제 YouTube API 호출 (배치)
+   * 실제 YouTube API 호출 (배치) - 재시도 로직 포함
    */
-  private async fetchVideoMetadataBatch(videoIds: string[]): Promise<{
+  private async fetchVideoMetadataBatch(videoIds: string[], retryCount: number = 0): Promise<{
     successful: VideoMetadata[];
     failed: Array<{ videoId: string; error: string }>;
   }> {
@@ -250,7 +250,23 @@ export class YouTubeService {
       });
 
     } catch (error) {
-      console.error('YouTube API 요청 중 오류:', error);
+      console.error(`YouTube API 요청 중 오류 (시도 ${retryCount + 1}/3):`, error);
+      
+      // 네트워크 오류이고 재시도 가능한 경우
+      if (retryCount < 2 && (
+        error instanceof Error && (
+          error.message.includes('fetch') || 
+          error.message.includes('network') || 
+          error.message.includes('timeout')
+        )
+      )) {
+        console.log(`🔄 YouTube API 재시도 중... (${retryCount + 2}/3)`);
+        
+        // 지수 백오프로 재시도 (1초, 2초, 4초)
+        await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
+        
+        return this.fetchVideoMetadataBatch(videoIds, retryCount + 1);
+      }
       
       // 모든 비디오 ID를 실패로 처리
       videoIds.forEach(id => {

@@ -89,7 +89,7 @@ export default function BulkYouTubeUpload({
     }
 
     // 🔑 YouTube API 키 확인
-    const apiKey = process.env.NEXT_PUBLIC_YOUTUBE_API_KEY;
+    const apiKey = typeof process !== 'undefined' ? process.env.NEXT_PUBLIC_YOUTUBE_API_KEY : undefined;
     console.log('🔑 API Key check:', apiKey ? `${apiKey.slice(0, 10)}...${apiKey.slice(-5)}` : 'NOT FOUND');
     
     if (!apiKey) {
@@ -117,10 +117,25 @@ export default function BulkYouTubeUpload({
         status: item.status === 'error' ? 'error' : 'processing' as const
       })));
 
-      // 배치로 메타데이터 가져오기
+      // 배치로 메타데이터 가져오기 (개선된 에러 처리)
+      console.log('🎥 Starting batch processing for video IDs:', videoIds);
+      
       const result = await youtubeService.getMultipleVideoMetadata(videoIds);
       
-      console.log('🎥 Batch processing result:', result);
+      console.log('🎥 Batch processing result:', {
+        successful: result.successful.length,
+        failed: result.failed.length,
+        totalProcessed: result.totalProcessed,
+        apiCallsUsed: result.apiCallsUsed,
+        successfulItems: result.successful.map(item => ({
+          videoId: item.videoId,
+          title: item.title.substring(0, 50) + '...'
+        })),
+        failedItems: result.failed.map(item => ({
+          videoId: item.videoId,
+          error: item.error.substring(0, 100) + '...'
+        }))
+      });
 
       // 결과를 상태에 반영 (중복 아이템은 그대로 유지)
       const updatedItems = videoItems.map(item => {
@@ -204,7 +219,21 @@ export default function BulkYouTubeUpload({
         videoMetadata: item.metadata
       }));
 
-    console.log('🎯 Final submission:', processedVideos);
+    console.log('🎯 Final submission:', {
+      totalItemsProcessed: videoItems.length,
+      successfulItems: processedVideos.length,
+      failedItems: videoItems.filter(item => item.status === 'error').length,
+      processedVideos: processedVideos.map(video => ({
+        id: video.id,
+        title: video.title,
+        videoId: video.videoId,
+        duration: video.videoDuration,
+        startTime: video.videoStartTime,
+        endTime: video.videoEndTime,
+        thumbnailUrl: video.videoThumbnail
+      }))
+    });
+    
     onVideosProcessed(processedVideos);
     
     // 상태 초기화

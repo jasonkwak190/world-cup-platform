@@ -4,8 +4,10 @@ const nextConfig: NextConfig = {
   // 화면 전환 오류 방지를 위한 설정 개선
   reactStrictMode: true,
   
-  // 🔒 YouTube iframe 최적화된 CSP 정책
+  // 🔒 CSP 정책 (개발/운영 환경별 설정)
   async headers() {
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    
     return [
       {
         source: '/(.*)',
@@ -14,7 +16,10 @@ const nextConfig: NextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline'",
+              // 개발 환경에서는 webpack을 위해 unsafe-eval 허용
+              isDevelopment 
+                ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
+                : "script-src 'self' 'unsafe-inline'",
               "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com",
               "connect-src 'self' https://rctoxfcyzzsiikopbsne.supabase.co https://www.googleapis.com https://googleads.g.doubleclick.net",
               "img-src 'self' data: blob: https: https://i.ytimg.com https://img.youtube.com",
@@ -31,6 +36,18 @@ const nextConfig: NextConfig = {
   
   // Webpack 설정 최적화
   webpack: (config, { isServer, dev }) => {
+    // 클라이언트 사이드에서 process.env 사용 가능하도록 설정
+    if (!isServer) {
+      config.plugins.push(
+        new (require('webpack').DefinePlugin)({
+          'process.env.NODE_ENV': JSON.stringify(dev ? 'development' : 'production'),
+          'process.env': JSON.stringify({
+            NODE_ENV: dev ? 'development' : 'production',
+          }),
+        })
+      );
+    }
+
     // 프로덕션 빌드에서 console 로깅 제거
     if (!dev) {
       config.optimization = {
@@ -56,6 +73,7 @@ const nextConfig: NextConfig = {
         fs: false,
         path: false,
         os: false,
+        // process: false를 제거하여 DefinePlugin이 동작하도록 함
       };
       
       // 동적 임포트 최적화

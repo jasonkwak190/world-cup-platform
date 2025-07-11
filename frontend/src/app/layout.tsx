@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { GeistSans } from 'geist/font/sans';
 import { GeistMono } from 'geist/font/mono';
 import "./globals.css";
-import ClientProviders from "@/components/ClientProviders";
+import ClientProviders from '@/components/ClientProviders';
 
 
 
@@ -61,75 +61,7 @@ export default function RootLayout({
         <ClientProviders>
           {children}
         </ClientProviders>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-
-              // 🚀 스크롤 성능 최적화: passive 이벤트 리스너 설정 및 경고 억제
-              (function() {
-                // 기본 addEventListener 메서드 백업
-                const originalAddEventListener = EventTarget.prototype.addEventListener;
-                
-                // addEventListener 오버라이드
-                EventTarget.prototype.addEventListener = function(type, listener, options) {
-                  // 스크롤 관련 이벤트에 자동으로 passive 적용
-                  if (['touchstart', 'touchmove', 'wheel', 'mousewheel'].includes(type)) {
-                    if (typeof options === 'boolean') {
-                      options = { capture: options, passive: true };
-                    } else if (typeof options === 'object' && options !== null) {
-                      if (options.passive === undefined) {
-                        options.passive = true;
-                      }
-                    } else {
-                      options = { passive: true };
-                    }
-                  }
-                  
-                  return originalAddEventListener.call(this, type, listener, options);
-                };
-                
-                console.log('✅ Enhanced passive event listeners initialized');
-              })();
-
-              // 🔇 개발 환경에서 passive 이벤트 경고 억제 (선택적)
-              if (process.env.NODE_ENV === 'development') {
-                const originalConsoleWarn = console.warn;
-                console.warn = function(...args) {
-                  const message = args.join(' ');
-                  if (message.includes('Added non-passive event listener') && 
-                      message.includes('scroll-blocking')) {
-                    return; // 이 경고만 무시
-                  }
-                  return originalConsoleWarn.apply(console, args);
-                };
-              }
-              
-              // Service Worker 등록 (캐시 충돌 방지)
-              if ('serviceWorker' in navigator) {
-                window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js')
-                    .then(function(registration) {
-                      console.log('✅ SW registered: ', registration);
-                      // 캐시 업데이트 체크
-                      registration.addEventListener('updatefound', () => {
-                        const newWorker = registration.installing;
-                        if (newWorker) {
-                          newWorker.addEventListener('statechange', () => {
-                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                              console.log('🔄 New SW version available, will update on next navigation');
-                            }
-                          });
-                        }
-                      });
-                    })
-                    .catch(function(registrationError) {
-                      console.log('❌ SW registration failed: ', registrationError);
-                    });
-                });
-              }
-            `,
-          }}
-        />
+        <script src="/js/performance-optimizations.js" async></script>
       </body>
     </html>
   );

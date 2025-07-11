@@ -33,17 +33,21 @@ export async function saveTournamentResult(
     // 중복 저장 방지: 같은 세션 토큰으로 이미 저장된 결과가 있는지 확인
     const sessionTokenToCheck = sessionToken || generateSessionToken();
     if (sessionToken) {
-      const { data: existingSession } = await supabase
+      const { data: existingSession, error } = await supabase
         .from('game_sessions')
         .select('id')
         .eq('session_token', sessionTokenToCheck)
         .eq('worldcup_id', worldcupId)
-        .single();
+        .limit(1);
 
-      if (existingSession) {
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error checking existing session:', error);
+      }
+
+      if (existingSession && existingSession.length > 0) {
         console.log('⚠️ Session already exists, skipping save:', sessionTokenToCheck);
         return { 
-          sessionId: existingSession.id,
+          sessionId: existingSession[0].id,
           message: 'Result already saved',
           skipped: true 
         };

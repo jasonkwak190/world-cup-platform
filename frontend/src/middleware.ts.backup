@@ -1,0 +1,97 @@
+// 🔒 Next.js 미들웨어 - 보안 헤더만 적용 (Rate Limiting 제거)
+import { NextRequest, NextResponse } from 'next/server';
+
+// 🔒 보안 헤더 설정
+const securityHeaders = {
+  // XSS 공격 방지
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'X-XSS-Protection': '1; mode=block',
+  
+  // Referrer 정책
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  
+  // 권한 정책
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), interest-cohort=()',
+};
+
+// 개발환경용 완화된 CSP
+const developmentCSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.vercel-insights.com https://va.vercel-scripts.com",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' data: https: https://fonts.gstatic.com",
+  "img-src 'self' data: blob: https: http:",
+  "media-src 'self' blob: https: http:",
+  "connect-src 'self' https: http: ws: wss:",
+  "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com",
+  "object-src 'none'"
+].join('; ');
+
+// 프로덕션용 엄격한 CSP
+const productionCSP = [
+  "default-src 'self'",
+  "script-src 'self' https://cdn.vercel-insights.com https://va.vercel-scripts.com",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data: blob: https: https://*.supabase.co https://*.supabase.in",
+  "media-src 'self' blob: https:",
+  "connect-src 'self' https://*.supabase.co https://*.supabase.in https://va.vercel-scripts.com wss://*.supabase.co",
+  "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+  "upgrade-insecure-requests"
+].join('; ');
+
+export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  
+  // 정적 파일은 미들웨어 적용 제외
+  if (
+    pathname.startsWith('/_next/') ||
+    pathname.startsWith('/favicon.ico') ||
+    pathname.startsWith('/icons/') ||
+    pathname.startsWith('/images/') ||
+    pathname.startsWith('/js/') ||
+    pathname.includes('.')
+  ) {
+    return NextResponse.next();
+  }
+  
+  // 기본 응답 생성
+  const response = NextResponse.next();
+  
+  // 🔒 모든 요청에 보안 헤더 적용
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  
+  Object.entries(securityHeaders).forEach(([key, value]) => {
+    response.headers.set(key, value);
+  });
+  
+  // CSP 설정 (개발환경은 완화, 프로덕션은 엄격)
+  response.headers.set('Content-Security-Policy', isDevelopment ? developmentCSP : productionCSP);
+  
+  // 개발환경 표시
+  if (isDevelopment) {
+    response.headers.set('X-Development-Mode', 'true');
+  }
+  
+  return response;
+}
+
+// 미들웨어를 적용할 경로 설정
+export const config = {
+  matcher: [
+    /*
+     * 다음을 제외한 모든 경로에 적용:
+     * - _next/static (정적 파일)
+     * - _next/image (이미지 최적화)
+     * - favicon.ico (파비콘)
+     * - js 파일 (정적 JavaScript)
+     * - 확장자가 있는 파일들
+     */
+    '/((?!_next/static|_next/image|favicon.ico|js/|.*\\.).*)',
+  ],
+};
