@@ -51,7 +51,7 @@ export interface GameState {
   endTime?: number;
 }
 
-export type TournamentSize = 4 | 8 | 16 | 32 | 64 | 128;
+export type TournamentSize = 4 | 8 | 16 | 32 | 64 | 128 | 256 | 512 | 1024;
 
 export interface Comment {
   id: string;

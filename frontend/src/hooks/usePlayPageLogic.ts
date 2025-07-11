@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, use } from 'react';
 import { useRouter } from 'next/navigation';
-import { WorldCupItem, GameState } from '@/types/game';
+import { WorldCupItem, GameState, TournamentSize } from '@/types/game';
 import { createTournament, getCurrentMatch, selectWinner, getRoundName, getTournamentProgress, undoLastMatch, shuffleArray, autoAdvanceByes, isByeMatch } from '@/utils/tournament';
 import { getWorldCupById } from '@/utils/storage';
 import { getWorldCupById as getSupabaseWorldCupById } from '@/utils/supabaseData';
@@ -230,13 +230,22 @@ export function usePlayPageLogic(params: Promise<{ id: string; }> | { id: string
   const handleTournamentSelect = (tournamentSize: number) => {
     if (!worldcupData) return;
     
-    const shuffledItems = shuffleArray([...worldcupData.items]);
-    const selectedItems = shuffledItems.slice(0, tournamentSize);
+    // 모든 아이템 (이미지 + 비디오) 합치기
+    const allItems = [
+      ...(worldcupData.items || []),
+      ...(worldcupData.videoItems || [])
+    ];
+    
+    const shuffledItems = shuffleArray([...allItems]);
+    
+    // 사용자가 선택한 토너먼트 크기 사용, 없으면 기본 로직
+    const targetTournamentSize: TournamentSize | undefined = worldcupData.tournamentSize || undefined;
     
     let tournament = createTournament(
       worldcupData.title,
-      selectedItems,
-      worldcupData.description
+      shuffledItems,
+      worldcupData.description,
+      targetTournamentSize
     );
     
     tournament = autoAdvanceByes(tournament);

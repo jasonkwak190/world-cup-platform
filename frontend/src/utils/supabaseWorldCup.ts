@@ -100,7 +100,7 @@ export async function saveWorldCupToSupabase(worldCupData: any, onProgress?: (pr
     // 3. 썸네일 업로드 (있는 경우)
     if (thumbnailToUpload) {
       try {
-        let thumbnailFile: File;
+        let thumbnailFile: File | null = null;
         
         // 다양한 썸네일 형태 처리
         if (thumbnailToUpload instanceof File) {
@@ -199,7 +199,7 @@ export async function saveWorldCupToSupabase(worldCupData: any, onProgress?: (pr
     
     // 4. 혼합 미디어 아이템들 생성 (이미지 + 동영상)
     const allMediaItems = [
-      ...(worldCupData.items || []).map(item => ({ ...item, mediaType: 'image' as const })),
+      ...(worldCupData.items || []).map((item: any) => ({ ...item, mediaType: 'image' as const })),
       ...(worldCupData.videoItems || [])
     ];
     
@@ -444,7 +444,7 @@ export async function saveWorldCupToSupabase(worldCupData: any, onProgress?: (pr
     console.error('Error saving worldcup to Supabase:', error);
     return {
       success: false,
-      error: error.message || '월드컵 저장 중 오류가 발생했습니다.'
+      error: (error as Error).message || '월드컵 저장 중 오류가 발생했습니다.'
     };
   }
 }
@@ -482,7 +482,7 @@ export async function backupLocalStorageToSupabase() {
   } catch (error) {
     return {
       success: false,
-      error: error.message || '백업 중 오류가 발생했습니다.'
+      error: (error as Error).message || '백업 중 오류가 발생했습니다.'
     };
   }
 }
@@ -541,7 +541,7 @@ export async function updateWorldCupInSupabase(worldcupId: string, worldCupData:
     
     if (worldCupData.thumbnail) {
       try {
-        let thumbnailFile: File;
+        let thumbnailFile: File | null = null;
         let needsThumbnailUpload = false;
         
         if (worldCupData.thumbnail instanceof File) {
@@ -606,7 +606,7 @@ export async function updateWorldCupInSupabase(worldcupId: string, worldCupData:
           needsThumbnailUpload = false;
         }
         
-        if (needsThumbnailUpload) {
+        if (needsThumbnailUpload && thumbnailFile) {
           console.log('📤 Uploading thumbnail...');
           const thumbnailResult = await uploadWorldCupThumbnail(thumbnailFile, worldcupId);
           if (thumbnailResult.success) {
@@ -668,23 +668,6 @@ export async function updateWorldCupInSupabase(worldcupId: string, worldCupData:
         console.log('✅ STEP 3a SUCCESS: Got existing items:', existingItems?.length || 0);
 
         // 비디오 메타데이터만 업데이트하는 경우 최적화
-        console.log('🔍 DEBUG: Checking optimization conditions...', {
-          allMediaItemsLength: allMediaItems.length,
-          existingItemsLength: existingItems?.length,
-          lengthsMatch: allMediaItems.length === existingItems?.length,
-          allMediaItemsSample: allMediaItems.slice(0, 2).map(item => ({
-            title: item.title,
-            mediaType: item.mediaType,
-            hasImage: !!item.image,
-            hasSrc: !!item.src
-          })),
-          existingItemsSample: existingItems?.slice(0, 2).map(item => ({
-            title: item.title,
-            mediaType: item.media_type,
-            imageUrl: item.image_url
-          }))
-        });
-
         const videoOnlyUpdate = allMediaItems.length === existingItems?.length && 
           allMediaItems.every((item, index) => {
             const existing = existingItems?.[index];
@@ -692,21 +675,8 @@ export async function updateWorldCupInSupabase(worldcupId: string, worldCupData:
             const mediaTypeMatch = existing?.media_type === item.mediaType;
             const imageMatch = item.mediaType === 'image' ? existing?.image_url === (item.image || item.src) : true;
             
-            console.log(`🔍 DEBUG: Item ${index + 1} check:`, {
-              title: item.title,
-              titleMatch,
-              mediaTypeMatch,
-              imageMatch,
-              itemMediaType: item.mediaType,
-              existingMediaType: existing?.media_type,
-              itemImageOrSrc: item.image || item.src,
-              existingImageUrl: existing?.image_url
-            });
-            
             return existing && titleMatch && mediaTypeMatch && imageMatch;
           });
-          
-        console.log('🔍 DEBUG: videoOnlyUpdate result:', videoOnlyUpdate);
 
         if (videoOnlyUpdate) {
           console.log('⚡ STEP 3b: Optimized video metadata update with batching...');
@@ -714,8 +684,8 @@ export async function updateWorldCupInSupabase(worldcupId: string, worldCupData:
           // 비디오 아이템들만 배치 업데이트
           const videoItemsToUpdate = allMediaItems
             .filter(item => item.mediaType === 'video')
-            .map((item: any, index: number) => {
-              const existingItem = existingItems?.[allMediaItems.findIndex(i => i === item)];
+            .map((item: any) => {
+              const existingItem = existingItems?.find(existing => existing.title === item.title);
               if (existingItem) {
                 return {
                   id: existingItem.id,
@@ -741,7 +711,7 @@ export async function updateWorldCupInSupabase(worldcupId: string, worldCupData:
             console.log(`🔄 Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(videoItemsToUpdate.length / batchSize)}`);
             
             const updatePromises = batch.map(item => 
-              supabase.from('worldcup_items').update(item.data).eq('id', item.id)
+              supabase.from('worldcup_items').update(item!.data).eq('id', item!.id)
             );
             
             await Promise.all(updatePromises);
@@ -896,7 +866,7 @@ export async function updateWorldCupInSupabase(worldcupId: string, worldCupData:
                 return { success: true, itemId: record.id };
               }
 
-              let imageFile: File;
+              let imageFile: File | null = null;
               let needsUpload = false;
               
               if (item.image instanceof File) {
@@ -954,14 +924,14 @@ export async function updateWorldCupInSupabase(worldcupId: string, worldCupData:
                   needsUpload = true;
                 } catch (error) {
                   console.warn(`⚠️ Item ${index + 1}: Failed to fetch blob URL:`, error);
-                  return { success: false, itemId: record.id, error: error.message };
+                  return { success: false, itemId: record.id, error: (error as Error).message };
                 }
               } else {
                 console.warn(`❓ Item ${index + 1}: Unknown image format, skipping...`);
                 return { success: false, itemId: record.id, error: 'Unknown image format' };
               }
               
-              if (needsUpload) {
+              if (needsUpload && imageFile) {
                 const imageResult = await uploadWorldCupItemImage(imageFile, worldcupId, record.id);
                 if (imageResult.success) {
                   await supabase
@@ -979,7 +949,7 @@ export async function updateWorldCupInSupabase(worldcupId: string, worldCupData:
               return { success: true, itemId: record.id };
             } catch (error) {
               console.error(`❌ Item ${index + 1} processing failed:`, error);
-              return { success: false, itemId: record.id, error: error.message };
+              return { success: false, itemId: record.id, error: (error as Error).message };
             }
           };
           
@@ -1037,7 +1007,7 @@ export async function updateWorldCupInSupabase(worldcupId: string, worldCupData:
     console.error('❌ Error updating worldcup in Supabase:', error);
     return {
       success: false,
-      error: error.message || '월드컵 업데이트 중 오류가 발생했습니다.'
+      error: (error as Error).message || '월드컵 업데이트 중 오류가 발생했습니다.'
     };
   }
 }

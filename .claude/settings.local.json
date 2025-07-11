@@ -82,7 +82,16 @@
       "Bash(git restore:*)",
       "Bash(git stash push:*)",
       "WebFetch(domain:github.com)",
-      "Bash(NEXT_PUBLIC_SUPABASE_URL=https://rctoxfcyzzsiikopbsne.supabase.co NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjdG94ZmN5enpzaWlrb3Bic25lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA5NTAwMDksImV4cCI6MjA2NjUyNjAwOX0.moYSDe7kRAkbnhPr_9V5nE_t_TvGAtBy6Uk3O7aXep4 node test-supabase.js)"
+      "Bash(NEXT_PUBLIC_SUPABASE_URL=https://rctoxfcyzzsiikopbsne.supabase.co NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjdG94ZmN5enpzaWlrb3Bic25lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA5NTAwMDksImV4cCI6MjA2NjUyNjAwOX0.moYSDe7kRAkbnhPr_9V5nE_t_TvGAtBy6Uk3O7aXep4 node test-supabase.js)",
+      "Bash(sudo rm:*)",
+      "Bash(PORT=3002 npm run dev)",
+      "Bash(for file in *.tsx)",
+      "Bash(do echo \"=== $file ===\")",
+      "Bash(done)",
+      "Bash(timeout 5 npm run dev)",
+      "Bash(timeout 10 npm run build:*)",
+      "mcp__ide__executeCode",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ],
     "deny": []
   }

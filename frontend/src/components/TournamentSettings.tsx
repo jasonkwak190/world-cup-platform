@@ -38,6 +38,7 @@ export default function TournamentSettings({ data, onChange }: TournamentSetting
     });
   };
 
+
   return (
     <div className="space-y-6">
       <div className="text-center">
@@ -171,6 +172,7 @@ export default function TournamentSettings({ data, onChange }: TournamentSetting
             </label>
           </div>
         </div>
+
 
         {/* Guidelines */}
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">

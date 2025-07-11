@@ -27,6 +27,71 @@ export function getNextPowerOfTwo(num: number): TournamentSize {
   return powers.find(p => p >= num) || 128;
 }
 
+// 📊 아이템 수에 따라 선택 가능한 라운드 옵션들을 반환하는 함수
+export function getAvailableRounds(itemCount: number): Array<{size: TournamentSize, name: string, description: string}> {
+  const maxSize = getNextPowerOfTwo(itemCount);
+  const availableRounds = [];
+  
+  // 최대 토너먼트 크기부터 시작해서 가능한 모든 라운드 추가
+  const powers: TournamentSize[] = [4, 8, 16, 32, 64, 128, 256, 512, 1024];
+  
+  for (const size of powers) {
+    if (size <= maxSize) {
+      let name = '';
+      let description = '';
+      
+      switch (size) {
+        case 4:
+          name = '4강';
+          description = '빠르고 간단한 토너먼트';
+          break;
+        case 8:
+          name = '8강';
+          description = '표준 토너먼트 구조';
+          break;
+        case 16:
+          name = '16강';
+          description = '대규모 토너먼트';
+          break;
+        case 32:
+          name = '32강';
+          description = '매우 큰 토너먼트';
+          break;
+        case 64:
+          name = '64강';
+          description = '거대한 토너먼트';
+          break;
+        case 128:
+          name = '128강';
+          description = '거대한 토너먼트';
+          break;
+        case 256:
+          name = '256강';
+          description = '초대형 토너먼트';
+          break;
+        case 512:
+          name = '512강';
+          description = '대규모 토너먼트';
+          break;
+        case 1024:
+          name = '1024강';
+          description = '최대 규모 토너먼트';
+          break;
+      }
+      
+      // 부전승이 있을 경우 설명에 추가
+      const byeCount = size - itemCount;
+      if (byeCount > 0) {
+        description += ` • 부전승 ${byeCount}개`;
+      }
+      
+      availableRounds.push({ size, name, description });
+    }
+  }
+  
+  return availableRounds.reverse(); // 큰 라운드부터 표시
+}
+
 export function createInitialMatches(items: WorldCupItem[]): Match[] {
   const matches: Match[] = [];
   
@@ -51,14 +116,15 @@ export function createInitialMatches(items: WorldCupItem[]): Match[] {
 export function createTournament(
   title: string,
   items: WorldCupItem[],
-  description?: string
+  description?: string,
+  targetTournamentSize?: TournamentSize
 ): Tournament {
   // 🎲 이중 랜덤 셔플로 더 강력한 무작위성 보장
   console.log(`🎲 Creating tournament with ${items.length} items - applying double randomization`);
   let shuffledItems = shuffleArray(items);
   shuffledItems = shuffleArray(shuffledItems); // 두 번 섞어서 완전 랜덤화
   
-  const targetSize = getNextPowerOfTwo(items.length);
+  const targetSize = targetTournamentSize || getNextPowerOfTwo(items.length);
   
   // 부족한 항목은 빈 캔버스로 채우기 (부전승 처리)
   while (shuffledItems.length < targetSize) {
