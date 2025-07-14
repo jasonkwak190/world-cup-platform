@@ -311,7 +311,7 @@ function EditPageContent() {
                   }`}
                 >
                   <Image className="w-4 h-4 inline mr-2" />
-                  이미지 업로드
+                  이미지 ({worldCupData.items.length}개)
                 </button>
                 <button
                   onClick={() => setActiveMediaTab('videos')}
@@ -322,10 +322,56 @@ function EditPageContent() {
                   }`}
                 >
                   <Play className="w-4 h-4 inline mr-2" />
-                  동영상 업로드
+                  동영상 ({worldCupData.videoItems.length}개)
                 </button>
               </div>
             </div>
+
+            {/* 전체 아이템 수 표시 */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                  <span className="text-blue-800 font-medium">
+                    총 {worldCupData.items.length + worldCupData.videoItems.length}개 아이템
+                  </span>
+                </div>
+                <div className="text-sm text-blue-700">
+                  {worldCupData.items.length + worldCupData.videoItems.length >= 4 
+                    ? '✅ 최소 조건 충족' 
+                    : `⚠️ ${4 - (worldCupData.items.length + worldCupData.videoItems.length)}개 더 필요`
+                  }
+                </div>
+              </div>
+              <div className="mt-2 text-xs text-blue-600">
+                이미지 {worldCupData.items.length}개 + 동영상 {worldCupData.videoItems.length}개 = 
+                총 {worldCupData.items.length + worldCupData.videoItems.length}개 (최소 4개 필요)
+                {worldCupData.items.length > 0 && worldCupData.videoItems.length > 0 && (
+                  <span className="ml-2 text-yellow-600">• 썸네일은 이미지 탭에서 설정</span>
+                )}
+              </div>
+            </div>
+
+            {/* 썸네일 중복 설정 방지 경고 */}
+            {worldCupData.items.length > 0 && worldCupData.videoItems.length > 0 && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <div className="flex items-start space-x-3">
+                  <div className="flex-shrink-0">
+                    <div className="w-5 h-5 bg-yellow-100 rounded-full flex items-center justify-center">
+                      <span className="text-xs text-yellow-600 font-medium">⚠</span>
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-medium text-yellow-900 mb-1">썸네일 설정 안내</h4>
+                    <p className="text-sm text-yellow-700">
+                      이미지와 동영상이 모두 있을 때는 <strong>이미지 탭에서만</strong> 썸네일을 설정하세요.
+                      <br />
+                      이미지 썸네일 자동 생성 기능을 사용하거나 직접 업로드할 수 있습니다.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Tab Content */}
             {activeMediaTab === 'images' ? (
@@ -377,6 +423,24 @@ function EditPageContent() {
                           </button>
                         </div>
                       ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 이미지가 있을 때 동영상 탭에서 썸네일 설정 안내 */}
+                {worldCupData.videoItems.length > 0 && worldCupData.items.length > 0 && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                    <div className="text-center">
+                      <h3 className="text-lg font-semibold text-blue-900 mb-2">🎬 썸네일 설정</h3>
+                      <p className="text-blue-700 mb-4">
+                        이미지와 동영상이 모두 있을 때는 <strong>이미지 탭</strong>에서 썸네일을 설정해주세요.
+                      </p>
+                      <button
+                        onClick={() => setActiveMediaTab('images')}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                      >
+                        이미지 탭에서 썸네일 설정하기
+                      </button>
                     </div>
                   </div>
                 )}

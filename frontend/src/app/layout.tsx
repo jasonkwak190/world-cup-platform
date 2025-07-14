@@ -1,8 +1,18 @@
 import type { Metadata, Viewport } from "next";
 import { GeistSans } from 'geist/font/sans';
 import { GeistMono } from 'geist/font/mono';
+import dynamic from 'next/dynamic';
+import ErrorBoundary from '@/components/ErrorBoundary';
 import "./globals.css";
-import ClientProviders from '@/components/ClientProviders';
+
+// Dynamic import to prevent hydration issues
+const ClientProviders = dynamic(() => import('@/components/ClientProviders'), {
+  loading: () => (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+    </div>
+  )
+});
 
 
 
@@ -58,9 +68,11 @@ export default function RootLayout({
       <body
         className={`${GeistSans.variable} ${GeistMono.variable} antialiased`}
       >
-        <ClientProviders>
-          {children}
-        </ClientProviders>
+        <ErrorBoundary>
+          <ClientProviders>
+            {children}
+          </ClientProviders>
+        </ErrorBoundary>
         <script src="/js/performance-optimizations.js" async></script>
       </body>
     </html>

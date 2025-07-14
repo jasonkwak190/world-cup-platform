@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import dynamic from 'next/dynamic';
 import { RefreshCw, AlertCircle, Home } from 'lucide-react';
 
 interface ErrorBoundaryState {
@@ -120,9 +119,9 @@ export const withErrorBoundary = <P extends object>(
   fallback?: React.ComponentType<{ error: Error; retry: () => void }>
 ) => {
   const WrappedComponent = (props: P) => (
-    <ErrorBoundary fallback={fallback}>
+    <ErrorBoundaryComponent fallback={fallback}>
       <Component {...props} />
-    </ErrorBoundary>
+    </ErrorBoundaryComponent>
   );
   
   WrappedComponent.displayName = `withErrorBoundary(${Component.displayName || Component.name})`;

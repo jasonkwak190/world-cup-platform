@@ -128,11 +128,8 @@ export async function signInWithSupabase(loginData: { email: string; password: s
       profile_image_url: null
     };
 
-    // jason190@naver.com은 admin으로 설정
-    if (data.user.email === 'jason190@naver.com') {
-      fallbackUser.role = 'admin';
-      fallbackUser.username = 'jason';
-    }
+    // 🔒 SECURITY: 역할은 데이터베이스에서만 관리되어야 함
+    // 클라이언트 측에서 역할을 결정하지 않음
 
     console.log('✅ Fallback user created:', fallbackUser);
     return { success: true, user: fallbackUser };
@@ -204,11 +201,8 @@ export async function getCurrentSupabaseUser(): Promise<SupabaseUser | null> {
       profile_image_url: null
     };
 
-    // jason190@naver.com은 admin으로 설정
-    if (authUser.email === 'jason190@naver.com') {
-      fallbackUser.role = 'admin';
-      fallbackUser.username = 'jason';
-    }
+    // 🔒 SECURITY: 역할은 데이터베이스에서만 관리되어야 함
+    // 클라이언트 측에서 역할을 결정하지 않음
 
     return fallbackUser;
   } catch (error) {
@@ -238,51 +232,59 @@ export async function updateSupabaseUserProfile(userId: string, updates: Supabas
   }
 }
 
-// OTP로 비밀번호 재설정 시작 (인증번호 발송)
+// 🔥 새로운 Custom OTP 시스템 - 인증번호 발송
 export async function sendPasswordResetOTP(email: string) {
   try {
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email,
-      options: {
-        shouldCreateUser: false // 기존 사용자만 허용
-      }
+    const response = await fetch('/api/auth/send-reset-otp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email }),
     });
+
+    const result = await response.json();
     
-    if (error) {
-      return { success: false, error: error.message };
+    if (!response.ok) {
+      return { success: false, error: result.error || '인증번호 발송에 실패했습니다.' };
     }
-    
-    return { success: true, message: '인증번호가 이메일로 발송되었습니다.' };
+
+    return { 
+      success: true, 
+      message: result.message || '인증번호가 이메일로 발송되었습니다.'
+      // 🔒 SECURITY: OTP 코드는 절대 클라이언트에 노출되지 않음
+    };
   } catch (error) {
     console.error('OTP send error:', error);
     return { success: false, error: '인증번호 발송 중 오류가 발생했습니다.' };
   }
 }
 
-// OTP 인증 및 새 비밀번호 설정
+// 🔥 새로운 Custom OTP 시스템 - 인증번호 검증 및 비밀번호 변경
 export async function resetPasswordWithOTP(email: string, otp: string, newPassword: string) {
   try {
-    // 1. OTP로 로그인 (세션 생성)
-    const { error: verifyError } = await supabase.auth.verifyOtp({
-      email: email,
-      token: otp,
-      type: 'email'
+    const response = await fetch('/api/auth/reset-password', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ 
+        email, 
+        otpCode: otp, 
+        newPassword 
+      }),
     });
+
+    const result = await response.json();
     
-    if (verifyError) {
-      return { success: false, error: '인증번호가 잘못되었거나 만료되었습니다.' };
+    if (!response.ok) {
+      return { success: false, error: result.error || '비밀번호 변경에 실패했습니다.' };
     }
-    
-    // 2. 비밀번호 업데이트
-    const { error: updateError } = await supabase.auth.updateUser({
-      password: newPassword
-    });
-    
-    if (updateError) {
-      return { success: false, error: updateError.message };
-    }
-    
-    return { success: true, message: '비밀번호가 성공적으로 변경되었습니다.' };
+
+    return { 
+      success: true, 
+      message: result.message || '비밀번호가 성공적으로 변경되었습니다.' 
+    };
   } catch (error) {
     console.error('Password reset with OTP error:', error);
     return { success: false, error: '비밀번호 변경 중 오류가 발생했습니다.' };

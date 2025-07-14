@@ -305,35 +305,35 @@ export default function CreatePage() {
         return (
           <div className="space-y-6">
             {/* 미디어 타입 탭 */}
-            <div className="border-b border-gray-200">
-              <nav className="-mb-px flex space-x-8">
+            <div className="flex justify-center">
+              <div className="bg-gray-100 p-1 rounded-lg inline-flex">
                 <button
                   onClick={() => setActiveMediaTab('images')}
-                  className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  className={`px-6 py-2 rounded-md font-medium transition-colors ${
                     activeMediaTab === 'images'
-                      ? 'border-emerald-500 text-emerald-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      ? 'bg-white text-emerald-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
                   }`}
                 >
                   <div className="flex items-center space-x-2">
-                    <Image className="w-5 h-5" />
+                    <Image className="w-4 h-4" />
                     <span>이미지 ({worldCupData.items.length}개)</span>
                   </div>
                 </button>
                 <button
                   onClick={() => setActiveMediaTab('videos')}
-                  className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  className={`px-6 py-2 rounded-md font-medium transition-colors ${
                     activeMediaTab === 'videos'
-                      ? 'border-red-500 text-red-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      ? 'bg-white text-emerald-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
                   }`}
                 >
                   <div className="flex items-center space-x-2">
-                    <Youtube className="w-5 h-5" />
+                    <Youtube className="w-4 h-4" />
                     <span>YouTube 동영상 ({worldCupData.videoItems.length}개)</span>
                   </div>
                 </button>
-              </nav>
+              </div>
             </div>
 
             {/* 전체 아이템 수 표시 */}
@@ -355,8 +355,32 @@ export default function CreatePage() {
               <div className="mt-2 text-xs text-blue-600">
                 이미지 {worldCupData.items.length}개 + 동영상 {worldCupData.videoItems.length}개 = 
                 총 {worldCupData.items.length + worldCupData.videoItems.length}개 (최소 4개 필요)
+                {worldCupData.items.length > 0 && worldCupData.videoItems.length > 0 && (
+                  <span className="ml-2 text-yellow-600">• 썸네일은 이미지 탭에서 설정</span>
+                )}
               </div>
             </div>
+
+            {/* 썸네일 중복 설정 방지 경고 */}
+            {worldCupData.items.length > 0 && worldCupData.videoItems.length > 0 && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <div className="flex items-start space-x-3">
+                  <div className="flex-shrink-0">
+                    <div className="w-5 h-5 bg-yellow-100 rounded-full flex items-center justify-center">
+                      <span className="text-xs text-yellow-600 font-medium">⚠</span>
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-medium text-yellow-900 mb-1">썸네일 설정 안내</h4>
+                    <p className="text-sm text-yellow-700">
+                      이미지와 동영상이 모두 있을 때는 <strong>이미지 탭에서만</strong> 썸네일을 설정하세요.
+                      <br />
+                      이미지 썸네일 자동 생성 기능을 사용하거나 직접 업로드할 수 있습니다.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* 탭 내용 */}
             {activeMediaTab === 'images' ? (
@@ -412,13 +436,31 @@ export default function CreatePage() {
                   </div>
                 )}
 
-                {/* 유튜브 전용 썸네일 업로드 */}
-                {worldCupData.videoItems.length > 0 && (
+                {/* 유튜브 전용 썸네일 업로드 - 이미지가 없을 때만 표시 */}
+                {worldCupData.videoItems.length > 0 && worldCupData.items.length === 0 && (
                   <YouTubeThumbnailUpload
                     videoItems={worldCupData.videoItems}
                     thumbnail={worldCupData.thumbnail}
                     onThumbnailUpload={handleThumbnailUpload}
                   />
+                )}
+
+                {/* 이미지가 있을 때 동영상 탭에서 썸네일 설정 안내 */}
+                {worldCupData.videoItems.length > 0 && worldCupData.items.length > 0 && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                    <div className="text-center">
+                      <h3 className="text-lg font-semibold text-blue-900 mb-2">🎬 썸네일 설정</h3>
+                      <p className="text-blue-700 mb-4">
+                        이미지와 동영상이 모두 있을 때는 <strong>이미지 탭</strong>에서 썸네일을 설정해주세요.
+                      </p>
+                      <button
+                        onClick={() => setActiveMediaTab('images')}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                      >
+                        이미지 탭에서 썸네일 설정하기
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
             )}

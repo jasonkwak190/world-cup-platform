@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { OverviewStats, StatsResponse } from '@/types/stats';
 
+// Security: Generic error messages to prevent information disclosure
+
 export async function GET() {
   try {
     // Get overview statistics
@@ -24,7 +26,25 @@ export async function GET() {
     ]);
 
     if (worldcupsError || usersError || commentsError) {
-      console.error('Error fetching stats:', { worldcupsError, usersError, commentsError });
+      // Security: Log detailed errors for debugging but return generic message
+      console.error('Error fetching stats:', {
+        worldcupsError: worldcupsError ? {
+          message: worldcupsError.message,
+          code: worldcupsError.code,
+          details: worldcupsError.details
+        } : null,
+        usersError: usersError ? {
+          message: usersError.message,
+          code: usersError.code,
+          details: usersError.details
+        } : null,
+        commentsError: commentsError ? {
+          message: commentsError.message,
+          code: commentsError.code,
+          details: commentsError.details
+        } : null,
+        timestamp: new Date().toISOString()
+      });
       return NextResponse.json(
         { error: 'Failed to fetch overview stats' },
         { status: 500 }
@@ -38,7 +58,14 @@ export async function GET() {
       .eq('is_public', true);
 
     if (playCountError) {
-      console.error('Error fetching play count:', playCountError);
+      // Security: Log detailed error for debugging but return generic message
+      console.error('Error fetching play count:', {
+        message: playCountError.message,
+        code: playCountError.code,
+        details: playCountError.details,
+        hint: playCountError.hint,
+        timestamp: new Date().toISOString()
+      });
       return NextResponse.json(
         { error: 'Failed to fetch play count' },
         { status: 500 }
@@ -70,7 +97,12 @@ export async function GET() {
       },
     });
   } catch (error) {
-    console.error('Unexpected error in stats API:', error);
+    // Security: Log detailed error for debugging but return generic message
+    console.error('Unexpected error in stats API:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      timestamp: new Date().toISOString()
+    });
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

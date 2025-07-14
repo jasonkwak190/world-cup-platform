@@ -1,9 +1,10 @@
-// PIKU 스타일 전체 랭킹 시스템 (기존 worldcup_items 테이블 활용)
+// 🔒 SECURITY: 보안 강화된 PIKU 스타일 전체 랭킹 시스템 
 // View를 통한 실시간 랭킹 조회
 
 import { createClient } from '@supabase/supabase-js';
 import { type NextRequest, NextResponse } from 'next/server';
 import { Database } from '@/types/supabase';
+import { withOptionalAuth, withAuth, verifyApiKey } from '@/lib/auth-middleware';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -15,14 +16,16 @@ const supabase = createClient<Database>(supabaseUrl, supabaseServiceKey, {
   }
 });
 
-// 전체 랭킹 조회 (기존 테이블 기반 View 사용)
+// 🔒 SECURITY: 전체 랭킹 조회 (공개 데이터, 인증 불필요)
 export async function GET(request: NextRequest) {
+  // 🚨 TEMPORARY FIX: 공개 랭킹은 인증 없이 접근 허용
   try {
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get('limit') || '50');
     const category = searchParams.get('category') || '';
 
     console.log('📊 Fetching PIKU-style global rankings...');
+    console.log('📊 Requested by: Anonymous (no auth required)');
 
     // 실시간 랭킹 계산 (worldcup_items 테이블 기반)
     let query = supabase
@@ -151,34 +154,50 @@ export async function GET(request: NextRequest) {
       rankings: rankings || [],
       totalItems: rankings?.length || 0,
       isRealtime: true,
-      lastUpdated: new Date().toISOString(),
-      message: `Real-time rankings (${rankings?.length || 0} items)`,
-      note: "Rankings calculated in real-time from current game data"
-    });
+        lastUpdated: new Date().toISOString(),
+        message: `Real-time rankings (${rankings?.length || 0} items)`,
+        note: "Rankings calculated in real-time from current game data"
+      });
 
   } catch (error) {
+    // 🔒 SECURITY: 상세 에러 정보는 로그에만 기록하고 클라이언트에는 일반적인 메시지만 전송
     console.error('❌ Error in global rankings API:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch global rankings', details: error instanceof Error ? error.message : 'Unknown error' },
+      { error: 'Failed to fetch global rankings', message: 'An error occurred while processing your request' },
       { status: 500 }
     );
   }
 }
 
-// 랭킹 수동 업데이트 (관리자용)
+// 🔒 SECURITY: 관리자 전용 랭킹 수동 업데이트
 export async function POST(request: NextRequest) {
-  try {
-    // 관리자 인증 토큰 확인
-    const adminToken = request.headers.get('x-admin-token');
-    const expectedToken = process.env.ADMIN_API_TOKEN;
-    
-    if (!expectedToken || adminToken !== expectedToken) {
-      console.log('❌ Unauthorized ranking update attempt');
-      return NextResponse.json(
-        { error: 'Unauthorized access. Admin token required.' },
-        { status: 401 }
-      );
+  // 🔒 SECURITY: 이중 인증 시스템 - 세션 기반 관리자 인증 + 레거시 API 토큰 지원
+  const expectedToken = process.env.ADMIN_API_TOKEN;
+  
+  // 레거시 API 토큰 인증 지원 (하위 호환성)
+  if (expectedToken && verifyApiKey(request, expectedToken)) {
+    console.log('🔑 Rankings update authenticated via legacy API token');
+    return await executeRankingUpdate(request);
+  }
+  
+  // 🔒 SECURITY: 세션 기반 관리자 인증 (권장 방식)
+  return withAuth(
+    request,
+    async (request, user) => {
+      console.log('🔑 Rankings update authenticated via session:', user.username, '(', user.role, ')');
+      return await executeRankingUpdate(request);
+    },
+    { 
+      requireAdmin: true, 
+      rateLimiter: 'admin',
+      skipRateLimit: false 
     }
+  );
+}
+
+// 🔒 SECURITY: 실제 랭킹 업데이트 로직 분리
+async function executeRankingUpdate(request: NextRequest) {
+  try {
     
     console.log('🔄 Manual ranking update requested...');
     

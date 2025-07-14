@@ -66,6 +66,23 @@ export async function checkRateLimit(
   reset: number;
   retryAfter?: number;
 }> {
+  // 🔒 SECURITY: 개발환경에서도 인증 API는 Rate Limiting 적용
+  if (process.env.NODE_ENV === 'development') {
+    // 인증 관련 Rate Limiter는 개발환경에서도 적용 (완화된 제한)
+    if (limiter === rateLimiters.auth) {
+      console.log('🔒 Auth rate limiting applied in development for:', identifier);
+      // 개발환경에서는 완화된 제한 적용 (10 req/min 대신 5 req/min)
+    } else {
+      // 다른 API는 개발환경에서 제한 없음
+      return {
+        success: true,
+        limit: 1000,
+        remaining: 999,
+        reset: Date.now() + 60000,
+      };
+    }
+  }
+
   try {
     const result = await limiter.limit(identifier);
     

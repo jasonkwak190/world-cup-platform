@@ -25,6 +25,43 @@ export function AuthProvider({ children }: AuthProviderProps) {
     isLoading: true,
   });
 
+  // 토큰 정리 및 강제 로그아웃 함수
+  const handleTokenCleanup = async () => {
+    try {
+      console.log('🧹 Cleaning up invalid tokens...');
+      
+      // 1. 로컬 스토리지/세션 완전 클리어
+      if (typeof window !== 'undefined') {
+        localStorage.clear();
+        sessionStorage.clear();
+        
+        // 2. Supabase 관련 쿠키 삭제
+        const cookiesToClear = [
+          'supabase-auth-token',
+          'sb-refresh-token', 
+          'sb-access-token',
+          'supabase.auth.token'
+        ];
+        
+        cookiesToClear.forEach(cookieName => {
+          document.cookie = `${cookieName}=; Max-Age=0; path=/; domain=${window.location.hostname}`;
+          document.cookie = `${cookieName}=; Max-Age=0; path=/`;
+        });
+      }
+      
+      // 3. Supabase 로그아웃 시도 (에러 무시)
+      try {
+        await signOutFromSupabase();
+      } catch (supabaseError) {
+        console.warn('Supabase signout failed during cleanup:', supabaseError);
+      }
+      
+      console.log('✅ Token cleanup completed');
+    } catch (error) {
+      console.error('Token cleanup error:', error);
+    }
+  };
+
   // 컴포넌트 마운트 시 사용자 정보 확인 (Supabase + localStorage fallback)
   useEffect(() => {
     let isSubscribed = true; // Prevent state updates if component unmounts
@@ -64,6 +101,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
         
       } catch (error) {
         console.error('Auth initialization error:', error);
+        
+        // Invalid Refresh Token 에러 처리
+        if (error instanceof Error && error.message.includes('Invalid Refresh Token')) {
+          console.warn('🔄 Invalid refresh token detected, clearing auth state');
+          await handleTokenCleanup();
+        }
+        
         if (isSubscribed) {
           setAuthState({
             user: null,
@@ -79,8 +123,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // Supabase Auth 상태 변경 감지
     let subscription: any = null;
     try {
-      const authListener = onAuthStateChange((supabaseUser) => {
+      const authListener = onAuthStateChange((supabaseUser, event) => {
         if (!isSubscribed) return; // Prevent state updates if component unmounted
+        
+        // TOKEN_REFRESHED 이벤트에서 에러 발생 시 처리
+        if (event === 'TOKEN_REFRESHED' && !supabaseUser) {
+          console.warn('🔄 Token refresh failed, cleaning up...');
+          handleTokenCleanup();
+          setAuthState({
+            user: null,
+            isAuthenticated: false,
+            isLoading: false,
+          });
+          return;
+        }
         
         if (supabaseUser) {
           const user: User = {
@@ -157,16 +213,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
         isLoading: false,
       });
       
-      // 2. 로컬 스토리지/세션 클리어
-      if (typeof window !== 'undefined') {
-        localStorage.clear();
-        sessionStorage.clear();
-      }
+      // 2. 토큰 완전 정리 (handleTokenCleanup 사용)
+      await handleTokenCleanup();
       
-      // 3. Supabase 로그아웃 (HttpOnly 쿠키 자동 처리)
-      await signOutFromSupabase();
-      
-      // 4. Next.js router로 안전한 리다이렉트
+      // 3. Next.js router로 안전한 리다이렉트
       if (typeof window !== 'undefined') {
         window.location.replace('/');
       }
@@ -182,9 +232,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
       });
       
       // 강제 클리어 및 리다이렉트
+      try {
+        await handleTokenCleanup();
+      } catch (cleanupError) {
+        console.error('Cleanup error during forced logout:', cleanupError);
+      }
+      
       if (typeof window !== 'undefined') {
-        localStorage.clear();
-        sessionStorage.clear();
         window.location.replace('/');
       }
       
@@ -225,6 +279,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
       
     } catch (error) {
       console.error('Refresh user error:', error);
+      
+      // Invalid Refresh Token 에러 처리
+      if (error instanceof Error && error.message.includes('Invalid Refresh Token')) {
+        console.warn('🔄 Invalid refresh token during refresh, cleaning up...');
+        await handleTokenCleanup();
+        setAuthState(prev => ({
+          ...prev,
+          user: null,
+          isAuthenticated: false,
+        }));
+      }
     }
   };
 

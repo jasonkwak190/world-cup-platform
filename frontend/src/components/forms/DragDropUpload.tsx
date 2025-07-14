@@ -306,25 +306,6 @@ export default function DragDropUpload({ items, onItemsUpload, onItemDelete, thu
       </div>
 
 
-      {/* Image Upload Guide */}
-      <div className="bg-gradient-to-br from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-purple-900 mb-4 flex items-center">
-          <span className="text-2xl mr-2">🎯</span>
-          게임에서 이미지가 어떻게 보일지 미리 확인해보세요
-        </h3>
-        <p className="text-sm text-purple-700 mb-4">
-          이미지 업로드 전에 미리보기로 게임 화면에서 어떻게 표시될지 확인하고, 잘리지 않는 최적의 이미지를 선택하세요.
-        </p>
-        <ImageUploadGuide
-          onImageSelect={(file) => {
-            const dt = new DataTransfer();
-            dt.items.add(file);
-            handleFiles(dt.files);
-          }}
-          recommendedRatio="4:3"
-          showPreview={true}
-        />
-      </div>
 
       {/* Main Upload Area */}
       <div
@@ -466,6 +447,104 @@ export default function DragDropUpload({ items, onItemsUpload, onItemDelete, thu
         </div>
       )}
 
+      {/* 월드컵 썸네일 설정 */}
+      {items.length > 0 && (
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            🎬 월드컵 썸네일 설정
+          </h3>
+          <p className="text-sm text-gray-600 mb-4">
+            월드컵의 대표 이미지를 설정하세요. 직접 업로드하거나 업로드된 이미지 중에서 선택할 수 있습니다.
+          </p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* 직접 업로드 */}
+            <div className="border border-gray-300 rounded-lg p-4 bg-white">
+              <div className="flex items-center space-x-2 mb-3">
+                <Upload className="w-4 h-4 text-gray-500" />
+                <h4 className="font-medium text-gray-900">직접 업로드</h4>
+              </div>
+              <p className="text-sm text-gray-600 mb-3">이미지 파일 선택</p>
+              
+              {thumbnail ? (
+                <div className="space-y-3">
+                  <div className="relative">
+                    <img
+                      src={getImageUrl(thumbnail)}
+                      alt="썸네일"
+                      className="w-full h-24 object-cover rounded-md border"
+                    />
+                  </div>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => thumbnailInputRef.current?.click()}
+                      className="flex-1 px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
+                    >
+                      변경
+                    </button>
+                    <button
+                      onClick={() => onThumbnailUpload?.('')}
+                      className="flex-1 px-3 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors"
+                    >
+                      제거
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => thumbnailInputRef.current?.click()}
+                  className="w-full px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors font-medium"
+                >
+                  파일 선택
+                </button>
+              )}
+            </div>
+
+            {/* 업로드된 이미지에서 선택 */}
+            <div className="border border-gray-300 rounded-lg p-4 bg-white">
+              <div className="flex items-center space-x-2 mb-3">
+                <FileImage className="w-4 h-4 text-blue-500" />
+                <h4 className="font-medium text-gray-900">업로드된 이미지에서 선택</h4>
+              </div>
+              <p className="text-sm text-gray-600 mb-3">현재 업로드된 이미지 중에서 선택</p>
+              
+              <div className="grid grid-cols-3 gap-2 max-h-32 overflow-y-auto">
+                {items.slice(0, 9).map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => onThumbnailUpload?.(item.image)}
+                    className={`relative aspect-square rounded border-2 overflow-hidden hover:border-blue-400 transition-colors ${
+                      thumbnail && getImageUrl(thumbnail) === getImageUrl(item.image)
+                        ? 'border-blue-500 ring-2 ring-blue-200'
+                        : 'border-gray-200'
+                    }`}
+                  >
+                    <img
+                      src={getImageUrl(item.image)}
+                      alt={item.title}
+                      className="w-full h-full object-cover"
+                    />
+                    {thumbnail && getImageUrl(thumbnail) === getImageUrl(item.image) && (
+                      <div className="absolute inset-0 bg-blue-500 bg-opacity-20 flex items-center justify-center">
+                        <div className="w-4 h-4 bg-blue-500 text-white rounded-full flex items-center justify-center">
+                          <span className="text-xs">✓</span>
+                        </div>
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+              
+              {items.length > 9 && (
+                <p className="text-xs text-gray-500 mt-2">
+                  처음 9개 이미지만 표시됩니다.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Requirements */}
       <div className="space-y-4">
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -478,6 +557,7 @@ export default function DragDropUpload({ items, onItemsUpload, onItemDelete, thu
             <div>
               <h4 className="text-sm font-medium text-blue-900 mb-1">업로드 안내</h4>
               <ul className="text-sm text-blue-700 space-y-1">
+                <li>• 한꺼번에 여러개의 이미지를 업로드할 수 있습니다</li>
                 <li>• 최소 4개 이상의 이미지가 필요합니다</li>
                 <li>• 권장: 8, 16, 32, 64개 (토너먼트 형식에 맞춤)</li>
                 <li>• 가로가 더 긴 이미지(4:3 비율)가 가장 적합합니다</li>

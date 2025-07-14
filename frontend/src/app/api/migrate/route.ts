@@ -1,7 +1,8 @@
-// 서버 사이드 마이그레이션 API
+// 🔒 SECURITY: 보안 강화된 서버 사이드 마이그레이션 API
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { migrationSchema, validateRequest } from '@/lib/validations';
+import { withAuth, verifyApiKey } from '@/lib/auth-middleware';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -15,16 +16,32 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
 });
 
 export async function POST(request: NextRequest) {
-  // 🔒 SECURITY: 마이그레이션은 관리자만 실행 가능
-  const authHeader = request.headers.get('authorization');
+  // 🔒 SECURITY: 이중 인증 시스템 - 세션 기반 관리자 인증 + 레거시 API 키 지원
   const adminSecret = process.env.ADMIN_MIGRATION_SECRET;
   
-  if (!authHeader || !adminSecret || authHeader !== `Bearer ${adminSecret}`) {
-    return NextResponse.json(
-      { success: false, error: 'Unauthorized access' },
-      { status: 401 }
-    );
+  // 레거시 API 키 인증 지원 (하위 호환성)
+  if (adminSecret && verifyApiKey(request, adminSecret)) {
+    console.log('🔑 Migration authenticated via legacy API key');
+    return await executeMigration(request);
   }
+  
+  // 🔒 SECURITY: 세션 기반 관리자 인증 (권장 방식)
+  return withAuth(
+    request,
+    async (request, user) => {
+      console.log('🔑 Migration authenticated via session:', user.username, '(', user.role, ')');
+      return await executeMigration(request);
+    },
+    { 
+      requireAdmin: true, 
+      rateLimiter: 'admin',
+      skipRateLimit: false 
+    }
+  );
+}
+
+// 🔒 SECURITY: 실제 마이그레이션 로직 분리
+async function executeMigration(request: NextRequest) {
 
   try {
     const requestBody = await request.json();
@@ -230,12 +247,13 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
+    // 🔒 SECURITY: 상세 에러 정보는 로그에만 기록하고 클라이언트에는 일반적인 메시지만 전송
     console.error('Migration API error:', error);
     return NextResponse.json(
       { 
         success: false, 
         error: '마이그레이션 중 서버 오류가 발생했습니다.',
-        details: error instanceof Error ? error.message : 'Unknown error' 
+        message: 'An error occurred during migration. Please contact administrator.'
       },
       { status: 500 }
     );

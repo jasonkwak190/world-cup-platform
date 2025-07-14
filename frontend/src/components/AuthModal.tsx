@@ -5,6 +5,48 @@ import { X, User, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { signUpWithSupabase, signInWithSupabase, sendPasswordResetOTP, resetPasswordWithOTP } from '@/utils/supabaseAuth';
 import type { SignupData, User as UserType } from '@/types/user';
 
+// 🔒 SECURITY: 강화된 비밀번호 정책 검증 함수
+function validatePassword(password: string): { isValid: boolean; error: string } {
+  if (password.length < 8) {
+    return { isValid: false, error: '비밀번호는 최소 8자 이상이어야 합니다.' };
+  }
+  
+  if (!/[a-z]/.test(password)) {
+    return { isValid: false, error: '비밀번호에 소문자가 포함되어야 합니다.' };
+  }
+  
+  if (!/[A-Z]/.test(password)) {
+    return { isValid: false, error: '비밀번호에 대문자가 포함되어야 합니다.' };
+  }
+  
+  if (!/[0-9]/.test(password)) {
+    return { isValid: false, error: '비밀번호에 숫자가 포함되어야 합니다.' };
+  }
+  
+  if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+    return { isValid: false, error: '비밀번호에 특수문자(!@#$%^&* 등)가 포함되어야 합니다.' };
+  }
+  
+  // 연속된 문자나 반복 문자 체크
+  if (/(.)\1\1/.test(password)) {
+    return { isValid: false, error: '같은 문자를 3번 이상 연속으로 사용할 수 없습니다.' };
+  }
+  
+  // 일반적인 약한 비밀번호 패턴 체크
+  const weakPatterns = [
+    /^password/i, /^123456/, /^qwerty/i, /^admin/i, /^user/i,
+    /^abc123/i, /^111111/, /^000000/, /^qazwsx/i
+  ];
+  
+  for (const pattern of weakPatterns) {
+    if (pattern.test(password)) {
+      return { isValid: false, error: '너무 일반적인 비밀번호입니다. 다른 비밀번호를 사용해주세요.' };
+    }
+  }
+  
+  return { isValid: true, error: '' };
+}
+
 interface AuthModalProps {
   isOpen: boolean;
   mode?: 'login' | 'signup';
@@ -40,6 +82,7 @@ export default function AuthModal({
   const [otpCode, setOtpCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [devOtpCode, setDevOtpCode] = useState(''); // 개발용 OTP 표시
 
   if (!isOpen) return null;
 
@@ -50,6 +93,13 @@ export default function AuthModal({
 
     try {
       if (mode === 'signup') {
+        // 🔒 SECURITY: 회원가입 시 강화된 비밀번호 정책 적용
+        const passwordValidation = validatePassword(formData.password);
+        if (!passwordValidation.isValid) {
+          setError(passwordValidation.error);
+          return;
+        }
+        
         // Supabase 회원가입 먼저 시도
         const supabaseResult = await signUpWithSupabase({
           email: formData.email,
@@ -170,8 +220,11 @@ export default function AuthModal({
       setError('비밀번호가 일치하지 않습니다.');
       return;
     }
-    if (newPassword.length < 6) {
-      setError('비밀번호는 최소 6자 이상이어야 합니다.');
+    
+    // 🔒 SECURITY: 강화된 비밀번호 정책
+    const passwordValidation = validatePassword(newPassword);
+    if (!passwordValidation.isValid) {
+      setError(passwordValidation.error);
       return;
     }
 
@@ -344,7 +397,9 @@ export default function AuthModal({
               </button>
             </div>
             {mode === 'signup' && (
-              <p className="mt-1 text-xs text-gray-500">최소 6자 이상</p>
+              <p className="mt-1 text-xs text-gray-500">
+                최소 8자 이상, 대소문자・숫자・특수문자 포함
+              </p>
             )}
           </div>
 
@@ -432,8 +487,8 @@ export default function AuthModal({
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors text-gray-900 placeholder-gray-500 bg-white"
-                  placeholder="새 비밀번호 (6자 이상)"
-                  minLength={6}
+                  placeholder="새 비밀번호 (8자 이상, 대소문자・숫자・특수문자 포함)"
+                  minLength={8}
                 />
               </div>
 

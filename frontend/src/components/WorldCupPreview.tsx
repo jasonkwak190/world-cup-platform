@@ -42,7 +42,99 @@ interface WorldCupPreviewProps {
   onThumbnailUpdate?: (thumbnail: string | File) => void;
 }
 
-
+// 잘별 이미지 컴포넌트 - 각각의 이미지를 더 안정적으로 처리
+function PreviewImageItem({ 
+  item, 
+  index, 
+  getImageUrl, 
+  handleImageError 
+}: {
+  item: WorldCupItem;
+  index: number;
+  getImageUrl: (image: string | File | Blob | undefined | null) => string;
+  handleImageError: (e: React.SyntheticEvent<HTMLImageElement>) => void;
+}) {
+  const [imageUrl, setImageUrl] = React.useState<string>('');
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [hasError, setHasError] = React.useState(false);
+  
+  React.useEffect(() => {
+    console.log(`🖼️ PreviewImageItem ${index} processing:`, {
+      id: item.id,
+      title: item.title,
+      imageType: typeof item.image,
+      isFile: item.image instanceof File,
+      fileName: item.image instanceof File ? item.image.name : 'N/A'
+    });
+    
+    setIsLoading(true);
+    setHasError(false);
+    
+    try {
+      const url = getImageUrl(item.image);
+      console.log(`🖼️ PreviewImageItem ${index} URL generated:`, url.substring(0, 100) + '...');
+      if (url) {
+        setImageUrl(url);
+        setHasError(false);
+      } else {
+        console.error(`❌ PreviewImageItem ${index} No URL generated`);
+        setHasError(true);
+        setIsLoading(false);
+      }
+    } catch (error) {
+      console.error(`❌ PreviewImageItem ${index} URL generation failed:`, error);
+      setHasError(true);
+      setIsLoading(false);
+    }
+  }, [item.image, index]);
+  
+  const handleLoad = () => {
+    console.log(`✅ PreviewImageItem ${index} loaded successfully`);
+    setIsLoading(false);
+    setHasError(false);
+  };
+  
+  const handleError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    console.error(`❌ PreviewImageItem ${index} failed to load:`, imageUrl);
+    setIsLoading(false);
+    setHasError(true);
+    handleImageError(e);
+  };
+  
+  if (hasError || !imageUrl) {
+    return (
+      <div className="aspect-square group relative">
+        <div className="w-full h-full bg-gray-200 rounded-lg flex items-center justify-center">
+          <div className="text-center p-2">
+            <div className="text-xl mb-1">🖼️</div>
+            <div className="text-xs text-gray-500">이미지 없음</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="aspect-square group relative">
+      {isLoading && (
+        <div className="absolute inset-0 bg-gray-100 rounded-lg flex items-center justify-center z-10">
+          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-emerald-600"></div>
+        </div>
+      )}
+      <img
+        src={imageUrl}
+        alt={item.title}
+        className={`w-full h-full object-cover rounded-lg transition-opacity duration-200 ${
+          isLoading ? 'opacity-0' : 'opacity-100'
+        }`}
+        onLoad={handleLoad}
+        onError={handleError}
+        loading="lazy"
+      />
+      {/* 호버 오버레이 제거 - 검은색 오버레이 문제 해결 */}
+    </div>
+  );
+}
 
 export default function WorldCupPreview({ data, onGameStateChange, onItemUpdate, onThumbnailUpdate }: WorldCupPreviewProps) {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -66,13 +158,23 @@ export default function WorldCupPreview({ data, onGameStateChange, onItemUpdate,
   // getImageUrl 함수를 먼저 정의
   const getImageUrl = (image: string | File | Blob | undefined | null): string => {
     try {
+      console.log('🔍 Preview getImageUrl called with:', {
+        type: typeof image,
+        isFile: image instanceof File,
+        isBlob: image instanceof Blob,
+        isString: typeof image === 'string',
+        value: typeof image === 'string' ? image.substring(0, 100) + '...' : 'Not string'
+      });
+      
       if (!image) {
+        console.log('⚠️ Preview getImageUrl: No image provided');
         return '';
       }
       
       if (typeof image === 'string') {
         // Accept all string URLs including blob: URLs
         if (image.trim() === '') {
+          console.log('⚠️ Preview getImageUrl: Empty string');
           return '';
         }
         
@@ -88,15 +190,30 @@ export default function WorldCupPreview({ data, onGameStateChange, onItemUpdate,
           }
         }
         
+        console.log('✅ Preview returning string URL:', image.substring(0, 50) + '...');
         return image;
       }
       
       if (image instanceof File) {
-        return URL.createObjectURL(image);
+        console.log('📁 Preview creating URL for File:', {
+          name: image.name,
+          size: image.size,
+          type: image.type,
+          lastModified: image.lastModified
+        });
+        const url = URL.createObjectURL(image);
+        console.log('✅ Preview File URL created:', url);
+        return url;
       }
       
       if (image instanceof Blob) {
-        return URL.createObjectURL(image);
+        console.log('📁 Preview creating URL for Blob:', {
+          size: image.size,
+          type: image.type
+        });
+        const url = URL.createObjectURL(image);
+        console.log('✅ Preview Blob URL created:', url);
+        return url;
       }
       
       console.error('Invalid image type:', typeof image, image);
@@ -142,7 +259,12 @@ export default function WorldCupPreview({ data, onGameStateChange, onItemUpdate,
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
-    console.error('❌ Image failed to load:', img.src);
+    console.error('❌ Preview Image failed to load:', {
+      src: img.src,
+      naturalWidth: img.naturalWidth,
+      naturalHeight: img.naturalHeight,
+      complete: img.complete
+    });
     
     // For YouTube thumbnails, try alternative thumbnail URLs and sizes
     if (img.src.includes('youtube.com') || img.src.includes('img.youtube.com')) {
@@ -619,22 +741,17 @@ export default function WorldCupPreview({ data, onGameStateChange, onItemUpdate,
                 등록된 이미지 ({data.items.length}개)
               </h3>
               <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-3">
-                {data.items.slice(0, 20).map((item) => (
-                  <div key={item.id} className="aspect-square group relative">
-                    <img
-                      src={getImageUrl(item.image)}
-                      alt={item.title}
-                      className="w-full h-full object-cover rounded-lg"
-                      onError={handleImageError}
-                      loading="lazy"
+                {data.items.slice(0, 20).map((item, index) => {
+                  return (
+                    <PreviewImageItem 
+                      key={item.id} 
+                      item={item} 
+                      index={index}
+                      getImageUrl={getImageUrl}
+                      handleImageError={handleImageError}
                     />
-                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 rounded-lg flex items-center justify-center transition-all duration-200">
-                      <span className="text-white text-xs opacity-0 group-hover:opacity-100 text-center px-1 break-words">
-                        {item.title}
-                      </span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
                 {data.items.length > 20 && (
                   <div className="aspect-square bg-gray-100 rounded-lg flex items-center justify-center">
                     <span className="text-xs text-gray-500 text-center">
