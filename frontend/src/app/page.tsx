@@ -9,7 +9,7 @@ import TrendingRanking from '@/components/TrendingRanking';
 import RecentComments from '@/components/RecentComments';
 import Pagination from '@/components/Pagination';
 import { getStoredWorldCups } from '@/utils/storage';
-import { getWorldCups as getSupabaseWorldCups, getUserWorldCups } from '@/utils/supabaseData';
+import { getUserWorldCups } from '@/lib/api/worldcups';
 import { useAuth } from '@/contexts/AuthContext';
 import { useStats } from '@/hooks/useStats';
 
@@ -37,7 +37,7 @@ export default function Home() {
           if (cached) {
             const { data, timestamp } = JSON.parse(cached);
             const now = Date.now();
-            if (now - timestamp < 60000) { // 1분 캐시
+            if (now - timestamp < 300000) { // 5분 캐시로 연장
               allWorldCups = data;
             }
           }
@@ -54,36 +54,37 @@ export default function Home() {
             setTimeout(() => reject(new Error('Data loading timeout')), ms)
           );
           
-          const [supabaseWorldCups, localWorldCups] = await Promise.allSettled([
-            Promise.race([getSupabaseWorldCups(), timeoutPromise(10000)]),
-            Promise.race([Promise.resolve(getStoredWorldCups()), timeoutPromise(5000)])
+          const [apiWorldCups, localWorldCups] = await Promise.allSettled([
+            Promise.race([
+              fetch('/api/worldcups?page=1&limit=12&category=all&sortBy=popular')
+                .then(res => res.json())
+                .then(result => result.data || []),
+              timeoutPromise(10000)
+            ]),
+            Promise.race([Promise.resolve(getStoredWorldCups()), timeoutPromise(3000)])
           ]);
           
           // 결과 처리
-          const supabaseData = supabaseWorldCups.status === 'fulfilled' ? supabaseWorldCups.value as any[] : [];
+          const apiData = apiWorldCups.status === 'fulfilled' ? apiWorldCups.value as any[] : [];
           const localData = localWorldCups.status === 'fulfilled' ? localWorldCups.value as any[] : [];
           
-          if (supabaseWorldCups.status === 'rejected') {
-            console.warn('⚠️ Supabase data loading failed:', supabaseWorldCups.reason);
+          if (apiWorldCups.status === 'rejected') {
+            console.warn('⚠️ API data loading failed:', apiWorldCups.reason);
             
-            // 타임아웃으로 실패한 경우 자동 새로고침
-            if ((supabaseWorldCups.reason as Error)?.message === 'Data loading timeout') {
-              console.log('🔄 10초 타임아웃 발생, 3초 후 자동 새로고침...');
-              setTimeout(() => {
-                window.location.reload();
-              }, 3000);
-              return;
+            // 타임아웃 발생 시 로컬 데이터만 사용하고 계속 진행
+            if ((apiWorldCups.reason as Error)?.message === 'Data loading timeout') {
+              console.log('⚠️ API 타임아웃 발생, 로컬 데이터만 사용합니다.');
             }
           }
           if (localWorldCups.status === 'rejected') {
             console.warn('⚠️ Local data loading failed:', localWorldCups.reason);
           }
           
-          console.log(`📊 Data loaded - Supabase: ${supabaseData.length}, Local: ${localData.length}`);
+          console.log(`📊 Data loaded - API: ${apiData.length}, Local: ${localData.length}`);
           
           // 중복 제거
           const worldCupMap = new Map();
-          supabaseData.forEach((wc: any) => worldCupMap.set(wc.id, wc));
+          apiData.forEach((wc: any) => worldCupMap.set(wc.id, wc));
           localData.forEach((wc: any) => {
             if (!worldCupMap.has(wc.id)) {
               worldCupMap.set(wc.id, wc);

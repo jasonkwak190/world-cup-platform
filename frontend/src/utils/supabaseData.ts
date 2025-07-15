@@ -47,30 +47,29 @@ export async function getWorldCups() {
   return withRetry(async () => {
     console.log('🔍 Fetching worldcups from Supabase...');
     
-    // 타임아웃 설정 (15초로 증가)
+    // 타임아웃 설정 (12초로 조정)
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Supabase request timeout after 15000ms')), 15000);
+      setTimeout(() => reject(new Error('Supabase request timeout after 12000ms')), 12000);
     });
     
-    // 단계별 로딩으로 성능 개선
+    // 최적화된 쿼리 (필수 필드만)
     const dataPromise = supabase
       .from('worldcups')
       .select(`
         id,
         title,
-        description,
         thumbnail_url,
         created_at,
         participants,
         comments,
         likes,
         category,
-        is_public,
         author_id
       `)
       .eq('is_public', true)
       .order('created_at', { ascending: false })
-      .limit(12); // 로딩 시간 단축을 위해 12개로 제한
+      .limit(12) // 다시 12개로 줄임 (속도 우선)
+      .range(0, 11); // 명시적 범위 지정
 
     const { data, error } = await Promise.race([dataPromise, timeoutPromise]) as any;
 

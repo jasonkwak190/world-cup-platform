@@ -92,7 +92,12 @@
       "Bash(timeout 10 npm run build:*)",
       "mcp__ide__executeCode",
       "WebFetch(domain:raw.githubusercontent.com)",
-      "Bash(supabase status:*)"
+      "Bash(supabase status:*)",
+      "WebFetch(domain:partners.coupangcdn.com)",
+      "Bash(ping:*)",
+      "Bash(sudo dscacheutil:*)",
+      "Bash(sudo killall:*)",
+      "Bash(nslookup:*)"
     ],
     "deny": []
   }

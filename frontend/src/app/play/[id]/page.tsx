@@ -1,24 +1,12 @@
 'use client';
 
-import dynamic from 'next/dynamic';
 import React from 'react';
 import { usePlayPageLogic } from '@/hooks/usePlayPageLogic';
 import GameProgress from '@/components/GameProgress';
 import GameResult from '@/components/GameResult';
+import GameScreen from '@/components/game/GameScreen';
 import { getTournamentProgress, getRoundName, getCurrentMatch } from '@/utils/tournament';
 import TournamentSelector from '@/components/TournamentSelector';
-
-const GameScreen = dynamic(() => import('@/components/game/GameScreen'), {
-  ssr: false,
-  loading: () => (
-    <div className="flex items-center justify-center min-h-screen">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto mb-4"></div>
-        <p className="text-gray-600">게임 화면 로딩 중...</p>
-      </div>
-    </div>
-  ),
-});
 
 interface PlayPageProps {
   params: Promise<{

@@ -53,46 +53,24 @@ export const attemptReconnection = async (): Promise<boolean> => {
   }
 };
 
-// 재시도 가능한 Supabase 쿼리 래퍼
+// 빠른 재시도 함수 (재연결 로직 제거)
 export const withRetry = async <T>(
   queryFn: () => Promise<T>,
   operation: string = 'Supabase operation'
 ): Promise<T> => {
   let lastError: any;
 
-  for (let attempt = 1; attempt <= 3; attempt++) {
+  for (let attempt = 1; attempt <= 2; attempt++) { // 3번 → 2번으로 줄임
     try {
       const result = await queryFn();
-      
-      // 성공 시 연결 상태 업데이트
-      if (!isConnected) {
-        isConnected = true;
-        reconnectAttempts = 0;
-        console.log('✅ Supabase connection restored');
-      }
-      
       return result;
     } catch (error: any) {
       lastError = error;
-      console.warn(`${operation} failed (attempt ${attempt}/3):`, error);
+      console.warn(`${operation} failed (attempt ${attempt}/2):`, error);
 
-      // 연결 문제로 보이는 경우 재연결 시도
-      if (error.message?.includes('timeout') || 
-          error.message?.includes('network') ||
-          error.message?.includes('connection')) {
-        
-        isConnected = false;
-        
-        if (attempt < 3) {
-          console.log('🔄 Attempting reconnection...');
-          await attemptReconnection();
-          
-          // 재연결 후 잠시 대기
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-      } else {
-        // 연결 문제가 아닌 다른 에러면 즉시 throw
-        throw error;
+      // 마지막 시도가 아니면 짧은 대기
+      if (attempt < 2) {
+        await new Promise(resolve => setTimeout(resolve, 500)); // 1초 → 0.5초
       }
     }
   }

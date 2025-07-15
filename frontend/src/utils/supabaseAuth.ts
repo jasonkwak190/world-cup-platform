@@ -23,17 +23,33 @@ export async function signOutFromSupabase() {
 // 현재 사용자 가져오기
 export async function getCurrentSupabaseUser(): Promise<SupabaseUser | null> {
   try {
-    const { data: { user: authUser } } = await supabase.auth.getUser();
+    // 먼저 세션 확인 (더 안전함)
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
     
-    if (!authUser) {
+    if (sessionError) {
+      console.warn('Session error:', sessionError);
       return null;
     }
-
-    // 세션이 있는지 확인
-    const { data: { session } } = await supabase.auth.getSession();
     
     if (!session) {
       console.log('No active session found');
+      return null;
+    }
+
+    // 세션이 있으면 사용자 정보 가져오기
+    const { data: { user: authUser }, error: userError } = await supabase.auth.getUser();
+    
+    if (userError) {
+      console.warn('Auth user error:', userError);
+      // 403 에러인 경우 세션 클리어
+      if (userError.status === 403) {
+        console.log('403 error detected, clearing session...');
+        await supabase.auth.signOut();
+      }
+      return null;
+    }
+    
+    if (!authUser) {
       return null;
     }
 
@@ -69,8 +85,19 @@ export async function getCurrentSupabaseUser(): Promise<SupabaseUser | null> {
     // 클라이언트 측에서 역할을 결정하지 않음
 
     return fallbackUser;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error getting current user:', error);
+    
+    // 403 에러나 인증 관련 에러인 경우 세션 클리어
+    if (error?.status === 403 || error?.message?.includes('Invalid Refresh Token')) {
+      console.log('Authentication error detected, clearing session...');
+      try {
+        await supabase.auth.signOut();
+      } catch (signOutError) {
+        console.warn('Failed to sign out:', signOutError);
+      }
+    }
+    
     return null;
   }
 }
@@ -98,13 +125,18 @@ export async function updateSupabaseUserProfile(userId: string, updates: Supabas
 
 
 // 세션 변경 감지
-export function onAuthStateChange(callback: (user: SupabaseUser | null) => void) {
+export function onAuthStateChange(callback: (user: SupabaseUser | null, event?: string) => void) {
   return supabase.auth.onAuthStateChange(async (event, session) => {
-    if (session?.user) {
-      const user = await getCurrentSupabaseUser();
-      callback(user);
-    } else {
-      callback(null);
+    try {
+      if (session?.user) {
+        const user = await getCurrentSupabaseUser();
+        callback(user, event);
+      } else {
+        callback(null, event);
+      }
+    } catch (error) {
+      console.warn('Auth state change error:', error);
+      callback(null, event);
     }
   });
 }

@@ -55,33 +55,37 @@ export default function WorldCupGrid({ category: _category, sortBy: _sortBy, sea
         console.log('🔄 Loading worldcups data...');
         setIsLoading(true);
         
-        // 자동 새로고침 타이머 설정 (30초 후)
+        // 로딩 상태 타임아웃 설정 (30초 후 강제 완료)
         autoRefreshTimer = setTimeout(() => {
           if (isMounted && isLoading) {
-            console.warn('⚠️ Loading timeout detected, forcing page refresh...');
-            window.location.reload();
+            console.warn('⚠️ Loading timeout detected, using available data...');
+            setIsLoading(false);
           }
         }, 30000);
         
-        // 재시도 로직과 함께 Supabase 데이터 로드
-        const supabaseResult = await Promise.allSettled([
-          withRetry(() => getSupabaseWorldCups(), 'Load worldcups from Supabase')
+        // API 방식으로 데이터 로드 (훨씬 빠름)
+        console.log('📥 Starting API data fetch...');
+        const apiResult = await Promise.allSettled([
+          fetch('/api/worldcups?page=1&limit=12&category=all&sortBy=popular')
+            .then(res => res.json())
+            .then(result => result.data || [])
             .catch(error => {
-              console.warn('⚠️ Supabase loading failed after retries:', error);
+              console.warn('⚠️ API loading failed:', error);
               return [];
             })
         ]);
+        console.log('📥 API data fetch completed:', apiResult[0].status);
         
         // localStorage는 빠르므로 타임아웃 없이 로드
         const localResult = await Promise.allSettled([
           Promise.resolve(getStoredWorldCups())
         ]);
 
-        const supabaseWorldCups = supabaseResult[0].status === 'fulfilled' ? supabaseResult[0].value : [];
+        const apiWorldCups = apiResult[0].status === 'fulfilled' ? apiResult[0].value : [];
         const localWorldCups = localResult[0].status === 'fulfilled' ? localResult[0].value : [];
 
-        if (supabaseResult[0].status === 'rejected') {
-          console.warn('⚠️ Supabase loading failed:', supabaseResult[0].reason);
+        if (apiResult[0].status === 'rejected') {
+          console.warn('⚠️ API loading failed:', apiResult[0].reason);
         }
         if (localResult[0].status === 'rejected') {
           console.warn('⚠️ LocalStorage loading failed:', localResult[0].reason);
@@ -89,22 +93,22 @@ export default function WorldCupGrid({ category: _category, sortBy: _sortBy, sea
         
         if (!isMounted) return;
         
-        console.log('📊 Data loaded - Supabase:', supabaseWorldCups.length, 'Local:', localWorldCups.length);
+        console.log('📊 Data loaded - API:', apiWorldCups.length, 'Local:', localWorldCups.length);
         
-        // 데이터 합치기 (Supabase 우선, 댓글 수는 항상 Supabase 데이터 사용)
+        // 데이터 합치기 (API 우선, 댓글 수는 항상 API 데이터 사용)
         const worldCupMap = new Map();
-        supabaseWorldCups.forEach(wc => worldCupMap.set(wc.id, wc));
+        apiWorldCups.forEach(wc => worldCupMap.set(wc.id, wc));
         localWorldCups.forEach(wc => {
           if (!worldCupMap.has(wc.id)) {
             worldCupMap.set(wc.id, wc);
           } else {
-            // Supabase 데이터가 있어도 로컬 데이터의 일부 필드는 유지
-            // 단, 댓글 수는 항상 Supabase 우선
+            // API 데이터가 있어도 로컬 데이터의 일부 필드는 유지
+            // 단, 댓글 수는 항상 API 우선
             const existing = worldCupMap.get(wc.id);
             worldCupMap.set(wc.id, {
               ...wc,
-              ...existing, // Supabase 데이터로 덮어쓰기
-              comments: existing.comments // 댓글 수는 Supabase 최신 데이터 사용
+              ...existing, // API 데이터로 덮어쓰기
+              comments: existing.comments // 댓글 수는 API 최신 데이터 사용
             });
           }
         });

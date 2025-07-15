@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { updateSupabaseUserProfile } from '@/utils/supabaseAuth';
 import { 
   User, 
   Lock, 
@@ -21,7 +22,7 @@ import {
 import { useRouter } from 'next/navigation';
 
 export default function SettingsPage() {
-  const { user, logout } = useAuth();
+  const { user, logout, setUser } = useAuth();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'profile' | 'account' | 'privacy' | 'notifications'>('profile');
   const [isLoading, setIsLoading] = useState(false);
@@ -30,7 +31,6 @@ export default function SettingsPage() {
   // 프로필 설정
   const [profile, setProfile] = useState({
     username: user?.username || '',
-    email: user?.email || '',
     bio: ''
   });
 
@@ -64,13 +64,28 @@ export default function SettingsPage() {
   }, [user, router]);
 
   const handleProfileSave = async () => {
+    if (!user) return;
+    
     setIsLoading(true);
     try {
-      // TODO: 프로필 업데이트 API 호출
-      console.log('Saving profile:', profile);
-      // 성공 알림
+      const result = await updateSupabaseUserProfile(user.id, {
+        username: profile.username,
+        bio: profile.bio
+      });
+      
+      if (result.success) {
+        // 성공 시 AuthContext의 user 정보 업데이트
+        setUser({
+          ...user,
+          username: profile.username
+        });
+        alert('프로필이 성공적으로 업데이트되었습니다.');
+      } else {
+        alert('프로필 업데이트에 실패했습니다: ' + result.error);
+      }
     } catch (error) {
       console.error('Failed to save profile:', error);
+      alert('프로필 업데이트 중 오류가 발생했습니다.');
     } finally {
       setIsLoading(false);
     }
@@ -205,10 +220,11 @@ export default function SettingsPage() {
                       <label className="block text-sm font-medium text-gray-700 mb-2">이메일</label>
                       <input
                         type="email"
-                        value={profile.email}
-                        onChange={(e) => setProfile({ ...profile, email: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                        value={user?.email || ''}
+                        disabled
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed"
                       />
+                      <p className="text-sm text-gray-500 mt-1">Google 계정과 연결된 이메일은 변경할 수 없습니다.</p>
                     </div>
 
                     <div>

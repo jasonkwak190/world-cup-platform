@@ -5,8 +5,8 @@
       "args": ["/Users/jaehyeok/world-cup-platform/.claude/supabase-mcp-server.js"],
       "cwd": "/Users/jaehyeok/world-cup-platform/frontend",
       "env": {
-        "SUPABASE_URL": "YOUR_SUPABASE_URL_HERE",
-        "SUPABASE_SERVICE_ROLE_KEY": "YOUR_SUPABASE_SERVICE_ROLE_KEY_HERE",
+        "SUPABASE_URL": "https://rctoxfcyzzsiikopbsne.supabase.co",
+        "SUPABASE_SERVICE_ROLE_KEY": "",
         "NODE_PATH": "/Users/jaehyeok/world-cup-platform/frontend/node_modules"
       }
     },
@@ -19,7 +19,7 @@
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-github"],
       "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "YOUR_GITHUB_TOKEN_HERE"
+        "GITHUB_PERSONAL_ACCESS_TOKEN": ""
       }
     },
     "memory": {
@@ -36,7 +36,7 @@
       "command": "npx",
       "args": ["-y", "@google/gemini-cli"],
       "env": {
-        "GEMINI_API_KEY": "YOUR_GEMINI_API_KEY_HERE"
+        "GEMINI_API_KEY": ""
       }
     }
   }

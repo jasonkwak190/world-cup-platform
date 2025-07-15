@@ -5,8 +5,6 @@ import { useRouter } from 'next/navigation';
 import { WorldCupItem, GameState, TournamentSize } from '@/types/game';
 import { createTournament, getCurrentMatch, selectWinner, getRoundName, getTournamentProgress, undoLastMatch, shuffleArray, autoAdvanceByes, isByeMatch } from '@/utils/tournament';
 import { getWorldCupById } from '@/utils/storage';
-import { getWorldCupById as getSupabaseWorldCupById } from '@/utils/supabaseData';
-import { withRetry } from '@/utils/supabaseConnection';
 import { YouTubeService } from '@/lib/youtube';
 
 export function usePlayPageLogic(params: Promise<{ id: string; }> | { id: string; }) {
@@ -65,7 +63,13 @@ export function usePlayPageLogic(params: Promise<{ id: string; }> | { id: string
             attempts++;
             try {
               console.log(`🔍 Attempt ${attempts}/${maxAttempts} to load worldcup...`);
-              supabaseWorldCup = await getSupabaseWorldCupById(id);
+              // API 방식으로 월드컵 데이터 로드
+              const response = await fetch(`/api/worldcups/${id}`);
+              if (response.ok) {
+                supabaseWorldCup = await response.json();
+              } else {
+                throw new Error(`Failed to fetch worldcup: ${response.status}`);
+              }
               
               if (supabaseWorldCup && supabaseWorldCup.items && supabaseWorldCup.items.length > 0) {
                 console.log('✅ Successfully loaded worldcup with items');

@@ -102,9 +102,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       } catch (error) {
         console.error('Auth initialization error:', error);
         
-        // Invalid Refresh Token 에러 처리
-        if (error instanceof Error && error.message.includes('Invalid Refresh Token')) {
-          console.warn('🔄 Invalid refresh token detected, clearing auth state');
+        // Invalid Refresh Token 또는 403 에러 처리
+        if (error instanceof Error && 
+            (error.message.includes('Invalid Refresh Token') || 
+             error.message.includes('403') || 
+             error.message.includes('Forbidden'))) {
+          console.warn('🔄 Authentication error detected, clearing auth state');
           await handleTokenCleanup();
         }
         
