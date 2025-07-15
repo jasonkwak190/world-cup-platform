@@ -8,6 +8,7 @@ import ParticleEffect from '../ParticleEffect';
 import { useTouchGestures, useKeyboardShortcuts } from '@/hooks/useTouchGestures';
 import YouTubePlayer from '../YouTubePlayer';
 import { Play, Youtube } from 'lucide-react';
+import Image from 'next/image';
 
 interface GameScreenProps {
   match: Match;
@@ -25,53 +26,28 @@ export default function GameScreen({ match, round, totalRounds, worldcupId, onCh
   const [animationPhase, setAnimationPhase] = useState<'initial' | 'center' | 'return' | 'showOther'>('initial');
 
 
-  // 🚨 강력한 URL 정리 및 수정 함수
+  // 간단한 URL 정리 함수
   const cleanAndFixImageUrl = (imageUrl: string | File): string => {
     if (typeof imageUrl !== 'string') return '';
     if (!imageUrl || imageUrl.trim() === '') return '';
     
-    // 1. localhost URL 완전 차단 및 수정
-    if (imageUrl.includes('localhost')) {
-      console.error('🚨 BLOCKING localhost URL:', imageUrl);
-      
-      // UUID 패턴과 파일명 추출 시도
-      const patterns = [
-        /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/items\/[^\/\?]+\.(gif|jpg|jpeg|png|webp))/i,
-        /([0-9a-f-]+\/items\/[^\/\?]+\.(gif|jpg|jpeg|png|webp))/i,
-        /(items\/[^\/\?]+\.(gif|jpg|jpeg|png|webp))/i
-      ];
-      
-      for (const pattern of patterns) {
-        const match = imageUrl.match(pattern);
-        if (match) {
-          const path = match[1];
-          const cleanUrl = `https://rctoxfcyzz5iikopbsne.supabase.co/storage/v1/object/public/worldcup-images/${path}`;
-          console.log('🔧 Fixed localhost URL to:', cleanUrl);
-          return cleanUrl;
-        }
-      }
-      
-      console.error('❌ Cannot fix localhost URL, blocking:', imageUrl);
-      return ''; // 완전히 차단
-    }
-    
-    // 2. blob URL 차단
+    // 1. blob URL 차단
     if (imageUrl.startsWith('blob:')) {
       console.error('🚨 BLOCKING blob URL:', imageUrl);
       return '';
     }
     
-    // 3. 정상 Supabase URL인지 확인
+    // 2. 정상 Supabase URL인지 확인
     if (imageUrl.includes('rctoxfcyzz5iikopbsne.supabase.co')) {
       return imageUrl;
     }
     
-    // 4. 기타 http URL 허용
+    // 3. http/https URL 허용
     if (imageUrl.startsWith('http')) {
       return imageUrl;
     }
     
-    // 5. base64 이미지 허용
+    // 4. base64 이미지 허용
     if (imageUrl.startsWith('data:image/')) {
       return imageUrl;
     }
@@ -115,13 +91,6 @@ export default function GameScreen({ match, round, totalRounds, worldcupId, onCh
     
     // VS 이미지는 안전한 정적 파일이므로 제외
     if (src.includes('/vs-cute.png')) {
-      return;
-    }
-    
-    // localhost URL이 있으면 완전히 차단 (VS 이미지 제외)
-    if (src.includes('localhost')) {
-      console.error('🚨 Blocking GIF with localhost URL:', src);
-      imgElement.style.display = 'none';
       return;
     }
     
@@ -228,9 +197,13 @@ export default function GameScreen({ match, round, totalRounds, worldcupId, onCh
       // 기존 이미지 렌더링 로직
       return (
         <>
-          <img 
+          <Image 
             src={cleanAndFixImageUrl(item.image)} 
             alt={item.title}
+            width={400}
+            height={300}
+            priority={false}
+            loading="lazy"
             className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-500"
             style={{ 
               imageRendering: 'auto',
@@ -246,20 +219,9 @@ export default function GameScreen({ match, round, totalRounds, worldcupId, onCh
               const src = e.currentTarget.src;
               console.error('❌ Image failed to load:', {
                 src: src.substring(0, 100) + '...',
-                isLocalhost: src.includes('localhost'),
                 isSupabase: src.includes('supabase'),
                 isBlob: src.startsWith('blob:')
               });
-              
-              if (src.includes('localhost')) {
-                console.error('🚨 Completely blocking localhost URL');
-                e.currentTarget.style.display = 'none';
-                const nextElement = e.currentTarget.nextElementSibling as HTMLElement;
-                if (nextElement) {
-                  nextElement.classList.remove('hidden');
-                }
-                return;
-              }
               
               if (src.startsWith('data:image/') && src.length > 1000) {
                 e.currentTarget.style.display = 'block';
@@ -466,9 +428,12 @@ export default function GameScreen({ match, round, totalRounds, worldcupId, onCh
           }}
           className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30"
         >
-          <img 
+          <Image 
             src="/vs-cute.png" 
-            alt="VS" 
+            alt="VS"
+            width={120}
+            height={120}
+            priority={false} 
             className="w-32 h-32 sm:w-40 sm:h-40 md:w-48 md:h-48 lg:w-56 lg:h-56 object-contain drop-shadow-2xl"
           />
         </motion.div>

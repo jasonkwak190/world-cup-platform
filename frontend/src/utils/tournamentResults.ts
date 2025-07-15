@@ -54,63 +54,25 @@ export async function saveTournamentResult(
       }
     }
 
-    // 1. 우승자와 준우승자의 UUID 조회
-    let winnerUuid: string | null = null;
-    let runnerUpUuid: string | null = null;
+    // 1. 우승자와 준우승자의 정보 (UUID 사용 - 객체에서 직접 추출)
+    console.log('🏆 Processing tournament result with simplified UUID extraction');
     
-    // 우승자 UUID 조회 - 직접 UUID 사용 또는 title로 조회
+    // 우승자 UUID 추출
+    let winnerUuid = null;
     if (tournament.winner) {
-      try {
-        // 먼저 winner 객체에 uuid 필드가 있는지 확인
-        if ((tournament.winner as any).uuid && isValidUUID((tournament.winner as any).uuid)) {
-          winnerUuid = (tournament.winner as any).uuid;
-          console.log(`🏆 Winner UUID from object: ${tournament.winner.id} → ${winnerUuid}`);
-        } else {
-          // fallback: title로 UUID 조회
-          const { data: winnerData, error: winnerError } = await supabase
-            .from('worldcup_items')
-            .select('id')
-            .eq('worldcup_id', worldcupId)
-            .eq('title', tournament.winner.id)
-            .single();
-            
-          if (!winnerError && winnerData) {
-            winnerUuid = winnerData.id;
-            console.log(`🏆 Winner UUID found by title: ${tournament.winner.id} → ${winnerUuid}`);
-          } else {
-            console.error(`❌ Winner item not found: worldcup_id=${worldcupId}, title=${tournament.winner.id}`);
-            console.error('Error details:', winnerError);
-          }
-        }
-      } catch (error) {
-        console.warn(`⚠️ Could not find winner UUID for ${tournament.winner.id}:`, error);
+      if ((tournament.winner as any).uuid && isValidUUID((tournament.winner as any).uuid)) {
+        winnerUuid = (tournament.winner as any).uuid;
+        console.log(`🏆 Winner UUID from object: ${tournament.winner.id} → ${winnerUuid}`);
       }
     }
     
-    // 준우승자 UUID 조회
+    // 준우승자 UUID 추출
+    let runnerUpUuid = null;
     const runnerUp = findRunnerUp(tournament);
     if (runnerUp) {
-      try {
-        // 먼저 runnerUp 객체에 uuid 필드가 있는지 확인
-        if ((runnerUp as any).uuid && isValidUUID((runnerUp as any).uuid)) {
-          runnerUpUuid = (runnerUp as any).uuid;
-          console.log(`🥈 Runner-up UUID from object: ${runnerUp.id} → ${runnerUpUuid}`);
-        } else {
-          // fallback: title로 UUID 조회
-          const { data: runnerUpData, error: runnerUpError } = await supabase
-            .from('worldcup_items')
-            .select('id')
-            .eq('worldcup_id', worldcupId)
-            .eq('title', runnerUp.id)
-            .single();
-            
-          if (!runnerUpError && runnerUpData) {
-            runnerUpUuid = runnerUpData.id;
-            console.log(`🥈 Runner-up UUID found by title: ${runnerUp.id} → ${runnerUpUuid}`);
-          }
-        }
-      } catch (error) {
-        console.warn(`⚠️ Could not find runner-up UUID for ${runnerUp.id}:`, error);
+      if ((runnerUp as any).uuid && isValidUUID((runnerUp as any).uuid)) {
+        runnerUpUuid = (runnerUp as any).uuid;
+        console.log(`🥈 Runner-up UUID from object: ${runnerUp.id} → ${runnerUpUuid}`);
       }
     }
 
@@ -155,55 +117,32 @@ export async function saveTournamentResult(
 
     console.log('✅ Game session saved:', session.id);
 
-    // 2. 모든 매치 결과 저장을 위해 아이템 title → UUID 매핑 생성
-    const itemTitleToUuidMap = new Map<string, string>();
+    // 2. 매치 결과 저장 (간소화된 방식 - 객체에서 직접 UUID 추출)
+    console.log('📋 Creating match data with simplified UUID extraction');
     
-    // 토너먼트에 사용된 모든 고유한 아이템 title 수집
-    const allItemTitles = new Set<string>();
-    tournament.matches
-      .filter(match => match.isCompleted && match.winner)
-      .forEach(match => {
-        allItemTitles.add(match.item1.id); // item1.id는 title
-        allItemTitles.add(match.item2.id); // item2.id는 title
-      });
-    
-    // 아이템 title → UUID 매핑 구축
-    for (const itemTitle of allItemTitles) {
-      try {
-        const { data: itemData, error: itemError } = await supabase
-          .from('worldcup_items')
-          .select('id, title')
-          .eq('worldcup_id', worldcupId)
-          .eq('title', itemTitle)
-          .single();
-          
-        if (!itemError && itemData) {
-          itemTitleToUuidMap.set(itemTitle, itemData.id);
-          console.log(`📋 Mapped ${itemTitle} → ${itemData.id}`);
-        } else {
-          console.warn(`⚠️ Could not find UUID for item title: ${itemTitle}`);
-        }
-      } catch (error) {
-        console.warn(`⚠️ Error mapping item ${itemTitle}:`, error);
-      }
-    }
-    
-    // 매치 데이터 생성 (UUID 사용)
+    // 매치 데이터 생성 (UUID를 객체에서 직접 추출)
     const matchesData = tournament.matches
       .filter(match => match.isCompleted && match.winner)
-      .map(match => ({
-        session_id: session.id,
-        worldcup_id: worldcupId,
-        round_number: match.round,
-        match_number: match.matchNumber,
-        item1_id: itemTitleToUuidMap.get(match.item1.id) || null,
-        item2_id: itemTitleToUuidMap.get(match.item2.id) || null,
-        winner_id: itemTitleToUuidMap.get(match.winner!.id) || null,
-        decision_time_ms: null // 현재는 결정 시간을 추적하지 않음
-      }))
-      .filter(match => match.item1_id && match.item2_id && match.winner_id); // 매핑 실패한 매치 제외
+      .map(match => {
+        const item1Uuid = (match.item1 as any).uuid;
+        const item2Uuid = (match.item2 as any).uuid;
+        const winnerUuid = (match.winner as any).uuid;
+        
+        return {
+          session_id: session.id,
+          worldcup_id: worldcupId,
+          round_number: match.round,
+          match_number: match.matchNumber,
+          item1_id: item1Uuid && isValidUUID(item1Uuid) ? item1Uuid : null,
+          item2_id: item2Uuid && isValidUUID(item2Uuid) ? item2Uuid : null,
+          winner_id: winnerUuid && isValidUUID(winnerUuid) ? winnerUuid : null,
+          decision_time_ms: null // 현재는 결정 시간을 추적하지 않음
+        };
+      })
+      .filter(match => match.item1_id && match.item2_id && match.winner_id); // UUID가 없는 매치 제외
 
     if (matchesData.length > 0) {
+      console.log(`📋 Saving ${matchesData.length} match records...`);
       const { error: matchesError } = await supabase
         .from('game_matches')
         .insert(matchesData);
@@ -213,7 +152,9 @@ export async function saveTournamentResult(
         throw matchesError;
       }
 
-      console.log(`✅ ${matchesData.length} game matches saved`);
+      console.log(`✅ ${matchesData.length} game matches saved successfully`);
+    } else {
+      console.warn('⚠️ No valid match data to save (missing UUIDs)');
     }
 
     // 3. 월드컵 통계 업데이트 (participants 증가)
@@ -239,7 +180,7 @@ export async function saveTournamentResult(
       }
     }
 
-    // 4. 아이템별 승패 통계 업데이트
+    // 4. 아이템별 승패 통계 업데이트 (간소화된 방식)
     await updateItemStatistics(tournament, worldcupId, sessionTokenToCheck);
 
     return {
@@ -590,34 +531,41 @@ async function updateItemStatistics(tournament: Tournament, _worldcupId: string,
       return `${id} (W:${stats?.wins} L:${stats?.losses} ${isWinner ? '🏆 WINNER' : ''})`;
     }));
 
-    // 각 아이템의 통계를 데이터베이스에 업데이트
+    // 각 아이템의 통계를 데이터베이스에 업데이트 (간소화된 방식)
+    console.log(`📊 Starting optimized statistics update for ${itemStats.size} items`);
+    
+    // 처리할 UUID 목록 먼저 수집
+    const itemUpdates = [];
     for (const [itemId, stats] of itemStats) {
+      const tournamentItem = tournament.items.find(item => item.id === itemId);
+      if (tournamentItem && (tournamentItem as any).uuid) {
+        itemUpdates.push({
+          itemId,
+          uuid: (tournamentItem as any).uuid,
+          stats,
+          isChampion: tournament.winner?.id === itemId
+        });
+      } else {
+        console.warn(`⚠️ Could not find UUID for tournament item: ${itemId}`);
+      }
+    }
+    
+    console.log(`📊 Found ${itemUpdates.length} items with valid UUIDs to update`);
+    
+    // 각 아이템 순차 처리 (복잡한 통계 계산 때문에 병렬 처리하지 않음)
+    for (const { itemId, uuid, stats, isChampion } of itemUpdates) {
       try {
-        // 먼저 현재 통계를 가져옴 - worldcup_id와 title 조합으로 정확한 아이템 조회
-        let currentStats, fetchError, actualIdToUse;
+        console.log(`📊 Processing stats for ${itemId} → UUID: ${uuid}`);
         
-        // 1차 시도: worldcup_id + title 조합으로 조회 (중복 방지)
-        const result1 = await supabase
+        // 현재 통계를 UUID로 직접 조회
+        const { data: currentStats, error: fetchError } = await supabase
           .from('worldcup_items')
           .select('id, win_count, loss_count, total_appearances, championship_wins')
-          .eq('worldcup_id', _worldcupId) // 해당 월드컵의 아이템만
-          .eq('title', itemId)           // 해당 title의 아이템만
+          .eq('id', uuid)
           .single();
-          
-        if (!result1.error && result1.data) {
-          currentStats = result1.data;
-          fetchError = null;
-          actualIdToUse = result1.data.id; // 실제 UUID 사용
-          console.log(`✅ Found item by worldcup_id + title: ${_worldcupId}/${itemId} → ID: ${actualIdToUse}`);
-        } else {
-          // 2차 시도는 제거 - title로만 찾는 것이 정확함
-          fetchError = result1.error;
-          console.error(`❌ Item NOT FOUND: worldcup_id=${_worldcupId}, title=${itemId}`);
-          console.error(`❌ This means the item doesn't exist in the database with this worldcup_id + title combination`);
-        }
 
         if (fetchError) {
-          console.warn(`⚠️ Could not fetch stats for item ${itemId}:`, fetchError);
+          console.warn(`⚠️ Could not fetch stats for item ${itemId} (UUID: ${uuid}):`, fetchError);
           continue;
         }
 
@@ -628,31 +576,28 @@ async function updateItemStatistics(tournament: Tournament, _worldcupId: string,
           const totalMatches = newWinCount + newLossCount;
           const newWinRate = totalMatches > 0 ? (newWinCount / totalMatches) * 100 : 0;
           
-          // 우승자인 경우 championship_wins 증가 (세션 기반 중복 방지)
-          const isChampion = tournament.winner?.id === itemId;
-          let newChampionshipWins = currentStats.championship_wins || 0;
-          
           // 우승자인 경우 championship_wins 증가
+          let newChampionshipWins = currentStats.championship_wins || 0;
           if (isChampion) {
             newChampionshipWins += 1;
             console.log(`🏆 Championship win added for ${itemId}: ${(currentStats.championship_wins || 0)} → ${newChampionshipWins}`);
           }
 
-          console.log(`🎯 Item ${itemId}: Champion=${isChampion}, Current Championships: ${currentStats.championship_wins || 0}, New Championships: ${newChampionshipWins}, Wins +${stats.wins}, Losses +${stats.losses}`);
+          console.log(`🎯 Item ${itemId}: Champion=${isChampion}, Wins +${stats.wins}, Losses +${stats.losses}`);
 
-          // 원자적 업데이트를 위해 현재 값 기반으로 업데이트
+          // 통계 업데이트
           const { data: updateData, error: updateError } = await supabase
             .from('worldcup_items')
             .update({
               win_count: newWinCount,
               loss_count: newLossCount,
-              win_rate: Math.round(newWinRate * 100) / 100, // 소수점 2자리
+              win_rate: Math.round(newWinRate * 100) / 100,
               total_appearances: newTotalAppearances,
               championship_wins: newChampionshipWins,
               updated_at: new Date().toISOString()
             })
-            .eq('id', actualIdToUse)
-            .select(); // 업데이트된 데이터 반환
+            .eq('id', uuid)
+            .select();
 
           if (updateError) {
             console.warn(`⚠️ Could not update stats for item ${itemId}:`, updateError);
@@ -661,7 +606,6 @@ async function updateItemStatistics(tournament: Tournament, _worldcupId: string,
           } else {
             const championText = isChampion ? ` 🏆 CHAMPION! Championships: ${newChampionshipWins}` : '';
             console.log(`✅ Updated stats for item ${itemId}: W:${newWinCount} L:${newLossCount} Rate:${newWinRate.toFixed(2)}%${championText}`);
-            console.log(`✅ Database confirmed update:`, updateData[0]);
           }
         }
       } catch (itemError) {

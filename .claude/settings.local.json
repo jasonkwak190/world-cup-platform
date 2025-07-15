@@ -91,7 +91,8 @@
       "Bash(timeout 5 npm run dev)",
       "Bash(timeout 10 npm run build:*)",
       "mcp__ide__executeCode",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(supabase status:*)"
     ],
     "deny": []
   }

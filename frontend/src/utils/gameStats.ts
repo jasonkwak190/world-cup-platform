@@ -308,15 +308,45 @@ function createEmptyItemStats(item: WorldCupItem): ItemStats {
 /**
  * 라운드 번호를 이름으로 변환
  */
-function getRoundName(round: number): string {
-  switch (round) {
-    case 1: return '결승';
-    case 2: return '준결승';
-    case 3: return '8강';
-    case 4: return '16강';
-    case 5: return '32강';
-    case 6: return '64강';
-    default: return `${round}라운드`;
+// tournament.ts의 getRoundName 함수를 import해서 사용해야 하지만, 
+// 임시로 여기서 동일한 로직 구현 (나중에 리팩토링 필요)
+function getRoundName(round: number, totalRounds?: number): string {
+  if (!totalRounds) {
+    // 기존 호환성을 위한 fallback 로직
+    switch (round) {
+      case 1: return '결승';
+      case 2: return '준결승';  
+      case 3: return '8강';
+      case 4: return '16강';
+      case 5: return '32강';
+      case 6: return '64강';
+      default: return `${round}라운드`;
+    }
+  }
+  
+  const remainingRounds = totalRounds - round + 1;
+  const participantsInRound = Math.pow(2, remainingRounds);
+  
+  if (remainingRounds === 1) {
+    return '결승';
+  }
+  
+  if (participantsInRound === 2) {
+    return '결승';
+  } else if (participantsInRound === 4) {
+    return totalRounds === 2 ? '준결승' : '4강';
+  } else if (participantsInRound === 8) {
+    return '8강';
+  } else if (participantsInRound === 16) {
+    return '16강';
+  } else if (participantsInRound === 32) {
+    return '32강';
+  } else if (participantsInRound === 64) {
+    return '64강';
+  } else if (participantsInRound === 128) {
+    return '128강';
+  } else {
+    return `${participantsInRound}강`;
   }
 }
 

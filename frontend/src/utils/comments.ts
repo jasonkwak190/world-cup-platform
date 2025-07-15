@@ -42,7 +42,7 @@ export async function getCommentsByWorldCupId(worldcupId: string): Promise<Comme
       try {
         console.log(`📝 Attempting direct comments query (attempt ${attempt}/3)...`);
         
-        // 단순 쿼리로 성능 향상 (JOIN 제거)
+        // 사용자 정보 포함 쿼리 - 기본 JOIN 사용
         const result = await supabase
           .from('comments')
           .select(`
@@ -56,7 +56,8 @@ export async function getCommentsByWorldCupId(worldcupId: string): Promise<Comme
             created_at,
             updated_at,
             guest_session_id,
-            is_deleted
+            is_deleted,
+            author:users!author_id(username, display_name)
           `)
           .eq('worldcup_id', worldcupId)
           .or('is_deleted.is.null,is_deleted.eq.false')
@@ -77,6 +78,16 @@ export async function getCommentsByWorldCupId(worldcupId: string): Promise<Comme
             details: error.details,
             hint: error.hint
           });
+        } else if (data) {
+          console.log('📊 Raw comment data sample:', data.slice(0, 2).map(c => ({
+            id: c.id,
+            author_id: c.author_id,
+            author: c.author,
+            guest_name: c.guest_name
+          })));
+        }
+
+        if (error) {
           lastError = error;
           
           // 마지막 시도가 아니면 재시도
@@ -136,7 +147,7 @@ export async function getCommentsByWorldCupId(worldcupId: string): Promise<Comme
         id: comment.id,
         worldcup_id: comment.worldcup_id,
         user_id: comment.author_id,
-        username: comment.author ? comment.author.username : comment.guest_name || '익명',
+        username: comment.author ? (comment.author.display_name || comment.author.username) : comment.guest_name || '익명',
         content: comment.content,
         parent_id: comment.parent_id,
         likes: comment.like_count || 0,
@@ -188,6 +199,11 @@ export async function createComment(userId: string | null, commentData: CreateCo
     console.log('👤 Auth state during comment creation:', user ? `User: ${user.id}` : 'Not authenticated');
     console.log('🔍 Passed userId:', userId);
     
+    // userId와 Supabase Auth user.id 비교
+    if (user && userId && user.id !== userId) {
+      console.warn('⚠️ ID MISMATCH: Supabase Auth ID:', user.id, 'vs Passed ID:', userId);
+    }
+    
     const insertData: any = {
       worldcup_id: commentData.worldcup_id,
       content: commentData.content,
@@ -195,10 +211,10 @@ export async function createComment(userId: string | null, commentData: CreateCo
       like_count: 0
     };
 
-    if (userId) {
-      // 회원인 경우
-      insertData.author_id = userId;
-      console.log('Member comment data:', insertData);
+    if (user?.id) {
+      // 회원인 경우 - Supabase Auth ID 사용
+      insertData.author_id = user.id;
+      console.log('Member comment data using Supabase Auth ID:', insertData);
     } else {
       // 비회원인 경우 - author_id를 null로 명시적으로 설정하고 세션 ID 추가
       insertData.author_id = null;
@@ -214,7 +230,7 @@ export async function createComment(userId: string | null, commentData: CreateCo
       .insert(insertData)
       .select(`
         *,
-        user:author_id(username)
+        author:users!author_id(username, display_name)
       `)
       .single();
 
@@ -254,7 +270,7 @@ export async function createComment(userId: string | null, commentData: CreateCo
       id: data.id,
       worldcup_id: data.worldcup_id,
       user_id: data.author_id,
-      username: data.author_id ? (data.user?.username || 'Unknown') : data.guest_name,
+      username: data.author_id ? (data.author?.display_name || data.author?.username || 'Unknown') : data.guest_name,
       content: data.content,
       parent_id: data.parent_id,
       likes: data.like_count || 0,

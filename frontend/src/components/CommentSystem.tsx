@@ -402,9 +402,14 @@ export default function CommentSystem({ worldcupId, initialCommentCount: _initia
       const createdComment = await createComment(user?.id || null, commentData);
       
       if (createdComment) {
+        console.log('✅ Comment created, updating UI:', createdComment);
+        // 즉시 UI 업데이트
         setComments(prev => [...prev, createdComment]);
         setNewComment('');
         setGuestUsername('');
+        
+        // 캐시 무효화
+        cache.delete(`comments_${worldcupId}`);
         
         // 댓글 수 업데이트 (실제 DB 댓글 수로 동기화)
         try {
@@ -461,6 +466,9 @@ export default function CommentSystem({ worldcupId, initialCommentCount: _initia
       const createdReply = await createComment(user?.id || null, replyData);
       
       if (createdReply) {
+        console.log('✅ Reply created, updating UI:', createdReply);
+        // 캐시 무효화
+        cache.delete(`comments_${worldcupId}`);
         // 댓글 목록 새로고침
         await loadComments();
         setReplyingTo(null);

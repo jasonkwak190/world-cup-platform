@@ -24,16 +24,16 @@ const generateTournamentOptions = (totalItems: number): TournamentOption[] => {
   
   while (size <= totalItems) {
     const rounds = Math.log2(size);
-    const duration = size <= 8 ? `약 ${rounds}분` : `약 ${Math.ceil(rounds * 1.5)}분`;
+    const duration = size <= 8 ? `~${rounds}min` : `~${Math.ceil(rounds * 1.5)}min`;
     
     options.push({
       size,
       label: `${size}강`,
-      description: size === 4 ? '빠르고 간단한 토너먼트' :
-                   size === 8 ? '적당한 길이의 토너먼트' :
-                   size === 16 ? '다양한 선택지를 경험' :
-                   size === 32 ? '완전한 토너먼트 경험' :
-                   `${size}개 항목 토너먼트`,
+      description: size === 4 ? 'Quick tournament' :
+                   size === 8 ? 'Standard tournament' :
+                   size === 16 ? 'Extended tournament' :
+                   size === 32 ? 'Full tournament' :
+                   `${size} items tournament`,
       duration,
       popular: size === 8
     });

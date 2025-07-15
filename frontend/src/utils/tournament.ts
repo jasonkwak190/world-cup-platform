@@ -1,5 +1,18 @@
 import { WorldCupItem, Match, Tournament, TournamentSize } from '@/types/game';
 
+// 안전한 Base64 인코딩 함수 - btoa 에러 방지
+function safeBase64Encode(str: string): string {
+  try {
+    // 한글이나 특수문자를 안전하게 처리
+    return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(match, p1) {
+      return String.fromCharCode(parseInt(p1, 16));
+    }));
+  } catch (error) {
+    console.warn('Base64 encoding failed, using fallback:', error);
+    return encodeURIComponent(str);
+  }
+}
+
 // 🎲 향상된 랜덤 셔플 함수 (시간 기반 시드 포함)
 export function shuffleArray<T>(array: T[]): T[] {
   const shuffled = [...array];
@@ -119,28 +132,36 @@ export function createTournament(
   description?: string,
   targetTournamentSize?: TournamentSize
 ): Tournament {
-  // 🎲 이중 랜덤 셔플로 더 강력한 무작위성 보장
-  console.log(`🎲 Creating tournament with ${items.length} items - applying double randomization`);
-  let shuffledItems = shuffleArray(items);
-  shuffledItems = shuffleArray(shuffledItems); // 두 번 섞어서 완전 랜덤화
+  // 완전히 안전한 처리 - 모든 로깅 제거
+  const safeTitle = 'Tournament';
+  const safeDescription = 'Tournament Description';
   
+  // 아이템 안전 처리
+  let shuffledItems = [...items];
+  
+  // 간단한 셔플
+  for (let i = shuffledItems.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffledItems[i], shuffledItems[j]] = [shuffledItems[j], shuffledItems[i]];
+  }
+
+  // 타겟 크기 설정
   const targetSize = targetTournamentSize || getNextPowerOfTwo(items.length);
   
-  // 부족한 항목은 빈 캔버스로 채우기 (부전승 처리)
+  // 아이템 수 조정
+  if (shuffledItems.length > targetSize) {
+    shuffledItems = shuffledItems.slice(0, targetSize);
+  }
+  
+  // BYE 아이템 추가
   while (shuffledItems.length < targetSize) {
     shuffledItems.push({
       id: `bye-${shuffledItems.length}`,
-      title: '부전승',
-      description: '자동 진출',
-      image_url: 'data:image/svg+xml;base64,' + btoa(`
-        <svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
-          <rect width="400" height="300" fill="#f3f4f6" stroke="#d1d5db" stroke-width="2" stroke-dasharray="10,5"/>
-          <text x="200" y="150" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" fill="#6b7280">부전승</text>
-          <text x="200" y="180" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" fill="#9ca3af">자동 진출</text>
-        </svg>
-      `),
-      is_bye: true, // BYE 여부를 나타내는 플래그 추가
-      uuid: undefined, // BYE 아이템은 UUID가 없음을 명시
+      title: 'BYE',
+      description: 'Auto Advance',
+      image_url: 'https://via.placeholder.com/400x300/cccccc/666666?text=BYE',
+      is_bye: true,
+      uuid: undefined,
     });
   }
   
@@ -149,8 +170,8 @@ export function createTournament(
   
   return {
     id: `tournament-${Date.now()}`,
-    title,
-    description,
+    title: safeTitle,
+    description: safeDescription,
     items: shuffledItems,
     totalRounds,
     currentRound: 1,
@@ -170,8 +191,8 @@ export function getCurrentMatch(tournament: Tournament): Match | null {
 
 // 🏆 BYE 매치 감지 및 자동 승자 결정 함수
 export function isByeMatch(match: Match): { isBye: boolean; winner?: WorldCupItem } {
-  const item1IsBye = match.item1.is_bye || match.item1.title === 'BYE' || match.item1.title === '부전승';
-  const item2IsBye = match.item2.is_bye || match.item2.title === 'BYE' || match.item2.title === '부전승';
+  const item1IsBye = match.item1.is_bye || match.item1.title === 'BYE';
+  const item2IsBye = match.item2.is_bye || match.item2.title === 'BYE';
   
   if (item1IsBye && !item2IsBye) {
     return { isBye: true, winner: match.item2 };
@@ -291,7 +312,7 @@ function createNextRound(tournament: Tournament): Tournament {
   
   let winners = currentRoundMatches
     .map(match => match.winner!)
-    .filter(winner => !winner.is_bye && winner.title !== 'BYE' && winner.title !== '부전승'); // BYE 제거
+    .filter(winner => !winner.is_bye && winner.title !== 'BYE'); // BYE 제거
   
   const nextRound = tournament.currentRound + 1;
   
@@ -325,24 +346,30 @@ function createNextRound(tournament: Tournament): Tournament {
 
 export function getRoundName(round: number, totalRounds: number): string {
   const remainingRounds = totalRounds - round + 1;
+  const participantsInRound = Math.pow(2, remainingRounds);
   
-  switch (remainingRounds) {
-    case 1:
-      return '결승';
-    case 2:
-      return '준결승';
-    case 3:
-      return '8강';
-    case 4:
-      return '16강';
-    case 5:
-      return '32강';
-    case 6:
-      return '64강';
-    case 7:
-      return '128강';
-    default:
-      return `${Math.pow(2, remainingRounds)}강`;
+  // 특별한 라운드 이름들
+  if (remainingRounds === 1) {
+    return '결승';
+  }
+  
+  // 토너먼트 크기에 따른 라운드 이름
+  if (participantsInRound === 2) {
+    return '결승';
+  } else if (participantsInRound === 4) {
+    return totalRounds === 2 ? '준결승' : '4강'; // 4강 토너먼트면 "준결승", 더 큰 토너먼트면 "4강"
+  } else if (participantsInRound === 8) {
+    return '8강';
+  } else if (participantsInRound === 16) {
+    return '16강';
+  } else if (participantsInRound === 32) {
+    return '32강';
+  } else if (participantsInRound === 64) {
+    return '64강';
+  } else if (participantsInRound === 128) {
+    return '128강';
+  } else {
+    return `${participantsInRound}강`;
   }
 }
 
@@ -432,12 +459,16 @@ export function getTournamentProgress(tournament: Tournament): {
   total: number;
   percentage: number;
 } {
-  const totalMatches = Math.pow(2, tournament.totalRounds) - 1; // 전체 매치 수
+  // 실제 토너먼트에 존재하는 매치 수를 기준으로 계산
+  const totalMatches = tournament.matches.length;
   const completedMatches = tournament.matches.filter(match => match.isCompleted).length;
+  
+  // 안전하게 계산 (0으로 나누기 방지)
+  const percentage = totalMatches > 0 ? Math.round((completedMatches / totalMatches) * 100) : 0;
   
   return {
     current: completedMatches,
     total: totalMatches,
-    percentage: Math.round((completedMatches / totalMatches) * 100),
+    percentage: Math.min(percentage, 100), // 최대 100%로 제한
   };
 }

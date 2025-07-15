@@ -230,6 +230,26 @@ export function usePlayPageLogic(params: Promise<{ id: string; }> | { id: string
   const handleTournamentSelect = (tournamentSize: number) => {
     if (!worldcupData) return;
     
+    console.log('Tournament selected, size:', tournamentSize);
+    
+    // 기존 게임 상태 강제 초기화 (캐시된 상태 방지)
+    setGameState(null);
+    
+    // localStorage에서 관련 데이터 정리
+    try {
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.includes('game') || key.includes('tournament'))) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(key => localStorage.removeItem(key));
+      console.log('Cleaned localStorage keys count:', keysToRemove.length);
+    } catch (error) {
+      console.warn('Failed to clean localStorage:', error);
+    }
+    
     // 모든 아이템 (이미지 + 비디오) 합치기
     const allItems = [
       ...(worldcupData.items || []),
@@ -238,8 +258,9 @@ export function usePlayPageLogic(params: Promise<{ id: string; }> | { id: string
     
     const shuffledItems = shuffleArray([...allItems]);
     
-    // 사용자가 선택한 토너먼트 크기 사용, 없으면 기본 로직
-    const targetTournamentSize: TournamentSize | undefined = worldcupData.tournamentSize || undefined;
+    // 사용자가 선택한 토너먼트 크기 사용
+    const targetTournamentSize: TournamentSize = tournamentSize as TournamentSize;
+    console.log('Using tournament size:', targetTournamentSize);
     
     let tournament = createTournament(
       worldcupData.title,
@@ -248,7 +269,11 @@ export function usePlayPageLogic(params: Promise<{ id: string; }> | { id: string
       targetTournamentSize
     );
     
+    console.log('Created tournament - rounds:', tournament.totalRounds, 'items:', tournament.items.length);
+    
     tournament = autoAdvanceByes(tournament);
+    
+    console.log('Final tournament after autoAdvanceByes - current round:', tournament.currentRound);
     
     setGameState({
       tournament,
