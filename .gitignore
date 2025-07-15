@@ -18,6 +18,7 @@ node_modules
 .env.development.local
 .env.test.local
 .env.production.local
+.env.template
 
 # API 키 및 시크릿
 *.key
