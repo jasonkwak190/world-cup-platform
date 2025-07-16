@@ -15,10 +15,42 @@ const sampleComments = [
     },
     content: 'IU가 우승한 건 당연한 결과죠! 정말 최고의 아티스트입니다 👑',
     timestamp: '2분 전',
+    createdAt: new Date(Date.now() - 2 * 60 * 1000), // 2분 전
     likes: 24,
-    replies: 3,
     isLiked: false,
-    isOwner: false
+    isOwner: false,
+    replies: [
+      {
+        id: 101,
+        author: {
+          name: '이지은',
+          avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=40&h=40&fit=crop&crop=face',
+          isVerified: false,
+          level: 'Silver'
+        },
+        content: '저도 동의해요! IU는 정말 실력파 아티스트죠 ✨',
+        timestamp: '1분 전',
+        createdAt: new Date(Date.now() - 1 * 60 * 1000), // 1분 전
+        likes: 5,
+        isLiked: false,
+        isOwner: false
+      },
+      {
+        id: 102,
+        author: {
+          name: '정우성',
+          avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=40&h=40&fit=crop&crop=face',
+          isVerified: true,
+          level: 'Gold'
+        },
+        content: '음악성과 퍼포먼스 모두 완벽했어요!',
+        timestamp: '방금 전',
+        createdAt: new Date(Date.now() - 30 * 1000), // 30초 전
+        likes: 2,
+        isLiked: false,
+        isOwner: false
+      }
+    ]
   },
   {
     id: 2,
@@ -30,10 +62,27 @@ const sampleComments = [
     },
     content: '진짜 치열한 경쟁이었는데 결과가 아쉽네요 ㅠㅠ 그래도 재밌었어요!',
     timestamp: '5분 전',
+    createdAt: new Date(Date.now() - 5 * 60 * 1000), // 5분 전
     likes: 12,
-    replies: 1,
     isLiked: true,
-    isOwner: true
+    isOwner: true,
+    replies: [
+      {
+        id: 201,
+        author: {
+          name: '김태희',
+          avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=40&h=40&fit=crop&crop=face',
+          isVerified: false,
+          level: 'Bronze'
+        },
+        content: '저도 아쉬웠어요. 다음에는 다른 결과가 나왔으면 좋겠네요!',
+        timestamp: '3분 전',
+        createdAt: new Date(Date.now() - 3 * 60 * 1000), // 3분 전
+        likes: 3,
+        isLiked: false,
+        isOwner: false
+      }
+    ]
   },
   {
     id: 3,
@@ -45,10 +94,11 @@ const sampleComments = [
     },
     content: '다음에는 더 다양한 아티스트들로 토너먼트 해주세요! 기대됩니다 🔥',
     timestamp: '10분 전',
+    createdAt: new Date(Date.now() - 10 * 60 * 1000), // 10분 전
     likes: 8,
-    replies: 0,
     isLiked: false,
-    isOwner: false
+    isOwner: false,
+    replies: []
   }
 ];
 
@@ -61,23 +111,61 @@ export default function TournamentCommentNeonPage() {
   const [editingComment, setEditingComment] = useState<number | null>(null);
   const [editContent, setEditContent] = useState('');
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
+  const [replyContent, setReplyContent] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [commentsPerPage] = useState(20);
+  const [sortOption, setSortOption] = useState('likes'); // 'likes' or 'recent'
 
   useEffect(() => {
     setIsClient(true);
   }, []);
 
-  const handleLike = (commentId: number) => {
-    setComments(prev => prev.map(comment => 
-      comment.id === commentId 
-        ? { 
-            ...comment, 
-            likes: comment.isLiked ? comment.likes - 1 : comment.likes + 1,
-            isLiked: !comment.isLiked 
-          }
-        : comment
-    ));
+  // 댓글 정렬 함수
+  const sortComments = (commentsToSort) => {
+    if (sortOption === 'likes') {
+      return [...commentsToSort].sort((a, b) => b.likes - a.likes);
+    } else {
+      return [...commentsToSort].sort((a, b) => {
+        if (a.createdAt && b.createdAt) {
+          return b.createdAt.getTime() - a.createdAt.getTime();
+        }
+        return 0;
+      });
+    }
+  };
+
+  const handleLike = (commentId: number, replyId?: number) => {
+    if (replyId) {
+      // 답글 좋아요 처리
+      setComments(prev => prev.map(comment => {
+        if (comment.id === commentId && comment.replies) {
+          return {
+            ...comment,
+            replies: comment.replies.map(reply => 
+              reply.id === replyId
+                ? { 
+                    ...reply, 
+                    likes: reply.isLiked ? reply.likes - 1 : reply.likes + 1,
+                    isLiked: !reply.isLiked 
+                  }
+                : reply
+            )
+          };
+        }
+        return comment;
+      }));
+    } else {
+      // 댓글 좋아요 처리
+      setComments(prev => prev.map(comment => 
+        comment.id === commentId 
+          ? { 
+              ...comment, 
+              likes: comment.isLiked ? comment.likes - 1 : comment.likes + 1,
+              isLiked: !comment.isLiked 
+            }
+          : comment
+      ));
+    }
   };
 
   const handleSubmitComment = () => {
@@ -93,16 +181,64 @@ export default function TournamentCommentNeonPage() {
       },
       content: newComment,
       timestamp: '방금 전',
+      createdAt: new Date(),
       likes: 0,
-      replies: 0,
+      isLiked: false,
+      isOwner: true,
+      replies: []
+    };
+
+    // 새 댓글을 맨 아래에 추가
+    setComments(prev => [...prev, comment]);
+    setNewComment('');
+    if (!isLoggedIn) setGuestName('');
+  };
+  
+  const handleSubmitReply = (commentId: number) => {
+    if (!replyContent.trim() || (!isLoggedIn && !guestName.trim())) return;
+
+    const reply = {
+      id: Date.now(),
+      author: {
+        name: isLoggedIn ? '현재 사용자' : guestName,
+        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=40&h=40&fit=crop&crop=face',
+        isVerified: isLoggedIn,
+        level: isLoggedIn ? 'Gold' : 'Guest'
+      },
+      content: replyContent,
+      timestamp: '방금 전',
+      createdAt: new Date(),
+      likes: 0,
       isLiked: false,
       isOwner: true
     };
 
-    setComments(prev => [comment, ...prev]);
-    setNewComment('');
-    if (!isLoggedIn) setGuestName('');
+    setComments(prev => prev.map(comment => {
+      if (comment.id === commentId) {
+        return {
+          ...comment,
+          replies: [...(comment.replies || []), reply]
+        };
+      }
+      return comment;
+    }));
+
+    setReplyingTo(null);
+    setReplyContent('');
   };
+  
+  const handleReport = (commentId: number, replyId?: number) => {
+    const message = replyId 
+      ? '이 답글을 신고하시겠습니까?' 
+      : '이 댓글을 신고하시겠습니까?';
+      
+    if (confirm(message)) {
+      alert('신고가 접수되었습니다. 관리자 검토 후 조치하겠습니다.');
+    }
+  };
+
+  const [editingReply, setEditingReply] = useState<{commentId: number, replyId: number} | null>(null);
+  const [editReplyContent, setEditReplyContent] = useState('');
 
   const handleEditComment = (commentId: number) => {
     const comment = comments.find(c => c.id === commentId);
@@ -127,9 +263,54 @@ export default function TournamentCommentNeonPage() {
       setComments(prev => prev.filter(comment => comment.id !== commentId));
     }
   };
+  
+  const handleEditReply = (commentId: number, replyId: number) => {
+    const comment = comments.find(c => c.id === commentId);
+    if (comment) {
+      const reply = comment.replies?.find(r => r.id === replyId);
+      if (reply) {
+        setEditingReply({ commentId, replyId });
+        setEditReplyContent(reply.content);
+      }
+    }
+  };
+  
+  const handleSaveReplyEdit = (commentId: number, replyId: number) => {
+    setComments(prev => prev.map(comment => {
+      if (comment.id === commentId && comment.replies) {
+        return {
+          ...comment,
+          replies: comment.replies.map(reply => 
+            reply.id === replyId 
+              ? { ...reply, content: editReplyContent }
+              : reply
+          )
+        };
+      }
+      return comment;
+    }));
+    setEditingReply(null);
+    setEditReplyContent('');
+  };
+  
+  const handleDeleteReply = (commentId: number, replyId: number) => {
+    if (confirm('답글을 삭제하시겠습니까?')) {
+      setComments(prev => prev.map(comment => {
+        if (comment.id === commentId && comment.replies) {
+          return {
+            ...comment,
+            replies: comment.replies.filter(reply => reply.id !== replyId)
+          };
+        }
+        return comment;
+      }));
+    }
+  };
 
-  const totalPages = Math.ceil(comments.length / commentsPerPage);
-  const currentComments = comments.slice(
+  // 정렬된 댓글 가져오기
+  const sortedComments = sortComments(comments);
+  const totalPages = Math.ceil(sortedComments.length / commentsPerPage);
+  const currentComments = sortedComments.slice(
     (currentPage - 1) * commentsPerPage,
     currentPage * commentsPerPage
   );
@@ -173,6 +354,32 @@ export default function TournamentCommentNeonPage() {
                   <MessageCircle className="w-8 h-8 text-cyan-400" />
                 </div>
                 <p className="text-cyan-400 font-mono text-sm">Share your thoughts about the tournament</p>
+                
+                {/* 정렬 옵션 */}
+                <div className="flex justify-center mt-4">
+                  <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700 p-1 inline-flex">
+                    <button
+                      onClick={() => setSortOption('likes')}
+                      className={`px-4 py-2 rounded-lg font-mono text-sm transition-all ${
+                        sortOption === 'likes'
+                          ? 'bg-cyan-400 text-black font-bold'
+                          : 'text-gray-300 hover:text-white'
+                      }`}
+                    >
+                      좋아요순
+                    </button>
+                    <button
+                      onClick={() => setSortOption('recent')}
+                      className={`px-4 py-2 rounded-lg font-mono text-sm transition-all ${
+                        sortOption === 'recent'
+                          ? 'bg-cyan-400 text-black font-bold'
+                          : 'text-gray-300 hover:text-white'
+                      }`}
+                    >
+                      최신순
+                    </button>
+                  </div>
+                </div>
               </div>
 
               {/* 댓글 입력창 */}
@@ -301,9 +508,15 @@ export default function TournamentCommentNeonPage() {
                               <span>REPLY</span>
                             </button>
                             
-                            {comment.replies > 0 && (
-                              <span className="text-gray-400 font-mono text-sm">{comment.replies} replies</span>
-                            )}
+                            <button
+                              onClick={() => handleReport(comment.id)}
+                              className="flex items-center gap-2 px-3 py-1 rounded-lg bg-gray-700/50 text-gray-400 border border-gray-600 hover:text-red-400 hover:border-red-400 font-mono transition-all"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                              </svg>
+                              <span>REPORT</span>
+                            </button>
                           </div>
                           
                           {comment.isOwner && (
@@ -323,6 +536,159 @@ export default function TournamentCommentNeonPage() {
                             </div>
                           )}
                         </div>
+                        
+                        {/* 답글 입력 폼 */}
+                        {replyingTo === comment.id && (
+                          <div className="mt-4 ml-6 bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 border border-gray-700">
+                            <div className="flex items-start gap-3">
+                              <div className="w-8 h-8 rounded-full bg-gradient-to-r from-cyan-400 to-purple-400 flex items-center justify-center">
+                                <User className="w-4 h-4 text-white" />
+                              </div>
+                              <div className="flex-1">
+                                {!isLoggedIn && (
+                                  <input
+                                    type="text"
+                                    placeholder="YOUR NAME..."
+                                    value={guestName}
+                                    onChange={(e) => setGuestName(e.target.value)}
+                                    className="w-full bg-gray-700/50 border border-gray-600 rounded-lg px-3 py-1 text-white font-mono text-sm placeholder-gray-400 mb-2 focus:outline-none focus:border-cyan-400"
+                                  />
+                                )}
+                                <textarea
+                                  placeholder="WRITE A REPLY..."
+                                  value={replyContent}
+                                  onChange={(e) => setReplyContent(e.target.value)}
+                                  className="w-full bg-gray-700/50 border border-gray-600 rounded-lg px-3 py-2 text-white font-mono text-sm placeholder-gray-400 resize-none focus:outline-none focus:border-cyan-400"
+                                  rows={2}
+                                />
+                                <div className="flex justify-between items-center mt-2">
+                                  <button
+                                    onClick={() => setReplyingTo(null)}
+                                    className="px-3 py-1 text-gray-400 font-mono text-sm hover:text-white transition-colors"
+                                  >
+                                    CANCEL
+                                  </button>
+                                  <button
+                                    onClick={() => handleSubmitReply(comment.id)}
+                                    disabled={!replyContent.trim() || (!isLoggedIn && !guestName.trim())}
+                                    className="px-4 py-1 bg-gradient-to-r from-cyan-400 to-purple-400 text-black font-mono font-bold text-sm rounded-lg hover:from-cyan-300 hover:to-purple-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                  >
+                                    REPLY
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* 답글 목록 */}
+                        {comment.replies && comment.replies.length > 0 && (
+                          <div className="mt-4 ml-6 space-y-4">
+                            {comment.replies.map(reply => (
+                              <div key={reply.id} className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 border border-gray-700">
+                                <div className="flex items-start gap-3">
+                                  <div className="relative">
+                                    <img
+                                      src={reply.author.avatar}
+                                      alt={reply.author.name}
+                                      className="w-8 h-8 rounded-full border-2 border-cyan-400"
+                                    />
+                                    {reply.author.isVerified && (
+                                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center">
+                                        <Crown className="w-2 h-2 text-black" />
+                                      </div>
+                                    )}
+                                  </div>
+                                  
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                      <span className="text-cyan-400 font-mono font-bold text-sm">{reply.author.name}</span>
+                                      <span className={`px-1.5 py-0.5 rounded-full text-xs font-mono ${
+                                        reply.author.level === 'VIP' ? 'bg-yellow-400/20 text-yellow-400 border border-yellow-400' :
+                                        reply.author.level === 'Gold' ? 'bg-orange-400/20 text-orange-400 border border-orange-400' :
+                                        reply.author.level === 'Bronze' ? 'bg-amber-600/20 text-amber-400 border border-amber-400' :
+                                        'bg-gray-600/20 text-gray-400 border border-gray-600'
+                                      }`}>
+                                        {reply.author.level}
+                                      </span>
+                                      <span className="text-gray-400 font-mono text-xs">{reply.timestamp}</span>
+                                    </div>
+                                    
+                                    {editingReply && editingReply.commentId === comment.id && editingReply.replyId === reply.id ? (
+                                      <div className="mb-2">
+                                        <textarea
+                                          value={editReplyContent}
+                                          onChange={(e) => setEditReplyContent(e.target.value)}
+                                          className="w-full bg-gray-700/50 border border-gray-600 rounded-lg px-3 py-2 text-white font-mono text-sm resize-none focus:outline-none focus:border-cyan-400"
+                                          rows={2}
+                                        />
+                                        <div className="flex gap-2 mt-2">
+                                          <button
+                                            onClick={() => handleSaveReplyEdit(comment.id, reply.id)}
+                                            className="px-3 py-1 bg-cyan-400 text-black font-mono font-bold text-xs rounded-lg hover:bg-cyan-300 transition-colors"
+                                          >
+                                            SAVE
+                                          </button>
+                                          <button
+                                            onClick={() => setEditingReply(null)}
+                                            className="px-3 py-1 bg-gray-600 text-white font-mono font-bold text-xs rounded-lg hover:bg-gray-500 transition-colors"
+                                          >
+                                            CANCEL
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <p className="text-white font-mono text-sm mb-2 leading-relaxed">{reply.content}</p>
+                                    )}
+                                    
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-3">
+                                        <button
+                                          onClick={() => handleLike(comment.id, reply.id)}
+                                          className={`flex items-center gap-1 px-2 py-1 rounded-lg font-mono text-xs transition-all ${
+                                            reply.isLiked 
+                                              ? 'bg-pink-400/20 text-pink-400 border border-pink-400' 
+                                              : 'bg-gray-700/50 text-gray-400 border border-gray-600 hover:text-pink-400 hover:border-pink-400'
+                                          }`}
+                                        >
+                                          <Heart className={`w-3 h-3 ${reply.isLiked ? 'fill-current' : ''}`} />
+                                          <span>{reply.likes}</span>
+                                        </button>
+                                        
+                                        <button
+                                          onClick={() => handleReport(comment.id, reply.id)}
+                                          className="flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-700/50 text-gray-400 border border-gray-600 hover:text-red-400 hover:border-red-400 font-mono text-xs transition-all"
+                                        >
+                                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                          </svg>
+                                          <span>REPORT</span>
+                                        </button>
+                                      </div>
+                                      
+                                      {reply.isOwner && (
+                                        <div className="flex items-center gap-1">
+                                          <button 
+                                            onClick={() => handleEditReply(comment.id, reply.id)}
+                                            className="p-1 rounded-lg bg-gray-700/50 text-gray-400 border border-gray-600 hover:text-yellow-400 hover:border-yellow-400 transition-all"
+                                          >
+                                            <Edit3 className="w-3 h-3" />
+                                          </button>
+                                          <button 
+                                            onClick={() => handleDeleteReply(comment.id, reply.id)}
+                                            className="p-1 rounded-lg bg-gray-700/50 text-gray-400 border border-gray-600 hover:text-red-400 hover:border-red-400 transition-all"
+                                          >
+                                            <Trash2 className="w-3 h-3" />
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

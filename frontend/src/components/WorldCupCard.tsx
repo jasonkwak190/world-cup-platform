@@ -134,8 +134,8 @@ export default function WorldCupCard({
   
   return (
     <>
-      {/* card-designs의 럭셔리 모던 스타일 적용 */}
-      <div className="relative bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-2xl transform transition-all duration-300 hover:scale-102 hover:shadow-3xl border border-gray-200/50 group w-full">
+      {/* 럭셔리 모던 스타일 - card-designs와 동일 */}
+      <div className="relative bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-2xl transform transition-all duration-300 hover:scale-102 hover:shadow-3xl border border-gray-200/50 group w-full min-w-[320px] max-w-[400px]">
         <div className="p-6 relative overflow-hidden">
           {/* 배경 장식 */}
           <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-purple-100 to-pink-100 rounded-full -translate-y-16 translate-x-16 opacity-50"></div>
@@ -145,7 +145,7 @@ export default function WorldCupCard({
           <div className="relative mb-6 rounded-xl overflow-hidden shadow-xl border-2 border-purple-200/30">
             {thumbnailUrl && thumbnailUrl.trim() !== '' && thumbnailUrl.length > 10 ? (
               <>
-                <div className="relative w-full h-48 overflow-hidden">
+                <div className="relative w-full h-40 overflow-hidden aspect-video">
                   <Image 
                     src={thumbnailUrl} 
                     alt={title}
@@ -191,13 +191,12 @@ export default function WorldCupCard({
                   </div>
                 </div>
                 <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
-                {/* Tournament 배지 제거됨 */}
               </>
             ) : (
               <img 
                 src="/placeholder.svg" 
                 alt={title}
-                className="w-full h-48 object-cover bg-gray-900"
+                className="w-full h-40 object-cover bg-gray-900 aspect-video"
               />
             )}
           </div>

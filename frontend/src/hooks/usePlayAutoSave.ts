@@ -43,20 +43,59 @@ export function usePlayAutoSave(options: UsePlayAutoSaveOptions) {
 
   // Convert game state to save data
   const createSaveData = useCallback((state: GameState): PlayProgressData => {
+    // Null safety checks
+    if (!state?.tournament) {
+      throw new Error('Invalid game state: tournament is missing');
+    }
+
+    const tournament = state.tournament;
+    const matches = tournament.matches || [];
+    
+    // Get current round matches to determine remaining items (with safety checks)
+    const currentRoundMatches = matches.filter(match => 
+      match && 
+      typeof match.round === 'number' && 
+      typeof match.isCompleted === 'boolean' &&
+      match.round === tournament.currentRound && 
+      !match.isCompleted
+    );
+    
+    // Get completed matches to determine selected items (winners)
+    const completedMatches = matches.filter(match => 
+      match && 
+      typeof match.isCompleted === 'boolean' &&
+      match.isCompleted
+    );
+    
+    const selectedItems = completedMatches
+      .filter(match => match && match.winner)
+      .map(match => match.winner)
+      .filter(winner => winner); // Additional safety filter
+
+    // Get remaining items from current round matches
+    const remainingItems = currentRoundMatches.flatMap(match => {
+      if (!match) return [];
+      const items = [];
+      if (match.item1) items.push(match.item1);
+      if (match.item2) items.push(match.item2);
+      return items;
+    });
+
     return {
       worldcup_id: worldcupId,
-      current_round: state.tournament.currentRound,
-      total_rounds: state.tournament.totalRounds,
+      current_round: tournament.currentRound || 0,
+      total_rounds: tournament.totalRounds || 0,
       bracket_state: {
-        currentRound: state.tournament.currentRound,
-        totalRounds: state.tournament.totalRounds,
-        currentMatch: state.tournament.currentMatch,
-        participants: state.tournament.participants,
-        isCompleted: state.tournament.isCompleted,
-        winner: state.tournament.winner
+        currentRound: tournament.currentRound || 0,
+        totalRounds: tournament.totalRounds || 0,
+        currentMatch: tournament.currentMatch || 0,
+        items: tournament.items || [],
+        matches: matches,
+        isCompleted: tournament.isCompleted || false,
+        winner: tournament.winner || null
       },
-      remaining_items: state.tournament.participants[state.tournament.currentRound] || [],
-      selected_items: state.tournament.participants.slice(0, state.tournament.currentRound),
+      remaining_items: remainingItems,
+      selected_items: selectedItems,
       round_history: state.history || []
     };
   }, [worldcupId]);

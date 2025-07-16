@@ -7,6 +7,8 @@ import GameResult from '@/components/GameResult';
 import GameScreen from '@/components/game/GameScreen';
 import { getTournamentProgress, getRoundName, getCurrentMatch } from '@/utils/tournament';
 import TournamentSelector from '@/components/TournamentSelector';
+import AutoSaveIndicator from '@/components/AutoSaveIndicator';
+import ContinuePlayModal from '@/components/ContinuePlayModal';
 
 interface PlayPageProps {
   params: Promise<{
@@ -30,6 +32,7 @@ export default function PlayPage({ params }: PlayPageProps) {
     handleTournamentSelect,
     handleTournamentCancel,
     handleGoHome,
+    autoSave,
   } = usePlayPageLogic(params);
 
   if (isLoading) {
@@ -72,12 +75,38 @@ export default function PlayPage({ params }: PlayPageProps) {
 
   if (showTournamentSelector && worldcupData) {
     return (
-      <TournamentSelector
-        worldcupTitle={worldcupData.title}
-        totalItems={worldcupData.items.length}
-        onSelect={handleTournamentSelect}
-        onCancel={handleTournamentCancel}
-      />
+      <>
+        <TournamentSelector
+          worldcupTitle={worldcupData.title}
+          totalItems={worldcupData.items.length}
+          onSelect={handleTournamentSelect}
+          onCancel={handleTournamentCancel}
+        />
+        
+        {/* Continue play modal */}
+        <ContinuePlayModal
+          isOpen={autoSave.hasDraft}
+          onContinue={async () => {
+            const restored = await autoSave.restoreProgress();
+            if (restored) {
+              // Handle restored progress
+              console.log('Restored progress:', restored);
+            }
+          }}
+          onStartNew={() => {
+            autoSave.deleteSave();
+          }}
+          onClose={() => {
+            // Handle close - maybe hide the modal
+          }}
+          worldcupTitle={worldcupData.title}
+          progress={autoSave.draftData ? {
+            currentRound: autoSave.draftData.current_round,
+            totalRounds: autoSave.draftData.total_rounds,
+            lastSaved: autoSave.draftData.updated_at
+          } : undefined}
+        />
+      </>
     );
   }
 
@@ -134,6 +163,18 @@ export default function PlayPage({ params }: PlayPageProps) {
         onGoHome={handleGoHome}
         onSelectTournament={handleSelectTournament}
       />
+      
+      {/* Auto-save indicator */}
+      {autoSave.isEnabled && (
+        <div className="fixed top-4 left-4 z-50">
+          <AutoSaveIndicator
+            status={autoSave.saveStatus}
+            lastSaved={autoSave.lastSaved}
+            showText={false}
+            className="bg-white/10 backdrop-blur-sm border-white/20"
+          />
+        </div>
+      )}
       
       {currentMatch && (
         <GameScreen

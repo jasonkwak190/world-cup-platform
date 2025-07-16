@@ -27,9 +27,10 @@ export function useDraftRestore(options: UseDraftRestoreOptions) {
   const [error, setError] = useState<string | null>(null);
 
   const restoreFunction = useCallback(async (): Promise<RestoreData | null> => {
-    // Require authentication for autosave features
+    // Skip autosave for unauthenticated users without throwing error
     if (!user?.access_token) {
-      throw new Error('Authentication required for autosave features');
+      console.log('🔒 Skipping autosave - user not authenticated');
+      return null;
     }
 
     const headers: Record<string, string> = {
@@ -102,9 +103,10 @@ export function useDraftRestore(options: UseDraftRestoreOptions) {
 
   const deleteDraft = useCallback(async (): Promise<boolean> => {
     try {
-      // Require authentication for autosave features
+      // Skip autosave for unauthenticated users without throwing error
       if (!user?.access_token) {
-        throw new Error('Authentication required for autosave features');
+        console.log('🔒 Skipping autosave deletion - user not authenticated');
+        return true; // Return true to indicate "success" (no-op)
       }
 
       const headers: Record<string, string> = {
@@ -175,9 +177,10 @@ export function isUserAuthenticated(user: any): boolean {
 }
 
 // Helper to get auth headers
-export function getAuthHeaders(user: any): Record<string, string> {
+export function getAuthHeaders(user: any): Record<string, string> | null {
   if (!isUserAuthenticated(user)) {
-    throw new Error('Authentication required for autosave features');
+    console.log('🔒 User not authenticated for autosave features');
+    return null;
   }
   
   return {

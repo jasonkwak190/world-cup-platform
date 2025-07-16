@@ -47,7 +47,7 @@ export async function convertBlobUrlsInItems(items: any[]): Promise<any[]> {
 
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
-    let convertedItem = { ...item };
+    const convertedItem = { ...item };
 
     if (item.image && typeof item.image === 'string' && item.image.startsWith('blob:')) {
       console.log(`🔄 Converting blob URL for item ${i + 1}: ${item.title}`);

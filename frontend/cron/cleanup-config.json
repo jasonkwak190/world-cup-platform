@@ -1,0 +1,9 @@
+{
+  "expiredPlaySaves": 7,
+  "oldDraftSaves": 30,
+  "cronSchedule": "0 2 * * *",
+  "maxBatchSize": 100,
+  "processingDelayMs": 1000,
+  "maxRetries": 3,
+  "retryDelayMs": 5000
+}

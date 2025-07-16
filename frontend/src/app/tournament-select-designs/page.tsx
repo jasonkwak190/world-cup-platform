@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Flame, Zap, Skull, Crown, Sparkles, Rocket, Swords } from 'lucide-react';
 
 // 토너먼트 옵션 데이터
@@ -94,6 +94,11 @@ const tournamentOptions = [
 export default function TournamentSelectDesignsPage() {
   const [selectedTournament, setSelectedTournament] = useState<string | null>(null);
   const [hoveredCard, setHoveredCard] = useState<string | null>(null);
+  const [isClient, setIsClient] = useState(false);
+  
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const getIntensityIcon = (intensity: number) => {
     switch (intensity) {
@@ -115,6 +120,10 @@ export default function TournamentSelectDesignsPage() {
           <h1 className="text-4xl font-bold text-gray-900 mb-4">토너먼트 선택 디자인</h1>
           <p className="text-gray-600 text-lg">완전히 새로운 스타일의 토너먼트 선택 UI</p>
         </div>
+        
+        {/* Only render content when on client-side to prevent hydration errors */}
+        {isClient && (
+          <>
 
         {/* 디자인 1: 브루탈리즘 스타일 */}
         <div className="mb-20">
@@ -431,6 +440,8 @@ export default function TournamentSelectDesignsPage() {
             <span className="px-4 py-2 border border-gray-300 text-gray-700 rounded text-sm">5. 미니멀 타이포</span>
           </div>
         </div>
+          </>
+        )}
       </div>
     </div>
   );

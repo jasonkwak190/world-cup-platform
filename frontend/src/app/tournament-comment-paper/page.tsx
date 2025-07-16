@@ -15,10 +15,42 @@ const sampleComments = [
     },
     content: 'IU가 우승한 건 당연한 결과죠! 정말 최고의 아티스트입니다 👑',
     timestamp: '2분 전',
+    createdAt: new Date(Date.now() - 2 * 60 * 1000), // 2분 전
     likes: 24,
-    replies: 3,
     isLiked: false,
-    isOwner: false
+    isOwner: false,
+    replies: [
+      {
+        id: 101,
+        author: {
+          name: '이지은',
+          avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=40&h=40&fit=crop&crop=face',
+          isVerified: false,
+          level: 'Silver'
+        },
+        content: '저도 동의해요! IU는 정말 실력파 아티스트죠 ✨',
+        timestamp: '1분 전',
+        createdAt: new Date(Date.now() - 1 * 60 * 1000), // 1분 전
+        likes: 5,
+        isLiked: false,
+        isOwner: false
+      },
+      {
+        id: 102,
+        author: {
+          name: '정우성',
+          avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=40&h=40&fit=crop&crop=face',
+          isVerified: true,
+          level: 'Gold'
+        },
+        content: '음악성과 퍼포먼스 모두 완벽했어요!',
+        timestamp: '방금 전',
+        createdAt: new Date(Date.now() - 30 * 1000), // 30초 전
+        likes: 2,
+        isLiked: false,
+        isOwner: false
+      }
+    ]
   },
   {
     id: 2,
@@ -30,10 +62,27 @@ const sampleComments = [
     },
     content: '진짜 치열한 경쟁이었는데 결과가 아쉽네요 ㅠㅠ 그래도 재밌었어요!',
     timestamp: '5분 전',
+    createdAt: new Date(Date.now() - 5 * 60 * 1000), // 5분 전
     likes: 12,
-    replies: 1,
     isLiked: true,
-    isOwner: true
+    isOwner: true,
+    replies: [
+      {
+        id: 201,
+        author: {
+          name: '김태희',
+          avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=40&h=40&fit=crop&crop=face',
+          isVerified: false,
+          level: 'Bronze'
+        },
+        content: '저도 아쉬웠어요. 다음에는 다른 결과가 나왔으면 좋겠네요!',
+        timestamp: '3분 전',
+        createdAt: new Date(Date.now() - 3 * 60 * 1000), // 3분 전
+        likes: 3,
+        isLiked: false,
+        isOwner: false
+      }
+    ]
   },
   {
     id: 3,
@@ -45,10 +94,11 @@ const sampleComments = [
     },
     content: '다음에는 더 다양한 아티스트들로 토너먼트 해주세요! 기대됩니다 🔥',
     timestamp: '10분 전',
+    createdAt: new Date(Date.now() - 10 * 60 * 1000), // 10분 전
     likes: 8,
-    replies: 0,
     isLiked: false,
-    isOwner: false
+    isOwner: false,
+    replies: []
   }
 ];
 
@@ -60,23 +110,64 @@ export default function TournamentCommentPaperPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [editingComment, setEditingComment] = useState<number | null>(null);
   const [editContent, setEditContent] = useState('');
+  const [replyingTo, setReplyingTo] = useState<number | null>(null);
+  const [replyContent, setReplyContent] = useState('');
+  const [editingReply, setEditingReply] = useState<{commentId: number, replyId: number} | null>(null);
+  const [editReplyContent, setEditReplyContent] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [commentsPerPage] = useState(20);
+  const [sortOption, setSortOption] = useState('likes'); // 'likes' or 'recent'
 
   useEffect(() => {
     setIsClient(true);
   }, []);
 
-  const handleLike = (commentId: number) => {
-    setComments(prev => prev.map(comment => 
-      comment.id === commentId 
-        ? { 
-            ...comment, 
-            likes: comment.isLiked ? comment.likes - 1 : comment.likes + 1,
-            isLiked: !comment.isLiked 
-          }
-        : comment
-    ));
+  // 댓글 정렬 함수
+  const sortComments = (commentsToSort) => {
+    if (sortOption === 'likes') {
+      return [...commentsToSort].sort((a, b) => b.likes - a.likes);
+    } else {
+      return [...commentsToSort].sort((a, b) => {
+        if (a.createdAt && b.createdAt) {
+          return b.createdAt.getTime() - a.createdAt.getTime();
+        }
+        return 0;
+      });
+    }
+  };
+
+  const handleLike = (commentId: number, replyId?: number) => {
+    if (replyId) {
+      // 답글 좋아요 처리
+      setComments(prev => prev.map(comment => {
+        if (comment.id === commentId && comment.replies) {
+          return {
+            ...comment,
+            replies: comment.replies.map(reply => 
+              reply.id === replyId
+                ? { 
+                    ...reply, 
+                    likes: reply.isLiked ? reply.likes - 1 : reply.likes + 1,
+                    isLiked: !reply.isLiked 
+                  }
+                : reply
+            )
+          };
+        }
+        return comment;
+      }));
+    } else {
+      // 댓글 좋아요 처리
+      setComments(prev => prev.map(comment => 
+        comment.id === commentId 
+          ? { 
+              ...comment, 
+              likes: comment.isLiked ? comment.likes - 1 : comment.likes + 1,
+              isLiked: !comment.isLiked 
+            }
+          : comment
+      ));
+    }
   };
 
   const handleSubmitComment = () => {
@@ -92,13 +183,15 @@ export default function TournamentCommentPaperPage() {
       },
       content: newComment,
       timestamp: '방금 전',
+      createdAt: new Date(),
       likes: 0,
-      replies: 0,
       isLiked: false,
-      isOwner: true
+      isOwner: true,
+      replies: []
     };
 
-    setComments(prev => [comment, ...prev]);
+    // 새 댓글을 맨 아래에 추가
+    setComments(prev => [...prev, comment]);
     setNewComment('');
     if (!isLoggedIn) setGuestName('');
   };
@@ -126,9 +219,97 @@ export default function TournamentCommentPaperPage() {
       setComments(prev => prev.filter(comment => comment.id !== commentId));
     }
   };
+  
+  const handleEditReply = (commentId: number, replyId: number) => {
+    const comment = comments.find(c => c.id === commentId);
+    if (comment) {
+      const reply = comment.replies?.find(r => r.id === replyId);
+      if (reply) {
+        setEditingReply({ commentId, replyId });
+        setEditReplyContent(reply.content);
+      }
+    }
+  };
+  
+  const handleSaveReplyEdit = (commentId: number, replyId: number) => {
+    setComments(prev => prev.map(comment => {
+      if (comment.id === commentId && comment.replies) {
+        return {
+          ...comment,
+          replies: comment.replies.map(reply => 
+            reply.id === replyId 
+              ? { ...reply, content: editReplyContent }
+              : reply
+          )
+        };
+      }
+      return comment;
+    }));
+    setEditingReply(null);
+    setEditReplyContent('');
+  };
+  
+  const handleDeleteReply = (commentId: number, replyId: number) => {
+    if (confirm('답글을 삭제하시겠습니까?')) {
+      setComments(prev => prev.map(comment => {
+        if (comment.id === commentId && comment.replies) {
+          return {
+            ...comment,
+            replies: comment.replies.filter(reply => reply.id !== replyId)
+          };
+        }
+        return comment;
+      }));
+    }
+  };
+  
+  const handleSubmitReply = (commentId: number) => {
+    if (!replyContent.trim() || (!isLoggedIn && !guestName.trim())) return;
 
-  const totalPages = Math.ceil(comments.length / commentsPerPage);
-  const currentComments = comments.slice(
+    const reply = {
+      id: Date.now(),
+      author: {
+        name: isLoggedIn ? '현재 사용자' : guestName,
+        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=40&h=40&fit=crop&crop=face',
+        isVerified: isLoggedIn,
+        level: isLoggedIn ? 'Gold' : 'Guest'
+      },
+      content: replyContent,
+      timestamp: '방금 전',
+      createdAt: new Date(),
+      likes: 0,
+      isLiked: false,
+      isOwner: true
+    };
+
+    setComments(prev => prev.map(comment => {
+      if (comment.id === commentId) {
+        return {
+          ...comment,
+          replies: [...(comment.replies || []), reply]
+        };
+      }
+      return comment;
+    }));
+
+    setReplyingTo(null);
+    setReplyContent('');
+  };
+  
+  const handleReport = (commentId: number, replyId?: number) => {
+    const message = replyId 
+      ? '이 답글을 신고하시겠습니까?' 
+      : '이 댓글을 신고하시겠습니까?';
+      
+    if (confirm(message)) {
+      alert('신고가 접수되었습니다. 관리자 검토 후 조치하겠습니다.');
+    }
+  };
+
+  // 정렬된 댓글 가져오기
+  const sortedComments = sortComments(comments);
+  const totalPages = Math.ceil(sortedComments.length / commentsPerPage);
+  const currentComments = sortedComments.slice(
     (currentPage - 1) * commentsPerPage,
     currentPage * commentsPerPage
   );
@@ -167,6 +348,32 @@ export default function TournamentCommentPaperPage() {
               <div className="inline-block bg-white p-4 rounded-lg shadow-lg border-2 border-dashed border-amber-400 transform -rotate-1">
                 <h3 className="text-2xl font-bold text-amber-800 mb-1">💬 토너먼트 댓글 💬</h3>
                 <p className="text-amber-600 text-sm">여러분의 소중한 의견을 들려주세요</p>
+              </div>
+              
+              {/* 정렬 옵션 */}
+              <div className="mt-4">
+                <div className="inline-flex bg-white rounded-lg shadow-md border-2 border-dashed border-amber-300 p-1 transform rotate-1">
+                  <button
+                    onClick={() => setSortOption('likes')}
+                    className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${
+                      sortOption === 'likes'
+                        ? 'bg-amber-500 text-white'
+                        : 'text-amber-700 hover:bg-amber-100'
+                    }`}
+                  >
+                    👍 좋아요순
+                  </button>
+                  <button
+                    onClick={() => setSortOption('recent')}
+                    className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${
+                      sortOption === 'recent'
+                        ? 'bg-amber-500 text-white'
+                        : 'text-amber-700 hover:bg-amber-100'
+                    }`}
+                  >
+                    🕒 최신순
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -297,9 +504,22 @@ export default function TournamentCommentPaperPage() {
                             <span className="font-semibold">{comment.likes}</span>
                           </button>
                           
-                          <button className="flex items-center gap-2 px-3 py-2 rounded-full bg-blue-100 text-blue-600 border-2 border-dashed border-blue-300 hover:bg-blue-200 transition-all">
+                          <button 
+                            onClick={() => setReplyingTo(comment.id)}
+                            className="flex items-center gap-2 px-3 py-2 rounded-full bg-blue-100 text-blue-600 border-2 border-dashed border-blue-300 hover:bg-blue-200 transition-all"
+                          >
                             <Reply className="w-4 h-4" />
-                            <span className="font-semibold">답글 {comment.replies}</span>
+                            <span className="font-semibold">답글 {comment.replies?.length || 0}</span>
+                          </button>
+                          
+                          <button
+                            onClick={() => handleReport(comment.id)}
+                            className="flex items-center gap-2 px-3 py-2 rounded-full bg-gray-100 text-gray-600 border-2 border-dashed border-gray-300 hover:bg-red-50 hover:text-red-600 hover:border-red-300 transition-all"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                            <span className="font-semibold">신고</span>
                           </button>
                         </div>
                         
@@ -320,6 +540,161 @@ export default function TournamentCommentPaperPage() {
                           </div>
                         )}
                       </div>
+                      
+                      {/* 답글 입력 폼 */}
+                      {replyingTo === comment.id && (
+                        <div className="mt-4 ml-6 bg-amber-50 p-4 rounded-lg border-2 border-dashed border-amber-300 transform rotate-1">
+                          <div className="flex items-start gap-3">
+                            <div className="w-8 h-8 bg-amber-200 rounded-full flex items-center justify-center border-2 border-dashed border-amber-400">
+                              <User className="w-4 h-4 text-amber-700" />
+                            </div>
+                            <div className="flex-1">
+                              {!isLoggedIn && (
+                                <input
+                                  type="text"
+                                  placeholder="닉네임을 입력하세요"
+                                  value={guestName}
+                                  onChange={(e) => setGuestName(e.target.value)}
+                                  className="w-full p-2 mb-2 border-2 border-dashed border-amber-300 rounded-lg focus:border-amber-500 focus:outline-none bg-white text-sm"
+                                />
+                              )}
+                              <textarea
+                                placeholder="답글을 작성해주세요..."
+                                value={replyContent}
+                                onChange={(e) => setReplyContent(e.target.value)}
+                                className="w-full p-2 border-2 border-dashed border-amber-300 rounded-lg resize-none focus:border-amber-500 focus:outline-none bg-white text-sm"
+                                rows={2}
+                              />
+                              <div className="flex justify-between items-center mt-2">
+                                <button
+                                  onClick={() => setReplyingTo(null)}
+                                  className="text-amber-600 text-sm hover:text-amber-800"
+                                >
+                                  취소
+                                </button>
+                                <button
+                                  onClick={() => handleSubmitReply(comment.id)}
+                                  disabled={!replyContent.trim() || (!isLoggedIn && !guestName.trim())}
+                                  className="px-3 py-1 bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm font-semibold"
+                                >
+                                  답글 작성
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* 답글 목록 */}
+                      {comment.replies && comment.replies.length > 0 && (
+                        <div className="mt-4 ml-6 space-y-4">
+                          {comment.replies.map((reply, replyIndex) => (
+                            <div key={reply.id} className={`bg-amber-50 p-4 rounded-lg border-2 border-dashed border-amber-300 relative ${
+                              replyIndex % 2 === 0 ? 'transform rotate-1' : 'transform -rotate-1'
+                            }`}>
+                              <div className="flex items-start gap-3">
+                                <div className="relative">
+                                  <img
+                                    src={reply.author.avatar}
+                                    alt={reply.author.name}
+                                    className="w-8 h-8 rounded-full border-2 border-amber-300 object-cover"
+                                  />
+                                  {reply.author.isVerified && (
+                                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
+                                      <span className="text-white text-[8px]">✓</span>
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                    <h4 className="font-bold text-gray-800 text-sm">{reply.author.name}</h4>
+                                    <span className={`px-1.5 py-0.5 rounded-full text-xs font-semibold ${
+                                      reply.author.level === 'VIP' ? 'bg-yellow-200 text-yellow-800' :
+                                      reply.author.level === 'Gold' ? 'bg-orange-200 text-orange-800' :
+                                      reply.author.level === 'Bronze' ? 'bg-amber-200 text-amber-800' :
+                                      'bg-gray-200 text-gray-800'
+                                    }`}>
+                                      {reply.author.level}
+                                    </span>
+                                    <span className="text-amber-600 text-xs">📅 {reply.timestamp}</span>
+                                  </div>
+                                  
+                                  {editingReply && editingReply.commentId === comment.id && editingReply.replyId === reply.id ? (
+                                    <div className="mb-2">
+                                      <textarea
+                                        value={editReplyContent}
+                                        onChange={(e) => setEditReplyContent(e.target.value)}
+                                        className="w-full p-2 border-2 border-dashed border-amber-300 rounded-lg resize-none focus:border-amber-500 focus:outline-none bg-white text-sm"
+                                        rows={2}
+                                      />
+                                      <div className="flex gap-2 mt-2">
+                                        <button
+                                          onClick={() => handleSaveReplyEdit(comment.id, reply.id)}
+                                          className="px-3 py-1 bg-amber-500 text-white rounded-lg hover:bg-amber-600 text-xs font-semibold"
+                                        >
+                                          💾 저장
+                                        </button>
+                                        <button
+                                          onClick={() => setEditingReply(null)}
+                                          className="px-3 py-1 bg-gray-400 text-white rounded-lg hover:bg-gray-500 text-xs font-semibold"
+                                        >
+                                          ❌ 취소
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <p className="text-gray-700 text-sm mb-2">{reply.content}</p>
+                                  )}
+                                  
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        onClick={() => handleLike(comment.id, reply.id)}
+                                        className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs transition-all ${
+                                          reply.isLiked 
+                                            ? 'bg-red-100 text-red-600 border-2 border-dashed border-red-300' 
+                                            : 'bg-gray-100 text-gray-600 border-2 border-dashed border-gray-300 hover:bg-red-50'
+                                        }`}
+                                      >
+                                        <Heart className={`w-3 h-3 ${reply.isLiked ? 'fill-current' : ''}`} />
+                                        <span className="font-semibold">{reply.likes}</span>
+                                      </button>
+                                      
+                                      <button
+                                        onClick={() => handleReport(comment.id, reply.id)}
+                                        className="flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 text-gray-600 border-2 border-dashed border-gray-300 hover:bg-red-50 hover:text-red-600 hover:border-red-300 transition-all text-xs"
+                                      >
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                        </svg>
+                                        <span className="font-semibold">신고</span>
+                                      </button>
+                                    </div>
+                                    
+                                    {reply.isOwner && (
+                                      <div className="flex items-center gap-1">
+                                        <button 
+                                          onClick={() => handleEditReply(comment.id, reply.id)}
+                                          className="p-1 text-amber-600 hover:text-amber-800 hover:bg-amber-100 rounded-lg transition-colors"
+                                        >
+                                          <Edit3 className="w-3 h-3" />
+                                        </button>
+                                        <button 
+                                          onClick={() => handleDeleteReply(comment.id, reply.id)}
+                                          className="p-1 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-lg transition-colors"
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

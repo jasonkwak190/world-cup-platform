@@ -57,9 +57,9 @@ export default function TournamentPlayPage() {
                     <p className="text-gray-600">독창적인 게임플레이 UI 디자인들</p>
                 </div>
 
-                {/* 디자인 1: 네온 배틀 아레나 */}
+                {/* 디자인 1: 네온 사이버 스타일 */}
                 <div className="mb-16">
-                    <h2 className="text-2xl font-bold text-gray-800 mb-6">1. 네온 배틀 아레나</h2>
+                    <h2 className="text-2xl font-bold text-gray-800 mb-6">1. 네온 사이버 스타일</h2>
                     <div className="bg-black rounded-3xl p-8 relative overflow-hidden">
                         <div className="absolute inset-0 bg-gradient-to-br from-purple-900/30 via-pink-900/30 to-blue-900/30"></div>
 
@@ -602,9 +602,9 @@ export default function TournamentPlayPage() {
                     </div>
                 </div>
 
-                {/* 디자인 5: 레트로 게임 스타일 */}
+                {/* 디자인 5: 게이밍 RGB 스타일 */}
                 <div className="mb-16">
-                    <h2 className="text-2xl font-bold text-gray-800 mb-6">5. 레트로 게임 스타일</h2>
+                    <h2 className="text-2xl font-bold text-gray-800 mb-6">5. 게이밍 RGB 스타일</h2>
                     <div className="bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 rounded-3xl p-8 relative overflow-hidden">
                         
                         {/* 픽셀 패턴 배경 */}

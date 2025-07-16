@@ -2,11 +2,12 @@
 
 import React from 'react';
 import { SaveStatus } from '@/hooks/useActionAutoSave';
-import { Save, Check, X, Loader2 } from 'lucide-react';
+import { Save, Check, X, Loader2, RefreshCw } from 'lucide-react';
 
 interface AutoSaveIndicatorProps {
   status: SaveStatus;
   lastSaved?: Date | null;
+  retryAttempt?: number;
   className?: string;
   showText?: boolean;
 }
@@ -14,6 +15,7 @@ interface AutoSaveIndicatorProps {
 export default function AutoSaveIndicator({ 
   status, 
   lastSaved, 
+  retryAttempt = 0,
   className = '', 
   showText = true 
 }: AutoSaveIndicatorProps) {
@@ -25,6 +27,13 @@ export default function AutoSaveIndicator({
           text: '저장 중...', 
           color: 'text-blue-600 bg-blue-50 border-blue-200',
           textColor: 'text-blue-600'
+        };
+      case 'retrying':
+        return { 
+          icon: <RefreshCw className="w-4 h-4 animate-spin" />, 
+          text: `재시도 중... (${retryAttempt})`, 
+          color: 'text-orange-600 bg-orange-50 border-orange-200',
+          textColor: 'text-orange-600'
         };
       case 'saved':
         return { 
@@ -88,13 +97,19 @@ export default function AutoSaveIndicator({
 }
 
 // Compact version for tight spaces
-export function CompactAutoSaveIndicator({ status, className = '' }: { 
+export function CompactAutoSaveIndicator({ 
+  status, 
+  retryAttempt = 0, 
+  className = '' 
+}: { 
   status: SaveStatus; 
+  retryAttempt?: number;
   className?: string; 
 }) {
   return (
     <AutoSaveIndicator 
       status={status} 
+      retryAttempt={retryAttempt}
       showText={false} 
       className={`p-1.5 ${className}`}
     />

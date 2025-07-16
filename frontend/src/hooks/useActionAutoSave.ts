@@ -2,14 +2,17 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { executeWithRetry, RetryConfig } from '@/lib/autosave-retry';
 
-export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error' | 'retrying';
 
 interface UseActionAutoSaveOptions {
   debounceMs?: number;
   enabled?: boolean;
   onSaveSuccess?: () => void;
   onSaveError?: (error: Error) => void;
+  onRetry?: (attempt: number) => void;
+  retryConfig?: Partial<RetryConfig>;
 }
 
 interface SaveFunction<T> {
@@ -22,9 +25,17 @@ export function useActionAutoSave<T>(
   options: UseActionAutoSaveOptions = {}
 ) {
   const { user } = useAuth();
-  const { debounceMs = 500, enabled = true, onSaveSuccess, onSaveError } = options;
+  const { 
+    debounceMs = 500, 
+    enabled = true, 
+    onSaveSuccess, 
+    onSaveError, 
+    onRetry,
+    retryConfig = {}
+  } = options;
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [retryAttempt, setRetryAttempt] = useState<number>(0);
 
   const debouncedSave = useMemo(() => {
     let timeout: NodeJS.Timeout | null = null;
@@ -39,22 +50,57 @@ export function useActionAutoSave<T>(
 
       const performSave = async () => {
         setSaveStatus('saving');
+        setRetryAttempt(0);
+        
         try {
-          await saveFunction(data);
-          setSaveStatus('saved');
-          setLastSaved(new Date());
-          onSaveSuccess?.();
-          
-          // Reset status to idle after 2 seconds
-          setTimeout(() => setSaveStatus('idle'), 2000);
+          // Execute save with retry logic
+          const result = await executeWithRetry(
+            () => saveFunction(data),
+            'autosave',
+            {
+              ...retryConfig,
+              // Custom retry callback to update UI
+              onRetry: (attempt: number) => {
+                setSaveStatus('retrying');
+                setRetryAttempt(attempt);
+                onRetry?.(attempt);
+              }
+            }
+          );
+
+          if (result.success) {
+            setSaveStatus('saved');
+            setLastSaved(new Date());
+            onSaveSuccess?.();
+            
+            // Reset status to idle after 2 seconds
+            setTimeout(() => setSaveStatus('idle'), 2000);
+          } else {
+            // All retry attempts failed
+            setSaveStatus('error');
+            const errorObj = result.error || new Error('Save failed after retries');
+            console.error(`Auto-save failed after ${result.attempts} attempts:`, errorObj);
+            onSaveError?.(errorObj);
+            
+            // Reset status to idle after 5 seconds on error
+            setTimeout(() => setSaveStatus('idle'), 5000);
+          }
         } catch (error) {
-          setSaveStatus('error');
+          // Unexpected error outside retry logic
           const errorObj = error instanceof Error ? error : new Error('Save failed');
-          console.error('Auto-save failed:', errorObj);
-          onSaveError?.(errorObj);
           
-          // Reset status to idle after 3 seconds on error
-          setTimeout(() => setSaveStatus('idle'), 3000);
+          // Don't show error status for authentication issues
+          if (errorObj.message.includes('not authenticated') || errorObj.message.includes('Authentication required')) {
+            console.log('🔒 Auto-save skipped - authentication required');
+            setSaveStatus('idle');
+          } else {
+            setSaveStatus('error');
+            console.error('Auto-save failed unexpectedly:', errorObj);
+            onSaveError?.(errorObj);
+            
+            // Reset status to idle after 3 seconds on error
+            setTimeout(() => setSaveStatus('idle'), 3000);
+          }
         }
       };
 
@@ -64,7 +110,7 @@ export function useActionAutoSave<T>(
         timeout = setTimeout(performSave, debounceMs);
       }
     };
-  }, [saveFunction, debounceMs, enabled, onSaveSuccess, onSaveError]);
+  }, [saveFunction, debounceMs, enabled, onSaveSuccess, onSaveError, onRetry, retryConfig]);
 
   const triggerSave = useCallback((immediate: boolean = false) => {
     if (data && enabled) {
@@ -81,8 +127,10 @@ export function useActionAutoSave<T>(
     manualSave,
     saveStatus,
     lastSaved,
+    retryAttempt,
     isEnabled: enabled,
     isSaving: saveStatus === 'saving',
+    isRetrying: saveStatus === 'retrying',
     hasError: saveStatus === 'error',
     user
   };
