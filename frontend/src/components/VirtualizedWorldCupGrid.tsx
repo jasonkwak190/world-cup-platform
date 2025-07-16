@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { FixedSizeGrid as Grid } from 'react-window';
 import WorldCupCard from './WorldCupCard';
 import { getStoredWorldCups, type StoredWorldCup } from '@/utils/storage';
-import { getWorldCups as getSupabaseWorldCups } from '@/utils/supabaseData';
+// getWorldCups function moved to API route (/api/worldcups/list)
 
 interface VirtualizedWorldCupGridProps {
   category: string;

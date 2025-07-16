@@ -13,6 +13,25 @@ import { getUserWorldCups } from '@/lib/api/worldcups';
 import { useAuth } from '@/contexts/AuthContext';
 import { useStats } from '@/hooks/useStats';
 
+// Helper function to map frontend sortBy values to API values
+function mapSortByToAPI(sortBy: string): { sortBy: string; sortOrder: string } {
+  switch (sortBy) {
+    case 'popular':
+      return { sortBy: 'participants', sortOrder: 'desc' };
+    case 'recent':
+    case 'latest':
+      return { sortBy: 'created_at', sortOrder: 'desc' };
+    case 'participants':
+      return { sortBy: 'participants', sortOrder: 'desc' };
+    case 'comments':
+      return { sortBy: 'comments', sortOrder: 'desc' };
+    case 'likes':
+      return { sortBy: 'likes', sortOrder: 'desc' };
+    default:
+      return { sortBy: 'participants', sortOrder: 'desc' };
+  }
+}
+
 export default function Home() {
   const { user } = useAuth();
   const { data: stats } = useStats();
@@ -54,11 +73,29 @@ export default function Home() {
             setTimeout(() => reject(new Error('Data loading timeout')), ms)
           );
           
+          // Map frontend sortBy to API format
+          const { sortBy: apiSortBy, sortOrder: apiSortOrder } = mapSortByToAPI('popular'); // Default to popular for category counts
+          const pageApiUrl = `/api/worldcups?offset=0&limit=12&sortBy=${apiSortBy}&sortOrder=${apiSortOrder}`;
+          console.log('🔗 [PAGE.TSX] API URL:', pageApiUrl);
+          console.log('🔗 [PAGE.TSX] mapSortByToAPI result:', { apiSortBy, apiSortOrder });
+          
           const [apiWorldCups, localWorldCups] = await Promise.allSettled([
             Promise.race([
-              fetch('/api/worldcups?page=1&limit=12&category=all&sortBy=popular')
-                .then(res => res.json())
-                .then(result => result.data || []),
+              fetch(pageApiUrl)
+                .then(async res => {
+                  if (!res.ok) {
+                    console.error('❌ Page.tsx API request failed:', {
+                      url: pageApiUrl,
+                      status: res.status,
+                      statusText: res.statusText
+                    });
+                    const errorText = await res.text();
+                    console.error('❌ Page.tsx Error response body:', errorText);
+                    throw new Error(`API request failed: ${res.status} ${res.statusText}`);
+                  }
+                  return res.json();
+                })
+                .then(result => result.worldcups || []),
               timeoutPromise(10000)
             ]),
             Promise.race([Promise.resolve(getStoredWorldCups()), timeoutPromise(3000)])

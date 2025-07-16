@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import WorldCupCard from '../WorldCupCard';
 import VirtualizedWorldCupGrid from './VirtualizedWorldCupGrid';
 import { getStoredWorldCups, type StoredWorldCup } from '@/utils/storage';
-import { getWorldCups as getSupabaseWorldCups } from '@/utils/supabaseData';
+// getWorldCups function moved to API route (/api/worldcups/list)
 import { useAuth } from '@/contexts/AuthContext';
 import { 
   getUserBookmarks, 
@@ -23,7 +23,26 @@ import { showToast } from '../Toast';
 import { updateWorldCupCommentCount } from '@/utils/updateCommentCounts';
 import { onCommentCountChange } from '@/utils/commentEvents';
 import { incrementPlayCount, onPlayCountChange, notifyPlayCountChange } from '@/utils/playCount';
-import { withRetry } from '@/utils/supabaseConnection';
+// withRetry functionality removed - API routes now handle retry logic
+
+// Helper function to map frontend sortBy values to API values
+function mapSortByToAPI(sortBy: string): { sortBy: string; sortOrder: string } {
+  switch (sortBy) {
+    case 'popular':
+      return { sortBy: 'participants', sortOrder: 'desc' };
+    case 'recent':
+    case 'latest':
+      return { sortBy: 'created_at', sortOrder: 'desc' };
+    case 'participants':
+      return { sortBy: 'participants', sortOrder: 'desc' };
+    case 'comments':
+      return { sortBy: 'comments', sortOrder: 'desc' };
+    case 'likes':
+      return { sortBy: 'likes', sortOrder: 'desc' };
+    default:
+      return { sortBy: 'participants', sortOrder: 'desc' };
+  }
+}
 
 // Mock 데이터 제거됨 - 이제 Supabase에서 실제 데이터 사용
 
@@ -62,11 +81,38 @@ export default function WorldCupGrid({ category: _category, sortBy: _sortBy, sea
           }
         }, 30000);
         
-        // 재시도 로직과 함께 Supabase 데이터 로드
-        const supabaseResult = await Promise.allSettled([
-          withRetry(() => getSupabaseWorldCups(), 'Load worldcups from Supabase')
+        // API 방식으로 데이터 로드 (훨씬 빠름)
+        console.log('📥 Starting API data fetch...');
+        
+        // Map frontend sortBy to API format
+        const { sortBy: apiSortBy, sortOrder: apiSortOrder } = mapSortByToAPI(_sortBy);
+        const categoryParam = _category && _category !== 'all' && _category.trim() !== '' ? `&category=${encodeURIComponent(_category)}` : '';
+        const searchParam = searchQuery && searchQuery.trim() !== '' ? `&search=${encodeURIComponent(searchQuery)}` : '';
+        
+        const apiUrl = `/api/worldcups?offset=0&limit=12&sortBy=${apiSortBy}&sortOrder=${apiSortOrder}${categoryParam}${searchParam}`;
+        console.log('🔗 [WORLDCUPGRID] API URL:', apiUrl);
+        console.log('🔗 [WORLDCUPGRID] Raw parameters:', { _sortBy, _category, searchQuery });
+        console.log('🔗 [WORLDCUPGRID] Mapped parameters:', { apiSortBy, apiSortOrder });
+        
+        const apiResult = await Promise.allSettled([
+          fetch(apiUrl)
+            .then(async res => {
+              if (!res.ok) {
+                console.error('❌ API request failed:', {
+                  url: apiUrl,
+                  status: res.status,
+                  statusText: res.statusText,
+                  headers: Object.fromEntries(res.headers.entries())
+                });
+                const errorText = await res.text();
+                console.error('❌ Error response body:', errorText);
+                throw new Error(`API request failed: ${res.status} ${res.statusText}`);
+              }
+              return res.json();
+            })
+            .then(result => result.worldcups || [])
             .catch(error => {
-              console.warn('⚠️ Supabase loading failed after retries:', error);
+              console.warn('⚠️ API loading failed:', error);
               return [];
             })
         ]);
@@ -76,11 +122,11 @@ export default function WorldCupGrid({ category: _category, sortBy: _sortBy, sea
           Promise.resolve(getStoredWorldCups())
         ]);
 
-        const supabaseWorldCups = supabaseResult[0].status === 'fulfilled' ? supabaseResult[0].value : [];
+        const apiWorldCups = apiResult[0].status === 'fulfilled' ? apiResult[0].value : [];
         const localWorldCups = localResult[0].status === 'fulfilled' ? localResult[0].value : [];
 
-        if (supabaseResult[0].status === 'rejected') {
-          console.warn('⚠️ Supabase loading failed:', supabaseResult[0].reason);
+        if (apiResult[0].status === 'rejected') {
+          console.warn('⚠️ API loading failed:', apiResult[0].reason);
         }
         if (localResult[0].status === 'rejected') {
           console.warn('⚠️ LocalStorage loading failed:', localResult[0].reason);
@@ -88,22 +134,22 @@ export default function WorldCupGrid({ category: _category, sortBy: _sortBy, sea
         
         if (!isMounted) return;
         
-        console.log('📊 Data loaded - Supabase:', supabaseWorldCups.length, 'Local:', localWorldCups.length);
+        console.log('📊 Data loaded - API:', apiWorldCups.length, 'Local:', localWorldCups.length);
         
-        // 데이터 합치기 (Supabase 우선, 댓글 수는 항상 Supabase 데이터 사용)
+        // 데이터 합치기 (API 우선, 댓글 수는 항상 API 데이터 사용)
         const worldCupMap = new Map();
-        supabaseWorldCups.forEach(wc => worldCupMap.set(wc.id, wc));
+        apiWorldCups.forEach(wc => worldCupMap.set(wc.id, wc));
         localWorldCups.forEach(wc => {
           if (!worldCupMap.has(wc.id)) {
             worldCupMap.set(wc.id, wc);
           } else {
-            // Supabase 데이터가 있어도 로컬 데이터의 일부 필드는 유지
-            // 단, 댓글 수는 항상 Supabase 우선
+            // API 데이터가 있어도 로컬 데이터의 일부 필드는 유지
+            // 단, 댓글 수는 항상 API 우선
             const existing = worldCupMap.get(wc.id);
             worldCupMap.set(wc.id, {
               ...wc,
-              ...existing, // Supabase 데이터로 덮어쓰기
-              comments: existing.comments // 댓글 수는 Supabase 최신 데이터 사용
+              ...existing, // API 데이터로 덮어쓰기
+              comments: existing.comments // 댓글 수는 API 최신 데이터 사용
             });
           }
         });
@@ -185,7 +231,7 @@ export default function WorldCupGrid({ category: _category, sortBy: _sortBy, sea
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, []);
+  }, [_category, _sortBy, searchQuery]); // Re-load when filters change
 
   // 댓글 수 변경 이벤트 리스너 설정
   useEffect(() => {
@@ -400,8 +446,16 @@ export default function WorldCupGrid({ category: _category, sortBy: _sortBy, sea
   };
 
   const handleBookmark = async (id: string) => {
+    console.log('🔖 handleBookmark called:', { 
+      userId: user?.id, 
+      worldcupId: id, 
+      isLoggedIn: !!(user && user.id),
+      currentBookmarks: Array.from(bookmarkedItems)
+    });
+
     if (!user || !user.id) {
       // 비회원인 경우 로그인 요청
+      console.log('❌ Guest user trying to bookmark, showing alert');
       alert('북마크 기능은 로그인 후 이용할 수 있습니다.');
       return;
     }
@@ -409,31 +463,47 @@ export default function WorldCupGrid({ category: _category, sortBy: _sortBy, sea
     const isCurrentlyBookmarked = bookmarkedItems.has(id);
     const isBookmarking = !isCurrentlyBookmarked;
 
+    console.log('🔖 Bookmark operation details:', {
+      isCurrentlyBookmarked,
+      isBookmarking,
+      operation: isBookmarking ? 'ADD' : 'REMOVE',
+      bookmarkedItemsBefore: Array.from(bookmarkedItems)
+    });
+
     try {
       let success = false;
       if (isBookmarking) {
+        console.log('🔖 Calling addBookmark...');
         success = await addBookmark(user.id, id);
+        console.log('🔖 addBookmark result:', success);
       } else {
+        console.log('🔖 Calling removeBookmark...');
         success = await removeBookmark(user.id, id);
+        console.log('🔖 removeBookmark result:', success);
       }
+
+      console.log('🔖 Operation success:', success);
 
       if (success) {
         setBookmarkedItems(prev => {
           const newSet = new Set(prev);
           if (isBookmarking) {
             newSet.add(id);
+            console.log('🔖 Added to bookmark set. New size:', newSet.size);
           } else {
-            newSet.delete(id);
+            const deleted = newSet.delete(id);
+            console.log('🔖 Removed from bookmark set. Deleted:', deleted, 'New size:', newSet.size);
           }
+          console.log('🔖 Updated bookmarks:', Array.from(newSet));
           return newSet;
         });
         
-        console.log(`🔖 User ${isBookmarking ? 'bookmarked' : 'unbookmarked'} worldcup:`, id);
+        console.log(`✅ User ${isBookmarking ? 'bookmarked' : 'unbookmarked'} worldcup:`, id);
       } else {
-        console.error('❌ Failed to update bookmark status');
+        console.error('❌ Failed to update bookmark status - operation returned false');
       }
     } catch (error) {
-      console.error('Error handling bookmark:', error);
+      console.error('❌ Error handling bookmark:', error);
     }
   };
 
@@ -594,7 +664,7 @@ export default function WorldCupGrid({ category: _category, sortBy: _sortBy, sea
             onShare={handleShare}
           />
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {allWorldCups.map((worldcup) => (
               <WorldCupCard
                 key={worldcup.id}

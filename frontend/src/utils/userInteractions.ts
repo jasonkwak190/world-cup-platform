@@ -30,45 +30,106 @@ export async function getUserBookmarks(userId: string) {
 
 export async function addBookmark(userId: string, worldcupId: string) {
   try {
-    const { error } = await supabase
+    console.log('🔖 addBookmark called with:', { userId, worldcupId });
+    
+    // Check if bookmark already exists
+    const { data: existingBookmarks, error: checkError } = await supabase
+      .from('user_interactions')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('target_type', 'worldcup')
+      .eq('target_id', worldcupId)
+      .eq('interaction_type', 'bookmark')
+      .limit(1);
+
+    if (checkError) {
+      console.error('❌ Error checking existing bookmark:', checkError);
+      return false;
+    }
+
+    if (existingBookmarks && existingBookmarks.length > 0) {
+      console.warn('⚠️ Bookmark already exists');
+      return false; // Already bookmarked
+    }
+
+    const { data, error } = await supabase
       .from('user_interactions')
       .insert({
         user_id: userId,
         target_type: 'worldcup',
         target_id: worldcupId,
         interaction_type: 'bookmark'
-      });
+      })
+      .select(); // Add select to see what was inserted
 
     if (error) {
-      console.error('Error adding bookmark:', error);
+      console.error('❌ Error adding bookmark:', {
+        error,
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint
+      });
       return false;
     }
 
+    console.log('✅ Bookmark added successfully:', data);
     return true;
   } catch (error) {
-    console.error('Error in addBookmark:', error);
+    console.error('❌ Error in addBookmark:', error);
     return false;
   }
 }
 
 export async function removeBookmark(userId: string, worldcupId: string) {
   try {
-    const { error } = await supabase
+    console.log('🔖 removeBookmark called with:', { userId, worldcupId });
+    
+    // First check if bookmark exists
+    const { data: existingBookmarks, error: checkError } = await supabase
       .from('user_interactions')
-      .delete()
+      .select('id')
       .eq('user_id', userId)
       .eq('target_type', 'worldcup')
       .eq('target_id', worldcupId)
       .eq('interaction_type', 'bookmark');
 
-    if (error) {
-      console.error('Error removing bookmark:', error);
+    if (checkError) {
+      console.error('❌ Error checking existing bookmark:', checkError);
       return false;
     }
 
+    console.log('🔖 Existing bookmarks found:', existingBookmarks?.length || 0);
+
+    if (!existingBookmarks || existingBookmarks.length === 0) {
+      console.warn('⚠️ No bookmark found to remove');
+      return false; // No bookmark to remove
+    }
+
+    const { data, error } = await supabase
+      .from('user_interactions')
+      .delete()
+      .eq('user_id', userId)
+      .eq('target_type', 'worldcup')
+      .eq('target_id', worldcupId)
+      .eq('interaction_type', 'bookmark')
+      .select(); // Add select to see what was deleted
+
+    if (error) {
+      console.error('❌ Error removing bookmark:', {
+        error,
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint
+      });
+      return false;
+    }
+
+    console.log('✅ Bookmark removed successfully:', data);
     return true;
   } catch (error) {
-    console.error('Error in removeBookmark:', error);
+    console.error('❌ Error in removeBookmark:', error);
     return false;
   }
 }

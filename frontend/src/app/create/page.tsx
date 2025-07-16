@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ArrowLeft, Upload, Image, Settings, Play, Youtube, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
@@ -10,6 +10,7 @@ import YouTubeThumbnailUpload from '@/components/forms/YouTubeThumbnailUpload';
 import WorldCupPreview from '@/components/WorldCupPreview';
 import TournamentSettings from '@/components/TournamentSettings';
 import AuthModal from '@/components/AuthModal';
+import RestoreCreationDraftModal from '@/components/RestoreCreationDraftModal';
 
 // Dynamic imports for heavy components
 const ImageCropper = dynamic(() => import('@/components/ImageCropper'), {
@@ -23,11 +24,12 @@ const ImageCropper = dynamic(() => import('@/components/ImageCropper'), {
 });
 // saveWorldCup imported but not used - using Supabase primarily
 import { saveWorldCupToSupabase } from '@/utils/supabaseWorldCup';
-import { getUserWorldCups } from '@/utils/supabaseData';
+import { getUserWorldCups } from '@/lib/api/worldcups';
 import { supabase } from '@/lib/supabase';
 import { convertAllBlobUrls, validateNoBlobUrls } from '@/utils/blobConverter';
 import { formatTimeRange } from '@/utils/timeFormat';
 import type { WorldCupMediaItem } from '@/types/media';
+import { useCreationAutoSave, convertFormDataToSaveFormat, convertSaveDataToFormFormat } from '@/hooks/useCreationAutoSave';
 
 interface WorldCupItem {
   id: string;
@@ -66,6 +68,29 @@ export default function CreatePage() {
     isPublic: true,
     thumbnail: undefined,
   });
+  const [showRestoreModal, setShowRestoreModal] = useState(false);
+  const [isRestoringDraft, setIsRestoringDraft] = useState(false);
+
+  // Auto-save functionality
+  const autoSave = useCreationAutoSave({
+    creationData: convertFormDataToSaveFormat(worldCupData),
+    enabled: isAuthenticated === true,
+    onSaveSuccess: () => {
+      console.log('💾 Creation draft saved successfully');
+    },
+    onSaveError: (error) => {
+      console.error('💾 Creation draft save failed:', error);
+    },
+    onRestoreSuccess: (data) => {
+      console.log('🔄 Creation draft restored successfully:', data);
+    }
+  });
+
+  // Handle data changes for autosave
+  const handleDataChange = useCallback((newData: WorldCupData, action: 'text_updated' | 'item_added' | 'item_removed' | 'image_uploaded' | 'settings_changed' | 'manual_save') => {
+    setWorldCupData(newData);
+    autoSave.saveOnAction(action);
+  }, [autoSave]);
 
   // 인증 상태 및 월드컵 개수 제한 확인
   useEffect(() => {
@@ -124,6 +149,61 @@ export default function CreatePage() {
       subscription.unsubscribe();
     };
   }, []);
+
+  // Check for draft restoration on page load
+  useEffect(() => {
+    const checkDraftRestore = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const shouldRestore = urlParams.get('restore') === 'true';
+      const sessionDraft = sessionStorage.getItem('worldcup_creation_draft');
+      
+      if (shouldRestore && sessionDraft) {
+        try {
+          const draftData = JSON.parse(sessionDraft);
+          setShowRestoreModal(true);
+          sessionStorage.removeItem('worldcup_creation_draft');
+        } catch (error) {
+          console.error('Failed to parse session draft:', error);
+        }
+      } else if (isAuthenticated && autoSave.hasDraft && !shouldRestore) {
+        // Show restore modal if there's a draft and no explicit restore parameter
+        setShowRestoreModal(true);
+      }
+    };
+
+    if (isAuthenticated !== null) {
+      checkDraftRestore();
+    }
+  }, [isAuthenticated, autoSave.hasDraft]);
+
+  // Handle draft restoration
+  const handleRestoreDraft = async () => {
+    setIsRestoringDraft(true);
+    try {
+      const restored = await autoSave.restoreDraft();
+      if (restored) {
+        const formData = convertSaveDataToFormFormat(restored);
+        setWorldCupData(formData);
+        console.log('✅ Draft restored successfully:', formData);
+      }
+    } catch (error) {
+      console.error('❌ Failed to restore draft:', error);
+    } finally {
+      setIsRestoringDraft(false);
+      setShowRestoreModal(false);
+    }
+  };
+
+  // Handle starting new (deleting existing draft)
+  const handleStartNew = async () => {
+    try {
+      await autoSave.deleteDraft();
+      console.log('🗑️ Existing draft deleted');
+    } catch (error) {
+      console.error('❌ Failed to delete draft:', error);
+    }
+    setShowRestoreModal(false);
+  };
 
   const steps = [
     { id: 1, title: '기본 정보', icon: Settings },
@@ -204,24 +284,48 @@ export default function CreatePage() {
         items: [...prev.items, ...filteredItems]
       };
       console.log('Updated worldCupData items:', newData.items);
+      
+      // Trigger autosave for item addition
+      setTimeout(() => {
+        autoSave.saveOnAction('item_added');
+      }, 100);
+      
       return newData;
     });
   };
 
   const handleItemUpdate = (itemId: string, updates: Partial<WorldCupItem>) => {
-    setWorldCupData(prev => ({
-      ...prev,
-      items: prev.items.map(item => 
-        item.id === itemId ? { ...item, ...updates } : item
-      )
-    }));
+    setWorldCupData(prev => {
+      const newData = {
+        ...prev,
+        items: prev.items.map(item => 
+          item.id === itemId ? { ...item, ...updates } : item
+        )
+      };
+      
+      // Trigger autosave for item update
+      setTimeout(() => {
+        autoSave.saveOnAction('text_updated');
+      }, 100);
+      
+      return newData;
+    });
   };
 
   const handleItemDelete = (itemId: string) => {
-    setWorldCupData(prev => ({
-      ...prev,
-      items: prev.items.filter(item => item.id !== itemId)
-    }));
+    setWorldCupData(prev => {
+      const newData = {
+        ...prev,
+        items: prev.items.filter(item => item.id !== itemId)
+      };
+      
+      // Trigger autosave for item removal
+      setTimeout(() => {
+        autoSave.saveOnAction('item_removed');
+      }, 100);
+      
+      return newData;
+    });
   };
 
   const handleThumbnailUpload = (thumbnail: string | File) => {
@@ -251,6 +355,12 @@ export default function CreatePage() {
       console.log('Previous thumbnail:', prev.thumbnail);
       console.log('New thumbnail set:', thumbnail === newData.thumbnail);
       console.log('=== End handleThumbnailUpload Debug ===');
+      
+      // Trigger autosave for image upload
+      setTimeout(() => {
+        autoSave.saveOnAction('image_uploaded');
+      }, 100);
+      
       return newData;
     });
   };

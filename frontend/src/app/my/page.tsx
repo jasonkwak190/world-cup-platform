@@ -2,9 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getUserWorldCups, deleteWorldCup } from '@/utils/supabaseData';
+import { getUserWorldCups, deleteWorldCup, getWorldCupById } from '@/lib/api/worldcups';
 import { getUserBookmarks } from '@/utils/userInteractions';
-import { getWorldCupById } from '@/utils/supabaseData';
 import { supabase } from '@/lib/supabase';
 // import WorldCupCard from '@/components/WorldCupCard';
 import { User, BookmarkCheck, Trophy, Settings, Heart, ArrowLeft, Edit3, Trash2, Copy } from 'lucide-react';

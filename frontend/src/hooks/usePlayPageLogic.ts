@@ -53,11 +53,11 @@ export function usePlayPageLogic(params: Promise<{ id: string; }> | { id: string
           console.log('🔍 Loading worldcup from Supabase with ID:', id);
           setConnectionError(null); // 에러 초기화
           
-          // Race condition 해결을 위한 고급 재시도 로직
+          // API 데이터 로딩 로직 (재시도 최소화)
           let supabaseWorldCup = null;
           let attempts = 0;
-          const maxAttempts = 8;
-          const baseDelay = 1000;
+          const maxAttempts = 3; // 무한 루프 방지를 위해 줄임
+          const baseDelay = 500;
           
           while (attempts < maxAttempts && !supabaseWorldCup) {
             attempts++;
@@ -66,17 +66,25 @@ export function usePlayPageLogic(params: Promise<{ id: string; }> | { id: string
               // API 방식으로 월드컵 데이터 로드
               const response = await fetch(`/api/worldcups/${id}`);
               if (response.ok) {
-                supabaseWorldCup = await response.json();
+                const responseData = await response.json();
+                supabaseWorldCup = responseData.worldcup; // API returns { worldcup: data }
               } else {
                 throw new Error(`Failed to fetch worldcup: ${response.status}`);
               }
               
-              if (supabaseWorldCup && supabaseWorldCup.items && supabaseWorldCup.items.length > 0) {
-                console.log('✅ Successfully loaded worldcup with items');
-                break;
-              } else if (supabaseWorldCup) {
-                console.log('⚠️ Worldcup loaded but no items found, retrying...');
-                supabaseWorldCup = null; // 아이템이 없으면 재시도
+              if (supabaseWorldCup) {
+                if (supabaseWorldCup.items && supabaseWorldCup.items.length > 0) {
+                  console.log('✅ Successfully loaded worldcup with items:', supabaseWorldCup.items.length);
+                  break;
+                } else {
+                  console.log('⚠️ Worldcup loaded but no items found');
+                  // 아이템이 없는 경우에도 데이터를 받아들이고 종료 (무한 루프 방지)
+                  if (attempts >= 2) {
+                    console.log('⚠️ Accepting worldcup without items after retries');
+                    break;
+                  }
+                  supabaseWorldCup = null; // 첫 번째 시도에서만 재시도
+                }
               }
             } catch (error) {
               console.warn(`❌ Attempt ${attempts} failed:`, error);
@@ -92,8 +100,12 @@ export function usePlayPageLogic(params: Promise<{ id: string; }> | { id: string
           
           console.log('📊 Final Supabase worldcup result:', supabaseWorldCup);
           
-          if (supabaseWorldCup && supabaseWorldCup.items && supabaseWorldCup.items.length > 0) {
-            console.log('✅ Supabase worldcup has items:', supabaseWorldCup.items.length);
+          if (supabaseWorldCup) {
+            console.log('✅ Processing worldcup data:', {
+              id: supabaseWorldCup.id,
+              title: supabaseWorldCup.title,
+              itemsCount: supabaseWorldCup.items?.length || 0
+            });
             
             // 🔧 중요: supabaseData.ts에서 이미 변환된 데이터를 받으므로, 
             // 추가 변환 없이 그대로 사용하되 tournament 로직에 맞게 id만 조정
@@ -101,7 +113,7 @@ export function usePlayPageLogic(params: Promise<{ id: string; }> | { id: string
               id: supabaseWorldCup.id,
               title: supabaseWorldCup.title,
               description: supabaseWorldCup.description,
-              items: supabaseWorldCup.items.map(item => {
+              items: (supabaseWorldCup.items || []).map(item => {
                 console.log('✅ Already processed item from supabaseData:', {
                   title: item.title,
                   mediaType: item.mediaType,
@@ -161,6 +173,14 @@ export function usePlayPageLogic(params: Promise<{ id: string; }> | { id: string
         }
         
         if (loadedData) {
+          // 아이템이 없는 경우 사용자에게 알림
+          if (!loadedData.items || loadedData.items.length === 0) {
+            console.warn('⚠️ Worldcup has no items, cannot start tournament');
+            setConnectionError('이 월드컵에는 아이템이 없어서 게임을 시작할 수 없습니다.');
+            setIsLoading(false);
+            return;
+          }
+          
           setWorldcupData(loadedData);
           // Only show tournament selector if there's no existing game state
           if (!gameState) {

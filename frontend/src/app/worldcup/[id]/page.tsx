@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { getWorldCupById } from '@/utils/supabaseData';
+import { getWorldCupById } from '@/lib/api/worldcups';
 import { StoredWorldCup } from '@/utils/storage';
 import { Play, Heart, Bookmark, Share2, User, Calendar, Trophy, /* MessageCircle, */ ArrowLeft, /* BarChart3 */ } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';

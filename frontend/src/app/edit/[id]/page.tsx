@@ -22,7 +22,7 @@ const ImageCropper = dynamic(() => import('@/components/ImageCropper'), {
   ),
 });
 import { getWorldCupById } from '@/utils/storage';
-import { getWorldCupById as getSupabaseWorldCupById } from '@/utils/supabaseData';
+import { getWorldCupById as getSupabaseWorldCupById } from '@/lib/api/worldcups';
 import { generateAutoThumbnail } from '@/utils/thumbnailGenerator';
 import { updateWorldCupInSupabase } from '@/utils/supabaseWorldCup';
 import { supabase } from '@/lib/supabase';

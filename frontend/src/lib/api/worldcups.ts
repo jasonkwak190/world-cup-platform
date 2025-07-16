@@ -306,6 +306,130 @@ export async function apiCall<T>(
   }
 }
 
+/**
+ * Create a single video worldcup item
+ */
+export async function createVideoWorldCupItem(
+  worldcupId: string,
+  videoItem: Omit<WorldCupItem, 'id'> & { mediaType: 'video' },
+  orderIndex: number
+): Promise<string> {
+  const response = await fetch('/api/worldcups/video?action=create-single', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      worldcupId,
+      videoItem,
+      orderIndex
+    }),
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to create video item');
+  }
+  
+  const result = await response.json();
+  return result.itemId;
+}
+
+/**
+ * Create multiple video items in batch
+ */
+export async function createMultipleVideoItems(
+  worldcupId: string,
+  videoItems: (Omit<WorldCupItem, 'id'> & { mediaType: 'video' })[]
+): Promise<{ 
+  successful: string[], 
+  failed: Array<{ item: Omit<WorldCupItem, 'id'>, error: string }> 
+}> {
+  const response = await fetch('/api/worldcups/video?action=create-multiple', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      worldcupId,
+      videoItems
+    }),
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to create video items');
+  }
+  
+  const result = await response.json();
+  return result.result;
+}
+
+/**
+ * Create mixed media worldcup (images + videos)
+ */
+export async function createMixedMediaWorldCup(
+  title: string,
+  description: string,
+  category: string,
+  authorId: string,
+  mediaItems: Omit<WorldCupItem, 'id'>[],
+  isPublic: boolean = true
+): Promise<{
+  worldcupId: string;
+  totalItems: number;
+  successful: number;
+  failed: number;
+  errors?: string[];
+}> {
+  const response = await fetch('/api/worldcups/mixed-media', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      title,
+      description,
+      category,
+      authorId,
+      mediaItems,
+      isPublic
+    }),
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to create mixed media worldcup');
+  }
+  
+  const result = await response.json();
+  return result.worldcup;
+}
+
+/**
+ * Update video metadata
+ */
+export async function updateVideoMetadata(
+  itemId: string,
+  metadata: Record<string, any>
+): Promise<void> {
+  const response = await fetch('/api/worldcups/video', {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      itemId,
+      metadata
+    }),
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to update video metadata');
+  }
+}
+
 // Legacy compatibility functions (to be removed after migration)
 export const getWorldCups_Legacy = getWorldCups;
 export const getWorldCupById_Legacy = getWorldCupById;

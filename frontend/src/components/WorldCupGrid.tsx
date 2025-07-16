@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import WorldCupCard from './WorldCupCard';
 import VirtualizedWorldCupGrid from './VirtualizedWorldCupGrid';
 import { getStoredWorldCups, type StoredWorldCup } from '@/utils/storage';
-import { getWorldCups as getSupabaseWorldCups } from '@/utils/supabaseData';
+// getWorldCups function moved to API route (/api/worldcups/list)
 import { useAuth } from '@/contexts/AuthContext';
 import { 
   getUserBookmarks, 
@@ -22,7 +22,7 @@ import { showToast } from './Toast';
 // updateWorldCupCommentCount import 제거됨 - 사용되지 않음
 import { onCommentCountChange } from '@/utils/commentEvents';
 import { incrementPlayCount, onPlayCountChange, notifyPlayCountChange } from '@/utils/playCount';
-import { withRetry } from '@/utils/supabaseConnection';
+// withRetry functionality removed - API routes now handle retry logic
 
 // Mock 데이터 제거됨 - 이제 Supabase에서 실제 데이터 사용
 
@@ -66,9 +66,14 @@ export default function WorldCupGrid({ category: _category, sortBy: _sortBy, sea
         // API 방식으로 데이터 로드 (훨씬 빠름)
         console.log('📥 Starting API data fetch...');
         const apiResult = await Promise.allSettled([
-          fetch('/api/worldcups?page=1&limit=12&category=all&sortBy=popular')
-            .then(res => res.json())
-            .then(result => result.data || [])
+          fetch('/api/worldcups?offset=0&limit=12&sortBy=participants&sortOrder=desc')
+            .then(async res => {
+              if (!res.ok) {
+                throw new Error(`API request failed: ${res.status} ${res.statusText}`);
+              }
+              return res.json();
+            })
+            .then(result => result.worldcups || [])
             .catch(error => {
               console.warn('⚠️ API loading failed:', error);
               return [];
