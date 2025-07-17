@@ -1,180 +1,218 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import React from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Search, ChevronRight, TrendingUp, Clock, Star, Plus, Filter, Play } from 'lucide-react';
+import { Search, ChevronRight, TrendingUp, Clock, Plus, Filter, User, LogOut } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
+import AuthModal from '@/components/AuthModal';
+import ThemeSelector from '@/components/ThemeSelector';
+import RankingModal from '@/components/shared/RankingModal';
+import TournamentCard from '@/components/TournamentCard';
+import TournamentCardSkeleton from '@/components/TournamentCardSkeleton';
+import { ModernLogo } from './tournament-logo/components';
 import { getStoredWorldCups } from '@/utils/storage';
 import { getUserWorldCups } from '@/lib/api/worldcups';
-import { useAuth } from '@/contexts/AuthContext';
-import { useStats } from '@/hooks/useStats';
-import { ModernLogo } from './tournament-logo/components';
 
-interface Tournament {
+// 카테고리 정의
+const categories = [
+  { id: 'all', name: '전체', icon: '🌟', color: 'bg-blue-500' },
+  { id: 'celebrity', name: '연예인', icon: '⭐', color: 'bg-pink-500' },
+  { id: 'food', name: '음식', icon: '🍔', color: 'bg-orange-500' },
+  { id: 'travel', name: '여행', icon: '✈️', color: 'bg-indigo-500' },
+  { id: 'anime', name: '애니메이션', icon: '🎌', color: 'bg-purple-500' },
+  { id: 'game', name: '게임', icon: '🎮', color: 'bg-green-500' },
+  { id: 'movie', name: '영화', icon: '🎬', color: 'bg-red-500' },
+  { id: 'music', name: '음악', icon: '🎵', color: 'bg-yellow-500' },
+  { id: 'entertainment', name: '엔터테인먼트', icon: '🎪', color: 'bg-cyan-500' },
+  { id: 'sports', name: '스포츠', icon: '⚽', color: 'bg-emerald-500' },
+  { id: 'other', name: '기타', icon: '📦', color: 'bg-gray-500' }
+];
+
+interface WorldCup {
   id: string;
   title: string;
   description: string;
-  thumbnail: string;
-  author: string;
-  createdAt: string;
+  thumbnail_url?: string;
+  thumbnail?: string; // Legacy support
+  created_at?: string;
+  createdAt?: string; // Legacy support
+  creator_name?: string;
+  author?: string; // Legacy support
+  creator_id?: string;
+  author_id?: string; // Legacy support
   participants: number;
-  comments: number;
-  likes: number;
   category: string;
-  isNew: boolean;
-  isHot: boolean;
-  format: string;
-  playCount: number;
-}
-
-interface Category {
-  id: string;
-  name: string;
-  icon: string;
-  color: string;
-}
-
-const categories: Category[] = [
-  { id: 'all', name: '전체', icon: '🏆', color: 'bg-purple-500' },
-  { id: 'entertainment', name: '연예인', icon: '🎭', color: 'bg-pink-500' },
-  { id: 'sports', name: '스포츠', icon: '⚽', color: 'bg-blue-500' },
-  { id: 'food', name: '음식', icon: '🍔', color: 'bg-orange-500' },
-  { id: 'game', name: '게임', icon: '🎮', color: 'bg-green-500' },
-  { id: 'music', name: '음악', icon: '🎵', color: 'bg-indigo-500' },
-  { id: 'movie', name: '영화', icon: '🎬', color: 'bg-red-500' },
-  { id: 'animal', name: '동물', icon: '🐱', color: 'bg-yellow-500' },
-  { id: 'travel', name: '여행', icon: '✈️', color: 'bg-teal-500' },
-  { id: 'etc', name: '기타', icon: '📚', color: 'bg-gray-500' }
-];
-
-// Helper function to map frontend sortBy values to API values
-function mapSortByToAPI(sortBy: string): { sortBy: string; sortOrder: string } {
-  switch (sortBy) {
-    case 'popular':
-      return { sortBy: 'participants', sortOrder: 'desc' };
-    case 'recent':
-    case 'latest':
-      return { sortBy: 'created_at', sortOrder: 'desc' };
-    case 'participants':
-      return { sortBy: 'participants', sortOrder: 'desc' };
-    case 'comments':
-      return { sortBy: 'comments', sortOrder: 'desc' };
-    case 'likes':
-      return { sortBy: 'likes', sortOrder: 'desc' };
-    default:
-      return { sortBy: 'participants', sortOrder: 'desc' };
-  }
+  is_public?: boolean;
+  isPublic?: boolean; // Legacy support
+  likes: number;
+  comments: number;
+  itemsCount?: number; // Number of items for tournament bracket calculation
 }
 
 export default function Home() {
-  const { user } = useAuth();
-  const { data: stats } = useStats();
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [selectedSort, setSelectedSort] = useState('popular');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [categoryCounts, setCategoryCounts] = useState<{ [key: string]: number }>({});
   const [searchQuery, setSearchQuery] = useState('');
-  const [userWorldCupCount, setUserWorldCupCount] = useState(0);
-  const [allTournaments, setAllTournaments] = useState<Tournament[]>([]);
+  const [sortBy, setSortBy] = useState('participants');
+  const [sortOrder, setSortOrder] = useState('desc');
+  const [allWorldcups, setAllWorldcups] = useState<WorldCup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const totalPages = stats?.totalPages || 1; // Dynamic total pages from stats
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [userWorldCupCount, setUserWorldCupCount] = useState(0);
+  const [isRankingModalOpen, setIsRankingModalOpen] = useState(false);
+  const [selectedTournamentForRanking, setSelectedTournamentForRanking] = useState<{ id: string; title: string } | null>(null);
+  
+  const { user, isAuthenticated, logout } = useAuth();
+  const { getThemeClass } = useTheme();
+  const router = useRouter();
 
-  // 토너먼트 데이터 로드
-  useEffect(() => {
-    const loadTournaments = async () => {
-      try {
-        setIsLoading(true);
-        
-        // API에서 데이터 가져오기
-        const { sortBy: apiSortBy, sortOrder: apiSortOrder } = mapSortByToAPI('popular');
-        const pageApiUrl = `/api/worldcups?offset=0&limit=100&sortBy=${apiSortBy}&sortOrder=${apiSortOrder}`;
-        
-        const [apiWorldCups, localWorldCups] = await Promise.allSettled([
-          fetch(pageApiUrl)
-            .then(async res => {
-              if (!res.ok) throw new Error(`API request failed: ${res.status}`);
-              return res.json();
-            })
-            .then(result => result.worldcups || []),
-          Promise.resolve(getStoredWorldCups())
-        ]);
-        
-        const apiData = apiWorldCups.status === 'fulfilled' ? apiWorldCups.value as any[] : [];
-        const localData = localWorldCups.status === 'fulfilled' ? localWorldCups.value as any[] : [];
-        
-        // 중복 제거
-        const worldCupMap = new Map();
-        apiData.forEach((wc: any) => worldCupMap.set(wc.id, wc));
-        localData.forEach((wc: any) => {
-          if (!worldCupMap.has(wc.id)) {
-            worldCupMap.set(wc.id, wc);
-          }
-        });
-        
-        const allWorldCups = Array.from(worldCupMap.values());
-        
-        // 태그 계산 (신규: 1주일 이내, 인기: 플레이수 + 좋아요수 기준)
-        const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-        const avgPlays = allWorldCups.reduce((sum, wc) => sum + wc.participants, 0) / allWorldCups.length;
-        const avgLikes = allWorldCups.reduce((sum, wc) => sum + wc.likes, 0) / allWorldCups.length;
-        
-        const tournaments: Tournament[] = allWorldCups.map(wc => {
-          const createdDate = new Date(wc.createdAt);
-          const isNew = createdDate > oneWeekAgo;
-          const popularityScore = wc.participants + (wc.likes * 2); // 좋아요에 더 높은 가중치
-          const isHot = popularityScore > avgPlays + (avgLikes * 2);
-          
-          return {
-            id: wc.id,
-            title: wc.title,
-            description: wc.description || '',
-            thumbnail: wc.thumbnail || '',
-            author: wc.author,
-            createdAt: wc.createdAt,
-            participants: wc.participants,
-            comments: wc.comments,
-            likes: wc.likes,
-            category: wc.category || 'entertainment',
-            isNew,
-            isHot,
-            format: `${Math.ceil(Math.log2(wc.participants || 16))}강`, // 예: 32강
-            playCount: wc.participants
-          };
-        });
-        
-        setAllTournaments(tournaments);
-        
-        // 카테고리별 개수 계산
-        const counts: { [key: string]: number } = {
-          all: tournaments.length,
-        };
-        
-        tournaments.forEach((tournament) => {
-          const category = tournament.category || 'entertainment';
-          counts[category] = (counts[category] || 0) + 1;
-        });
-        
-        setCategoryCounts(counts);
-        
-      } catch (error) {
-        console.error('Failed to load tournaments:', error);
-        setAllTournaments([]);
-        setCategoryCounts({ all: 0 });
-      } finally {
-        setIsLoading(false);
-      }
+  // Helper function to normalize worldcup data from different API formats
+  const normalizeWorldCup = (wc: any): WorldCup => {
+    const normalized = {
+      id: wc.id,
+      title: wc.title,
+      description: wc.description || '',
+      thumbnail_url: wc.thumbnail_url || wc.thumbnail || '/placeholder.svg',
+      created_at: wc.created_at || wc.createdAt,
+      creator_name: wc.creator_name || wc.author || 'Unknown',
+      creator_id: wc.creator_id || wc.author_id || '',
+      participants: wc.participants || 0,
+      category: wc.category || 'entertainment',
+      is_public: wc.is_public !== undefined ? wc.is_public : (wc.isPublic !== undefined ? wc.isPublic : true),
+      likes: wc.likes || 0,
+      comments: wc.comments || 0,
+      itemsCount: wc.itemsCount || 0
     };
-
-    loadTournaments();
-  }, []);
-
-  const handleSearchChange = (query: string) => {
-    setSearchQuery(query);
-    setCurrentPage(1); // 첫 페이지로 리셋
+    
+    
+    return normalized;
   };
 
-  // 사용자 월드컵 개수 가져오기 (필요시 나중에 추가)
+  // 초기 데이터 로드 (한 번만 실행)
+  const loadInitialData = async () => {
+    try {
+      setIsLoading(true);
+      
+      // 한 번의 API 호출로 충분한 데이터 가져오기
+      const params = new URLSearchParams({
+        offset: '0',
+        limit: '50', // 최대 허용치
+        sortBy: 'created_at',
+        sortOrder: 'desc',
+        isPublic: 'true'
+      });
+      
+      const [apiWorldCups, localWorldCups] = await Promise.allSettled([
+        fetch(`/api/worldcups?${params}`)
+          .then(async res => {
+            if (!res.ok) throw new Error(`API request failed: ${res.status}`);
+            return res.json();
+          })
+          .then(result => result.worldcups || []),
+        Promise.resolve(getStoredWorldCups())
+      ]);
+      
+      const apiData = apiWorldCups.status === 'fulfilled' ? apiWorldCups.value as any[] : [];
+      const localData = localWorldCups.status === 'fulfilled' ? localWorldCups.value as any[] : [];
+      
+      // 중복 제거 및 데이터 정규화
+      const worldCupMap = new Map();
+      
+      apiData.forEach((wc: any) => {
+        const normalizedWc = normalizeWorldCup(wc);
+        worldCupMap.set(normalizedWc.id, normalizedWc);
+      });
+      
+      localData.forEach((wc: any) => {
+        if (!worldCupMap.has(wc.id)) {
+          const normalizedWc = normalizeWorldCup(wc);
+          worldCupMap.set(normalizedWc.id, normalizedWc);
+        }
+      });
+      
+      const allWorldCups = Array.from(worldCupMap.values());
+      setAllWorldcups(allWorldCups);
+      
+      
+    } catch (error) {
+      console.error('Failed to fetch worldcups:', error);
+      setAllWorldcups([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // useMemo로 파생 상태 계산
+  const popularWorldcups = useMemo(() => {
+    return [...allWorldcups]
+      .sort((a, b) => b.likes - a.likes)
+      .slice(0, 8);
+  }, [allWorldcups]);
+
+  const newWorldcups = useMemo(() => {
+    return [...allWorldcups]
+      .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+      .slice(0, 8);
+  }, [allWorldcups]);
+
+  const filteredTournaments = useMemo(() => {
+    let filtered = [...allWorldcups];
+    
+    // 카테고리 필터링
+    if (selectedCategory !== 'all') {
+      filtered = filtered.filter(wc => wc.category === selectedCategory);
+    }
+    
+    // 검색 필터링
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(wc => 
+        wc.title.toLowerCase().includes(query) || 
+        (wc.description && wc.description.toLowerCase().includes(query))
+      );
+    }
+    
+    // 정렬 적용
+    switch (`${sortBy}-${sortOrder}`) {
+      case 'likes-desc':
+        filtered.sort((a, b) => b.likes - a.likes);
+        break;
+      case 'participants-desc':
+        filtered.sort((a, b) => b.participants - a.participants);
+        break;
+      case 'comments-desc':
+        filtered.sort((a, b) => b.comments - a.comments);
+        break;
+      case 'created_at-desc':
+      default:
+        filtered.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+        break;
+    }
+    
+    return filtered;
+  }, [allWorldcups, selectedCategory, searchQuery, sortBy, sortOrder]);
+
+  const categoryCounts = useMemo(() => {
+    const counts: { [key: string]: number } = {
+      all: allWorldcups.length,
+    };
+    
+    allWorldcups.forEach((wc: WorldCup) => {
+      const category = wc.category || 'other';
+      counts[category] = (counts[category] || 0) + 1;
+    });
+    
+    return counts;
+  }, [allWorldcups]);
+
+  // 초기 데이터 로드 (한 번만 실행)
+  useEffect(() => {
+    loadInitialData();
+  }, []);
+
+  // 사용자 월드컵 개수 가져오기
   useEffect(() => {
     if (user && user.id) {
       getUserWorldCups(user.id)
@@ -185,131 +223,95 @@ export default function Home() {
     }
   }, [user]);
 
-  const popularTournaments = allTournaments
-    .filter(t => t.isHot)
-    .sort((a, b) => (b.participants + b.likes * 2) - (a.participants + a.likes * 2))
-    .slice(0, 8);
-  
-  const newTournaments = allTournaments
-    .filter(t => t.isNew)
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(0, 8);
-  
-  const featuredTournaments = allTournaments
-    .sort((a, b) => b.participants - a.participants)
-    .slice(0, 4);
-  
-  const filteredTournaments = allTournaments.filter(tournament => {
-    const matchesCategory = selectedCategory === 'all' || tournament.category === selectedCategory;
-    const matchesSearch = tournament.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                         tournament.description.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
 
-  const TournamentCard = ({ tournament }: { tournament: Tournament }) => (
-    <Link href={`/play/${tournament.id}`} className="group">
-      <div className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-shadow">
-        <div className="relative h-48">
-          <Image
-            src={tournament.thumbnail || '/placeholder.svg'}
-            alt={tournament.title}
-            fill
-            className="object-cover group-hover:scale-105 transition-transform duration-300"
-          />
-          {tournament.isHot && (
-            <div className="absolute top-2 right-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-              🔥 인기
-            </div>
-          )}
-          {tournament.isNew && (
-            <div className="absolute top-2 right-2 bg-green-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-              ✨ 신규
-            </div>
-          )}
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4">
-            <div className="flex items-center text-white text-xs gap-2">
-              <span className="bg-black/50 px-2 py-1 rounded-full">
-                {tournament.format}
-              </span>
-              <span className="bg-black/50 px-2 py-1 rounded-full">
-                {tournament.playCount.toLocaleString()}회 플레이
-              </span>
-              <span className="bg-black/50 px-2 py-1 rounded-full">
-                ❤️ {tournament.likes}
-              </span>
-            </div>
-          </div>
-        </div>
-        <div className="p-4">
-          <h3 className="text-lg font-semibold text-gray-900 mb-1 line-clamp-1">{tournament.title}</h3>
-          <p className="text-gray-600 text-sm mb-3 line-clamp-2">{tournament.description}</p>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <div className="w-6 h-6 rounded-full bg-purple-500 flex items-center justify-center mr-2">
-                <span className="text-white text-xs font-bold">
-                  {tournament.author.charAt(0).toUpperCase()}
-                </span>
-              </div>
-              <span className="text-gray-700 text-xs">{tournament.author}</span>
-            </div>
-            <div className="flex items-center text-xs text-gray-500">
-              <Clock className="w-3 h-3 mr-1" />
-              <span>{new Date(tournament.createdAt).toLocaleDateString()}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </Link>
-  );
+  const handleLoginClick = () => {
+    setIsAuthModalOpen(true);
+  };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-500">토너먼트를 불러오는 중...</p>
-        </div>
-      </div>
-    );
-  }
+  const handleCreateTournament = () => {
+    if (!isAuthenticated) {
+      setIsAuthModalOpen(true);
+      return;
+    }
+    router.push('/create');
+  };
+
+  const handleLogout = async () => {
+    await logout();
+  };
+
+  const handleShowRanking = (tournament: WorldCup) => {
+    setSelectedTournamentForRanking({ id: tournament.id, title: tournament.title });
+    setIsRankingModalOpen(true);
+  };
+
+  const handleCloseRanking = () => {
+    setIsRankingModalOpen(false);
+    setSelectedTournamentForRanking(null);
+  };
+
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className={`min-h-screen ${getThemeClass('background')}`}>
       {/* 헤더 */}
-      <header className="bg-white shadow-sm">
+      <header className={getThemeClass('header')}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
               <ModernLogo className="h-8" />
             </div>
             <div className="hidden md:flex items-center space-x-4">
-              <Link href="#" className="text-gray-600 hover:text-gray-900 px-3 py-2 text-sm font-medium">
+              <Link href="#" className={`${getThemeClass('textSecondary')} hover:${getThemeClass('text')} px-3 py-2 text-sm font-medium`}>
                 홈
               </Link>
-              <Link href="#" className="text-gray-600 hover:text-gray-900 px-3 py-2 text-sm font-medium">
-                인기 토너먼트
-              </Link>
-              <Link href="#" className="text-gray-600 hover:text-gray-900 px-3 py-2 text-sm font-medium">
-                새로운 토너먼트
-              </Link>
-              <Link href="#" className="text-gray-600 hover:text-gray-900 px-3 py-2 text-sm font-medium">
+              <Link href="/my-page" className={`${getThemeClass('textSecondary')} hover:${getThemeClass('text')} px-3 py-2 text-sm font-medium`}>
                 내 토너먼트
               </Link>
+              <ThemeSelector />
             </div>
             <div className="flex items-center space-x-4">
-              <button className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
-                로그인
-              </button>
-              <button className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-300 transition-colors">
-                회원가입
-              </button>
+              {isAuthenticated ? (
+                <div className="flex items-center space-x-3">
+                  <div className="flex items-center space-x-2">
+                    <User className={`w-5 h-5 ${getThemeClass('textSecondary')}`} />
+                    <div className="flex flex-col">
+                      <span className={`text-sm font-medium ${getThemeClass('text')}`}>{user?.username || user?.email}</span>
+                      {userWorldCupCount > 0 && (
+                        <span className={`text-xs ${getThemeClass('textSecondary')}`}>토너먼트 {userWorldCupCount}개</span>
+                      )}
+                    </div>
+                  </div>
+                  <button 
+                    onClick={handleLogout}
+                    className={`${getThemeClass('secondary')} ${getThemeClass('text')} px-4 py-2 ${getThemeClass('button')} text-sm font-medium hover:bg-gray-300 transition-colors flex items-center space-x-1`}
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>로그아웃</span>
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <button 
+                    onClick={handleLoginClick}
+                    className={`bg-blue-600 text-white px-4 py-2 ${getThemeClass('button')} text-sm font-medium hover:bg-blue-700 transition-colors`}
+                  >
+                    로그인
+                  </button>
+                  <button 
+                    onClick={handleLoginClick}
+                    className={`${getThemeClass('secondary')} ${getThemeClass('text')} px-4 py-2 ${getThemeClass('button')} text-sm font-medium hover:bg-gray-300 transition-colors`}
+                  >
+                    회원가입
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
       </header>
 
       {/* 히어로 섹션 */}
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white py-16">
+      <div className={`bg-gradient-to-r ${getThemeClass('primary')} text-white py-16`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
             <div>
@@ -319,10 +321,19 @@ export default function Home() {
                 다양한 카테고리의 토너먼트가 여러분을 기다리고 있습니다.
               </p>
               <div className="flex space-x-4">
-                <Link href="/create" className="bg-white text-blue-600 px-6 py-3 rounded-lg font-medium hover:bg-blue-50 transition-colors">
+                <button 
+                  onClick={handleCreateTournament}
+                  className={`bg-white text-blue-600 px-6 py-3 ${getThemeClass('button')} font-medium hover:bg-blue-50 transition-colors`}
+                >
                   토너먼트 만들기
-                </Link>
-                <button className="bg-blue-500 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-400 transition-colors">
+                </button>
+                <button 
+                  onClick={() => {
+                    const popularSection = document.getElementById('popular-tournaments');
+                    popularSection?.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                  className={`bg-blue-500 text-white px-6 py-3 ${getThemeClass('button')} font-medium hover:bg-blue-400 transition-colors`}
+                >
                   인기 토너먼트 보기
                 </button>
               </div>
@@ -331,15 +342,19 @@ export default function Home() {
               <div className="relative">
                 <div className="absolute -top-6 -left-6 w-64 h-64 bg-blue-400 rounded-lg transform rotate-6 opacity-30"></div>
                 <div className="absolute -bottom-6 -right-6 w-64 h-64 bg-indigo-400 rounded-lg transform -rotate-6 opacity-30"></div>
-                <div className="relative z-10 bg-white p-4 rounded-xl shadow-xl">
+                <div className={`relative z-10 ${getThemeClass('surface')} p-4 rounded-xl shadow-xl`}>
                   <div className="grid grid-cols-2 gap-4">
-                    {featuredTournaments.map((tournament) => (
+                    {popularWorldcups.slice(0, 4).map((tournament) => (
                       <div key={tournament.id} className="relative rounded-lg overflow-hidden h-32">
                         <Image
-                          src={tournament.thumbnail || '/placeholder.svg'}
+                          src={tournament.thumbnail_url || '/placeholder.svg'}
                           alt={tournament.title}
                           fill
                           className="object-cover"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.src = '/placeholder.svg';
+                          }}
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent"></div>
                         <div className="absolute bottom-0 left-0 p-2">
@@ -356,7 +371,7 @@ export default function Home() {
       </div>
 
       {/* 검색 및 필터 */}
-      <div className="py-6 bg-white shadow-sm">
+      <div className={`py-6 ${getThemeClass('surface')} shadow-sm`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div className="relative flex-1">
@@ -367,7 +382,7 @@ export default function Home() {
                 type="text"
                 placeholder="토너먼트 검색..."
                 value={searchQuery}
-                onChange={(e) => handleSearchChange(e.target.value)}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
@@ -382,7 +397,12 @@ export default function Home() {
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
-                  <span>{category.icon} {category.name}</span>
+                  <span>
+                    {category.icon} {category.name}
+                    {categoryCounts[category.id] !== undefined && (
+                      <span className="ml-1 opacity-75">({categoryCounts[category.id]})</span>
+                    )}
+                  </span>
                 </button>
               ))}
             </div>
@@ -393,76 +413,130 @@ export default function Home() {
       {/* 메인 콘텐츠 */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* 인기 토너먼트 */}
-        {popularTournaments.length > 0 && (
-          <div className="mb-12">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center">
-                <TrendingUp className="h-6 w-6 text-red-500 mr-2" />
-                <h2 className="text-2xl font-bold text-gray-900">인기 토너먼트</h2>
-              </div>
-              <Link href="#" className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center">
-                더보기 <ChevronRight className="h-4 w-4 ml-1" />
-              </Link>
+        <div id="popular-tournaments" className="mb-12">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center">
+              <TrendingUp className="h-6 w-6 text-red-500 mr-2" />
+              <h2 className={`text-2xl font-bold ${getThemeClass('text')}`}>인기 토너먼트</h2>
             </div>
+            <button 
+              onClick={() => {
+                setSelectedCategory('all');
+                setSortBy('likes');
+                setSortOrder('desc');
+                setSearchQuery('');
+                // 모든 토너먼트 섹션으로 스크롤
+                const allTournamentsSection = document.querySelector('[data-section="all-tournaments"]');
+                allTournamentsSection?.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center"
+            >
+              더보기 <ChevronRight className="h-4 w-4 ml-1" />
+            </button>
+          </div>
+          {isLoading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {popularTournaments.map((tournament) => (
-                <TournamentCard key={tournament.id} tournament={tournament} />
+              {[...Array(4)].map((_, index) => (
+                <TournamentCardSkeleton key={index} />
               ))}
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {popularWorldcups.map((tournament) => (
+                <TournamentCard 
+                  key={tournament.id} 
+                  tournament={tournament} 
+                  onShowRanking={handleShowRanking}
+                />
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* 새로운 토너먼트 */}
-        {newTournaments.length > 0 && (
-          <div className="mb-12">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center">
-                <Clock className="h-6 w-6 text-green-500 mr-2" />
-                <h2 className="text-2xl font-bold text-gray-900">새로운 토너먼트</h2>
-              </div>
-              <Link href="#" className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center">
-                더보기 <ChevronRight className="h-4 w-4 ml-1" />
-              </Link>
+        <div id="new-tournaments" className="mb-12">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center">
+              <Clock className="h-6 w-6 text-green-500 mr-2" />
+              <h2 className={`text-2xl font-bold ${getThemeClass('text')}`}>새로운 토너먼트</h2>
             </div>
+            <button 
+              onClick={() => {
+                setSelectedCategory('all');
+                setSortBy('created_at');
+                setSortOrder('desc');
+                setSearchQuery('');
+              }}
+              className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center"
+            >
+              더보기 <ChevronRight className="h-4 w-4 ml-1" />
+            </button>
+          </div>
+          {isLoading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {newTournaments.map((tournament) => (
-                <TournamentCard key={tournament.id} tournament={tournament} />
+              {[...Array(4)].map((_, index) => (
+                <TournamentCardSkeleton key={index} />
               ))}
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {newWorldcups.map((tournament) => (
+                <TournamentCard 
+                  key={tournament.id} 
+                  tournament={tournament} 
+                  onShowRanking={handleShowRanking}
+                />
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* 카테고리별 토너먼트 */}
-        <div>
+        <div data-section="all-tournaments">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center">
               <Filter className="h-6 w-6 text-purple-500 mr-2" />
-              <h2 className="text-2xl font-bold text-gray-900">
+              <h2 className={`text-2xl font-bold ${getThemeClass('text')}`}>
                 {selectedCategory === 'all' ? '모든 토너먼트' : `${categories.find(c => c.id === selectedCategory)?.name} 토너먼트`}
               </h2>
             </div>
             <div className="flex items-center space-x-2">
               <select 
-                value={selectedSort}
-                onChange={(e) => setSelectedSort(e.target.value)}
-                className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={`${sortBy}-${sortOrder}`}
+                onChange={(e) => {
+                  const [newSortBy, newSortOrder] = e.target.value.split('-');
+                  setSortBy(newSortBy);
+                  setSortOrder(newSortOrder);
+                }}
+                className={`${getThemeClass('surface')} border border-gray-300 ${getThemeClass('button')} px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500`}
               >
-                <option value="popular">인기순</option>
-                <option value="recent">최신순</option>
-                <option value="participants">참여자순</option>
+                <option value="created_at-desc">최신순</option>
+                <option value="participants-desc">참여자순</option>
+                <option value="likes-desc">인기순</option>
+                <option value="comments-desc">댓글많은순</option>
               </select>
             </div>
           </div>
           
-          {filteredTournaments.length > 0 ? (
+          {isLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {[...Array(8)].map((_, index) => (
+                <TournamentCardSkeleton key={index} />
+              ))}
+            </div>
+          ) : filteredTournaments.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {filteredTournaments.map((tournament) => (
-                <TournamentCard key={tournament.id} tournament={tournament} />
+                <TournamentCard 
+                  key={tournament.id} 
+                  tournament={tournament} 
+                  onShowRanking={handleShowRanking}
+                />
               ))}
             </div>
           ) : (
-            <div className="text-center py-12 bg-gray-50 rounded-xl">
-              <p className="text-gray-500 mb-4">검색 결과가 없습니다.</p>
+            <div className={`text-center py-12 ${getThemeClass('secondary')} rounded-xl`}>
+              <p className={`${getThemeClass('textSecondary')} mb-4`}>검색 결과가 없습니다.</p>
               <button 
                 onClick={() => {
                   setSelectedCategory('all');
@@ -478,7 +552,7 @@ export default function Home() {
       </div>
 
       {/* 토너먼트 만들기 CTA */}
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-700 py-12">
+      <div className={`bg-gradient-to-r ${getThemeClass('primary')} py-12`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between">
             <div className="mb-6 md:mb-0">
@@ -488,14 +562,18 @@ export default function Home() {
               </p>
             </div>
             <div>
-              <Link href="/create" className="bg-white text-blue-600 px-6 py-3 rounded-lg font-medium hover:bg-blue-50 transition-colors flex items-center">
+              <button 
+                onClick={handleCreateTournament}
+                className={`bg-white text-blue-600 px-6 py-3 ${getThemeClass('button')} font-medium hover:bg-blue-50 transition-colors flex items-center`}
+              >
                 <Plus className="w-5 h-5 mr-2" />
                 토너먼트 만들기
-              </Link>
+              </button>
             </div>
           </div>
         </div>
       </div>
+
 
       {/* 푸터 */}
       <footer className="bg-gray-900 text-white py-12">
@@ -510,9 +588,9 @@ export default function Home() {
             <div>
               <h3 className="text-lg font-semibold mb-4">서비스</h3>
               <ul className="space-y-2">
-                <li><Link href="/create" className="text-gray-400 hover:text-white text-sm">토너먼트 만들기</Link></li>
-                <li><Link href="#" className="text-gray-400 hover:text-white text-sm">인기 토너먼트</Link></li>
-                <li><Link href="#" className="text-gray-400 hover:text-white text-sm">새로운 토너먼트</Link></li>
+                <li><button onClick={handleCreateTournament} className="text-gray-400 hover:text-white text-sm">토너먼트 만들기</button></li>
+                <li><Link href="#popular-tournaments" className="text-gray-400 hover:text-white text-sm">인기 토너먼트</Link></li>
+                <li><Link href="#new-tournaments" className="text-gray-400 hover:text-white text-sm">새로운 토너먼트</Link></li>
                 <li><Link href="#" className="text-gray-400 hover:text-white text-sm">카테고리</Link></li>
               </ul>
             </div>
@@ -551,6 +629,24 @@ export default function Home() {
           </div>
         </div>
       </footer>
+
+      {/* 인증 모달 */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        title="로그인이 필요합니다"
+        subtitle="월드컵 토너먼트를 만들고 참여하려면 로그인해주세요"
+      />
+
+      {/* 랭킹 모달 */}
+      {selectedTournamentForRanking && (
+        <RankingModal
+          isOpen={isRankingModalOpen}
+          onClose={handleCloseRanking}
+          worldcupId={selectedTournamentForRanking.id}
+          worldcupTitle={selectedTournamentForRanking.title}
+        />
+      )}
     </div>
   );
 }

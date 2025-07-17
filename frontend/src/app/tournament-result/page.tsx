@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Home, RotateCcw, Trophy, Share2, Play, Maximize2, Clock, Users, Star, Crown, Flame, Zap, Heart, Award, Medal, Target } from 'lucide-react';
+import { Home, RotateCcw, Trophy, Share2, Play, Maximize2, Clock, Users, Star, Crown, Flame, Zap, Heart, Award, Medal, Target, Bookmark, Flag } from 'lucide-react';
 
 // 샘플 결과 데이터
 const tournamentResult = {
@@ -38,6 +38,9 @@ export default function TournamentResultPage() {
     ranking: false,
     share: false
   });
+  const [isLiked, setIsLiked] = useState(false);
+  const [isBookmarked, setIsBookmarked] = useState(false);
+  const [likeCount, setLikeCount] = useState(1247);
 
   useEffect(() => {
     setIsClient(true);
@@ -68,6 +71,21 @@ export default function TournamentResultPage() {
     }, 2000);
   };
 
+  const handleLike = () => {
+    setIsLiked(!isLiked);
+    setLikeCount(prev => isLiked ? prev - 1 : prev + 1);
+  };
+
+  const handleBookmark = () => {
+    setIsBookmarked(!isBookmarked);
+  };
+
+  const handleReport = () => {
+    if (confirm('이 토너먼트를 신고하시겠습니까?')) {
+      alert('신고가 접수되었습니다.');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4">
@@ -91,6 +109,41 @@ export default function TournamentResultPage() {
                   <Crown className="w-8 h-8 text-yellow-400" />
                 </div>
                 <p className="text-cyan-400 font-mono text-sm">{tournamentResult.tournament.category}</p>
+                
+                {/* 좋아요, 북마크, 신고하기 버튼 */}
+                <div className="flex items-center justify-center gap-4 mt-6">
+                  <button
+                    onClick={handleLike}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 font-mono font-bold transition-all ${
+                      isLiked 
+                        ? 'bg-pink-400/20 border-pink-400 text-pink-400' 
+                        : 'bg-gray-800/30 border-gray-600 text-gray-400 hover:border-pink-400 hover:text-pink-400'
+                    }`}
+                  >
+                    <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
+                    <span>{likeCount}</span>
+                  </button>
+                  
+                  <button
+                    onClick={handleBookmark}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 font-mono font-bold transition-all ${
+                      isBookmarked 
+                        ? 'bg-yellow-400/20 border-yellow-400 text-yellow-400' 
+                        : 'bg-gray-800/30 border-gray-600 text-gray-400 hover:border-yellow-400 hover:text-yellow-400'
+                    }`}
+                  >
+                    <Bookmark className={`w-5 h-5 ${isBookmarked ? 'fill-current' : ''}`} />
+                    <span>SAVE</span>
+                  </button>
+                  
+                  <button
+                    onClick={handleReport}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl border-2 bg-gray-800/30 border-gray-600 text-gray-400 hover:border-red-400 hover:text-red-400 font-mono font-bold transition-all"
+                  >
+                    <Flag className="w-5 h-5" />
+                    <span>REPORT</span>
+                  </button>
+                </div>
               </div>
 
               {/* 우승자 정보 */}
@@ -246,6 +299,47 @@ export default function TournamentResultPage() {
               <div className="inline-block bg-white p-4 rounded-lg shadow-lg border-2 border-dashed border-amber-400 transform -rotate-1">
                 <h3 className="text-2xl font-bold text-amber-800 mb-1">🏆 토너먼트 우승자 🏆</h3>
                 <p className="text-amber-600 text-sm">{tournamentResult.tournament.category}</p>
+              </div>
+              
+              {/* 좋아요, 북마크, 신고하기 버튼 */}
+              <div className="flex items-center justify-center gap-4 mt-6">
+                <div className="bg-white p-3 rounded-lg shadow-md border-2 border-dashed border-gray-300 transform rotate-1">
+                  <button
+                    onClick={handleLike}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all ${
+                      isLiked 
+                        ? 'bg-red-100 text-red-600 border-2 border-dashed border-red-300' 
+                        : 'bg-gray-100 text-gray-600 border-2 border-dashed border-gray-300 hover:bg-red-50'
+                    }`}
+                  >
+                    <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
+                    <span>{likeCount}</span>
+                  </button>
+                </div>
+                
+                <div className="bg-white p-3 rounded-lg shadow-md border-2 border-dashed border-gray-300 transform -rotate-1">
+                  <button
+                    onClick={handleBookmark}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all ${
+                      isBookmarked 
+                        ? 'bg-yellow-100 text-yellow-600 border-2 border-dashed border-yellow-300' 
+                        : 'bg-gray-100 text-gray-600 border-2 border-dashed border-gray-300 hover:bg-yellow-50'
+                    }`}
+                  >
+                    <Bookmark className={`w-5 h-5 ${isBookmarked ? 'fill-current' : ''}`} />
+                    <span>저장</span>
+                  </button>
+                </div>
+                
+                <div className="bg-white p-3 rounded-lg shadow-md border-2 border-dashed border-gray-300 transform rotate-1">
+                  <button
+                    onClick={handleReport}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-100 text-gray-600 border-2 border-dashed border-gray-300 hover:bg-red-50 hover:text-red-600 font-semibold transition-all"
+                  >
+                    <Flag className="w-5 h-5" />
+                    <span>신고</span>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -420,6 +514,41 @@ export default function TournamentResultPage() {
                 <h3 className="text-2xl font-black text-black mb-1">🏆 ULTIMATE WINNER! 🏆</h3>
                 <p className="text-black font-bold text-sm">{tournamentResult.tournament.category}</p>
               </div>
+              
+              {/* 좋아요, 북마크, 신고하기 버튼 */}
+              <div className="flex items-center justify-center gap-4 mt-6">
+                <button
+                  onClick={handleLike}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-2xl border-4 border-black font-black transition-all shadow-[4px_4px_0px_0px_#000] hover:shadow-[2px_2px_0px_0px_#000] hover:translate-x-1 hover:translate-y-1 ${
+                    isLiked 
+                      ? 'bg-red-400 text-black' 
+                      : 'bg-white text-black hover:bg-red-100'
+                  }`}
+                >
+                  <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
+                  <span>{likeCount}</span>
+                </button>
+                
+                <button
+                  onClick={handleBookmark}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-2xl border-4 border-black font-black transition-all shadow-[4px_4px_0px_0px_#000] hover:shadow-[2px_2px_0px_0px_#000] hover:translate-x-1 hover:translate-y-1 ${
+                    isBookmarked 
+                      ? 'bg-yellow-400 text-black' 
+                      : 'bg-white text-black hover:bg-yellow-100'
+                  }`}
+                >
+                  <Bookmark className={`w-5 h-5 ${isBookmarked ? 'fill-current' : ''}`} />
+                  <span>SAVE!</span>
+                </button>
+                
+                <button
+                  onClick={handleReport}
+                  className="flex items-center gap-2 px-4 py-2 rounded-2xl border-4 border-black bg-white text-black hover:bg-red-100 font-black transition-all shadow-[4px_4px_0px_0px_#000] hover:shadow-[2px_2px_0px_0px_#000] hover:translate-x-1 hover:translate-y-1"
+                >
+                  <Flag className="w-5 h-5" />
+                  <span>REPORT!</span>
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8 relative z-10">
@@ -584,6 +713,45 @@ export default function TournamentResultPage() {
               <h3 className="text-4xl font-light text-gray-800 mb-3">Tournament Winner</h3>
               <div className="w-24 h-0.5 bg-gray-300 mx-auto mb-4"></div>
               <p className="text-gray-500 font-light">{tournamentResult.tournament.category}</p>
+              
+              {/* 좋아요, 북마크, 신고하기 버튼 */}
+              <div className="flex items-center justify-center gap-6 mt-8">
+                <button
+                  onClick={handleLike}
+                  className={`flex items-center gap-2 transition-colors ${
+                    isLiked 
+                      ? 'text-red-500' 
+                      : 'text-gray-400 hover:text-gray-600'
+                  }`}
+                >
+                  <Heart className={`w-6 h-6 ${isLiked ? 'fill-current' : ''}`} />
+                  <span className="text-sm font-light">{likeCount}</span>
+                </button>
+                
+                <div className="w-px h-6 bg-gray-200"></div>
+                
+                <button
+                  onClick={handleBookmark}
+                  className={`flex items-center gap-2 transition-colors ${
+                    isBookmarked 
+                      ? 'text-blue-500' 
+                      : 'text-gray-400 hover:text-gray-600'
+                  }`}
+                >
+                  <Bookmark className={`w-6 h-6 ${isBookmarked ? 'fill-current' : ''}`} />
+                  <span className="text-sm font-light">Save</span>
+                </button>
+                
+                <div className="w-px h-6 bg-gray-200"></div>
+                
+                <button
+                  onClick={handleReport}
+                  className="flex items-center gap-2 text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <Flag className="w-6 h-6" />
+                  <span className="text-sm font-light">Report</span>
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mb-12">
@@ -750,6 +918,41 @@ export default function TournamentResultPage() {
                   🏆 VICTORY ROYALE! 🏆
                 </h3>
                 <p className="text-gray-300 font-semibold">{tournamentResult.tournament.category}</p>
+                
+                {/* 좋아요, 북마크, 신고하기 버튼 */}
+                <div className="flex items-center justify-center gap-6 mt-6">
+                  <button
+                    onClick={handleLike}
+                    className={`flex items-center gap-2 px-5 py-3 rounded-xl backdrop-blur-sm transition-all ${
+                      isLiked 
+                        ? 'bg-red-500/30 border border-red-500/50 text-red-400 animate-pulse' 
+                        : 'bg-gray-800/30 border border-gray-700 text-gray-400 hover:border-red-500/50 hover:text-red-400'
+                    }`}
+                  >
+                    <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
+                    <span className="font-bold">{likeCount}</span>
+                  </button>
+                  
+                  <button
+                    onClick={handleBookmark}
+                    className={`flex items-center gap-2 px-5 py-3 rounded-xl backdrop-blur-sm transition-all ${
+                      isBookmarked 
+                        ? 'bg-yellow-500/30 border border-yellow-500/50 text-yellow-400 animate-pulse' 
+                        : 'bg-gray-800/30 border border-gray-700 text-gray-400 hover:border-yellow-500/50 hover:text-yellow-400'
+                    }`}
+                  >
+                    <Bookmark className={`w-5 h-5 ${isBookmarked ? 'fill-current' : ''}`} />
+                    <span className="font-bold">SAVE</span>
+                  </button>
+                  
+                  <button
+                    onClick={handleReport}
+                    className="flex items-center gap-2 px-5 py-3 rounded-xl bg-gray-800/30 border border-gray-700 text-gray-400 hover:border-purple-500/50 hover:text-purple-400 backdrop-blur-sm transition-all"
+                  >
+                    <Flag className="w-5 h-5" />
+                    <span className="font-bold">REPORT</span>
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">

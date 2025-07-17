@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
 
     console.log('🔍 Fetching worldcups via API route...', validatedParams);
 
-    // Build optimized query with author join
+    // Build optimized query with author join and item count
     let query = supabase
       .from('worldcups')
       .select(`
@@ -64,7 +64,8 @@ export async function GET(request: NextRequest) {
         category,
         is_public,
         author_id,
-        author:users(id, username)
+        author:users(id, username),
+        worldcup_items(count)
       `)
       .eq('is_public', validatedParams.isPublic)
       .order(validatedParams.sortBy, { ascending: validatedParams.sortOrder === 'asc' })
@@ -137,7 +138,8 @@ export async function GET(request: NextRequest) {
         likes: worldcup.likes || 0,
         category: worldcup.category || 'entertainment',
         isPublic: worldcup.is_public,
-        items: [] // Items loaded separately for performance
+        items: [], // Items loaded separately for performance
+        itemsCount: worldcup.worldcup_items?.[0]?.count || 0 // Item count for tournament bracket calculation
       };
     });
 

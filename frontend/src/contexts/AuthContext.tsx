@@ -66,14 +66,30 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     let isSubscribed = true; // Prevent state updates if component unmounts
     
+    // 로딩 시간이 너무 길어지는 것을 방지하기 위한 타임아웃
+    const loadingTimeout = setTimeout(() => {
+      if (isSubscribed) {
+        console.warn('⏰ Auth loading timeout, setting to unauthenticated state');
+        setAuthState({
+          user: null,
+          isAuthenticated: false,
+          isLoading: false,
+        });
+      }
+    }, 5000); // 5초 후 강제 종료
+    
     const initializeAuth = async () => {
       try {
+        console.log('🔄 Starting auth initialization...');
         // 1. Supabase에서 현재 사용자 확인
         const supabaseUser = await getCurrentSupabaseUser();
+        console.log('👤 Current supabase user:', supabaseUser ? 'Found' : 'Not found');
         
         if (!isSubscribed) return; // Component unmounted, don't update state
         
         if (supabaseUser) {
+          clearTimeout(loadingTimeout); // 타임아웃 클리어
+          
           // Supabase 사용자를 기존 User 타입으로 변환
           const user: User = {
             id: supabaseUser.id,
@@ -93,6 +109,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
         
         // 2. Supabase에 사용자가 없으면 로그아웃 상태로 설정
+        clearTimeout(loadingTimeout); // 타임아웃 클리어
         setAuthState({
           user: null,
           isAuthenticated: false,
@@ -112,6 +129,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
         
         if (isSubscribed) {
+          clearTimeout(loadingTimeout); // 타임아웃 클리어
           setAuthState({
             user: null,
             isAuthenticated: false,
@@ -181,6 +199,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     return () => {
       isSubscribed = false; // Prevent state updates after unmount
+      clearTimeout(loadingTimeout); // 컴포넌트 언마운트 시 타임아웃 클리어
       try {
         if (subscription) {
           if (typeof subscription.unsubscribe === 'function') {

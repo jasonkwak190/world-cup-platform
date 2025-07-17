@@ -97,7 +97,8 @@
       "Bash(ping:*)",
       "Bash(sudo dscacheutil:*)",
       "Bash(sudo killall:*)",
-      "Bash(nslookup:*)"
+      "Bash(nslookup:*)",
+      "mcp__memory-mcp__add_observations"
     ],
     "deny": []
   }
