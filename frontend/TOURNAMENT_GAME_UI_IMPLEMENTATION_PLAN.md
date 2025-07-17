@@ -22,7 +22,7 @@
 ## 🏗️ 구현 구조
 
 ### 1. 토너먼트 선택 화면
-**경로**: `frontend/src/app/tournament-select-designs2/`
+**경로**: `frontend/src/app/tournament-select-designs2`
 
 #### 기존 기능 유지
 - 4강, 8강, 16강 ~ 최대 512강 토너먼트 선택
@@ -53,7 +53,7 @@ tournament-select-designs2/
 ```
 
 ### 2. 실제 게임 화면
-**경로**: `frontend/src/app/tournament-play/`
+**경로**: `frontend/src/app/tournament-play`
 
 #### 기존 기능 유지
 - [ ] **헤더 왼쪽**: 홈 버튼, 라운드 표시 (16강/준결승/결승)
@@ -91,7 +91,7 @@ tournament-play/
 ```
 
 ### 3. 게임 결과 화면
-**경로**: `frontend/src/app/tournament-result/`
+**경로**: `frontend/src/app/tournament-result`
 
 #### 기존 기능 유지
 - [ ] **기본 버튼들**: 다시하기, 홈으로, 랭킹보기, 공유하기
@@ -127,7 +127,7 @@ tournament-result/
 ```
 
 ### 4. 댓글창 시스템
-**경로**: `frontend/src/app/tournament-result/` (결과 화면 내 통합)
+**경로**: `frontend/src/app/tournament-comment` (결과 화면 내 통합)
 
 #### 기존 기능 유지
 - [ ] **로그인 상태**: 닉네임 입력 없이 댓글 작성
@@ -162,7 +162,7 @@ tournament-result/comments/
 ```
 
 ### 5. 랭킹 모달
-**경로**: `frontend/src/app/tournament-ranking/`
+**경로**: `frontend/src/app/tournament-ranking`
 
 #### 기존 기능 유지
 - [ ] **랭킹 목록**: 기존 랭킹 시스템 유지
