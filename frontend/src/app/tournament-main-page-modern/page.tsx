@@ -248,7 +248,9 @@ export default function TournamentMainPageModern() {
                           src={tournament.thumbnail_url || '/images/placeholder.svg'}
                           alt={tournament.title}
                           fill
+                          sizes="(max-width: 768px) 50vw, (max-width: 1200px) 25vw, 12vw"
                           className="object-cover"
+                          priority={true}
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent"></div>
                         <div className="absolute bottom-0 left-0 p-2">
@@ -338,7 +340,7 @@ export default function TournamentMainPageModern() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {popularWorldcups.map((tournament) => (
+              {popularWorldcups.map((tournament, index) => (
                 <Link href={`/worldcup/${tournament.id}/play`} key={tournament.id} className="group">
                   <div className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-shadow">
                     <div className="relative h-48">
@@ -346,7 +348,9 @@ export default function TournamentMainPageModern() {
                         src={tournament.thumbnail_url || '/images/placeholder.svg'}
                         alt={tournament.title}
                         fill
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
                         className="object-cover group-hover:scale-105 transition-transform duration-300"
+                        priority={index < 4}
                       />
                       {tournament.participants >= 1000 && (
                         <div className="absolute top-2 right-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
@@ -434,7 +438,9 @@ export default function TournamentMainPageModern() {
                           src={tournament.thumbnail_url || '/images/placeholder.svg'}
                           alt={tournament.title}
                           fill
+                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
                           className="object-cover group-hover:scale-105 transition-transform duration-300"
+                          priority={false}
                         />
                         {isNew && (
                           <div className="absolute top-2 right-2 bg-green-500 text-white text-xs font-bold px-2 py-1 rounded-full">
@@ -532,7 +538,9 @@ export default function TournamentMainPageModern() {
                           src={tournament.thumbnail_url || '/images/placeholder.svg'}
                           alt={tournament.title}
                           fill
+                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
                           className="object-cover group-hover:scale-105 transition-transform duration-300"
+                          priority={false}
                         />
                         {isHot && (
                           <div className="absolute top-2 right-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
@@ -666,7 +674,7 @@ export default function TournamentMainPageModern() {
             </div>
           </div>
           <div className="mt-8 pt-8 border-t border-gray-800 text-center">
-            <p className="text-gray-400 text-sm">© 2023 월드컵 토너먼트. All rights reserved.</p>
+            <p className="text-gray-400 text-sm">© 2025 월드컵 토너먼트. All rights reserved.</p>
           </div>
         </div>
       </footer>

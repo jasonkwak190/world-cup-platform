@@ -456,7 +456,7 @@ export default function TournamentMainPageDark() {
             </div>
           </div>
           <div className="mt-8 pt-8 border-t border-gray-800 text-center">
-            <p className="text-gray-600 text-sm">© 2023 월드컵 토너먼트. All rights reserved.</p>
+            <p className="text-gray-600 text-sm">© 2025 월드컵 토너먼트. All rights reserved.</p>
           </div>
         </div>
       </footer>

@@ -168,6 +168,9 @@ const nextConfig: NextConfig = {
     dangerouslyAllowSVG: true,
     contentDispositionType: 'attachment',
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
+    // 이미지 최적화 설정 추가
+    minimumCacheTTL: 60,
+    unoptimized: false,
   },
   
   // 번들 분석 활성화 (개발시)

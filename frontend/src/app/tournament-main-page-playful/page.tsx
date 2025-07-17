@@ -525,7 +525,7 @@ export default function TournamentMainPagePlayful() {
             </div>
           </div>
           <div className="mt-8 pt-8 border-t border-purple-800 text-center">
-            <p className="text-purple-300 text-sm">© 2023 월드컵 토너먼트. All rights reserved.</p>
+            <p className="text-purple-300 text-sm">© 2025 월드컵 토너먼트. All rights reserved.</p>
           </div>
         </div>
       </footer>

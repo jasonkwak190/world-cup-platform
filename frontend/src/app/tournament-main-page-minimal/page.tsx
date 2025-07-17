@@ -379,7 +379,7 @@ export default function TournamentMainPageMinimal() {
             </div>
           </div>
           <div className="mt-8 pt-8 border-t border-gray-200 text-center">
-            <p className="text-gray-400 text-sm">© 2023 월드컵 토너먼트. All rights reserved.</p>
+            <p className="text-gray-400 text-sm">© 2025 월드컵 토너먼트. All rights reserved.</p>
           </div>
         </div>
       </footer>

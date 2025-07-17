@@ -264,9 +264,18 @@ export default function Home() {
               <Link href="#" className={`${getThemeClass('textSecondary')} hover:${getThemeClass('text')} px-3 py-2 text-sm font-medium`}>
                 홈
               </Link>
-              <Link href="/my-page" className={`${getThemeClass('textSecondary')} hover:${getThemeClass('text')} px-3 py-2 text-sm font-medium`}>
-                내 토너먼트
-              </Link>
+              {isAuthenticated ? (
+                <Link href="/my" className={`${getThemeClass('textSecondary')} hover:${getThemeClass('text')} px-3 py-2 text-sm font-medium`}>
+                  내 토너먼트
+                </Link>
+              ) : (
+                <button 
+                  onClick={handleLoginClick}
+                  className={`${getThemeClass('textSecondary')} hover:${getThemeClass('text')} px-3 py-2 text-sm font-medium`}
+                >
+                  내 토너먼트
+                </button>
+              )}
               <ThemeSelector />
             </div>
             <div className="flex items-center space-x-4">
@@ -329,12 +338,12 @@ export default function Home() {
                 </button>
                 <button 
                   onClick={() => {
-                    const popularSection = document.getElementById('popular-tournaments');
-                    popularSection?.scrollIntoView({ behavior: 'smooth' });
+                    const allTournamentsSection = document.querySelector('[data-section="all-tournaments"]');
+                    allTournamentsSection?.scrollIntoView({ behavior: 'smooth' });
                   }}
                   className={`bg-blue-500 text-white px-6 py-3 ${getThemeClass('button')} font-medium hover:bg-blue-400 transition-colors`}
                 >
-                  인기 토너먼트 보기
+                  전체 토너먼트 보기
                 </button>
               </div>
             </div>
@@ -344,13 +353,15 @@ export default function Home() {
                 <div className="absolute -bottom-6 -right-6 w-64 h-64 bg-indigo-400 rounded-lg transform -rotate-6 opacity-30"></div>
                 <div className={`relative z-10 ${getThemeClass('surface')} p-4 rounded-xl shadow-xl`}>
                   <div className="grid grid-cols-2 gap-4">
-                    {popularWorldcups.slice(0, 4).map((tournament) => (
+                    {popularWorldcups.slice(0, 4).map((tournament, index) => (
                       <div key={tournament.id} className="relative rounded-lg overflow-hidden h-32">
                         <Image
                           src={tournament.thumbnail_url || '/placeholder.svg'}
                           alt={tournament.title}
                           fill
+                          sizes="(max-width: 768px) 50vw, (max-width: 1200px) 25vw, 12vw"
                           className="object-cover"
+                          priority={true}
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
                             target.src = '/placeholder.svg';
@@ -442,11 +453,12 @@ export default function Home() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {popularWorldcups.map((tournament) => (
+              {popularWorldcups.map((tournament, index) => (
                 <TournamentCard 
                   key={tournament.id} 
                   tournament={tournament} 
                   onShowRanking={handleShowRanking}
+                  priority={index < 8}
                 />
               ))}
             </div>
@@ -480,11 +492,12 @@ export default function Home() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {newWorldcups.map((tournament) => (
+              {newWorldcups.map((tournament, index) => (
                 <TournamentCard 
                   key={tournament.id} 
                   tournament={tournament} 
                   onShowRanking={handleShowRanking}
+                  priority={false}
                 />
               ))}
             </div>
@@ -526,11 +539,12 @@ export default function Home() {
             </div>
           ) : filteredTournaments.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {filteredTournaments.map((tournament) => (
+              {filteredTournaments.map((tournament, index) => (
                 <TournamentCard 
                   key={tournament.id} 
                   tournament={tournament} 
                   onShowRanking={handleShowRanking}
+                  priority={false}
                 />
               ))}
             </div>
@@ -625,7 +639,7 @@ export default function Home() {
             </div>
           </div>
           <div className="mt-8 pt-8 border-t border-gray-800 text-center">
-            <p className="text-gray-400 text-sm">© 2023 월드컵 토너먼트. All rights reserved.</p>
+            <p className="text-gray-400 text-sm">© 2025 월드컵 토너먼트. All rights reserved.</p>
           </div>
         </div>
       </footer>

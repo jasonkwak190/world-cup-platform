@@ -1,106 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Heart, MessageCircle, Edit3, Trash2, Send, User, Reply } from 'lucide-react';
-
-// 샘플 댓글 데이터
-const sampleComments = [
-  {
-    id: 1,
-    author: {
-      name: '김민수',
-      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop&crop=face',
-      isVerified: true,
-      level: 'VIP'
-    },
-    content: 'IU가 우승한 건 당연한 결과죠! 정말 최고의 아티스트입니다 👑',
-    timestamp: '2분 전',
-    createdAt: new Date(Date.now() - 2 * 60 * 1000), // 2분 전
-    likes: 24,
-    isLiked: false,
-    isOwner: false,
-    replies: [
-      {
-        id: 101,
-        author: {
-          name: '이지은',
-          avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=40&h=40&fit=crop&crop=face',
-          isVerified: false,
-          level: 'Silver'
-        },
-        content: '저도 동의해요! IU는 정말 실력파 아티스트죠 ✨',
-        timestamp: '1분 전',
-        createdAt: new Date(Date.now() - 1 * 60 * 1000), // 1분 전
-        likes: 5,
-        isLiked: false,
-        isOwner: false
-      },
-      {
-        id: 102,
-        author: {
-          name: '정우성',
-          avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=40&h=40&fit=crop&crop=face',
-          isVerified: true,
-          level: 'Gold'
-        },
-        content: '음악성과 퍼포먼스 모두 완벽했어요!',
-        timestamp: '방금 전',
-        createdAt: new Date(Date.now() - 30 * 1000), // 30초 전
-        likes: 2,
-        isLiked: false,
-        isOwner: false
-      }
-    ]
-  },
-  {
-    id: 2,
-    author: {
-      name: '박지영',
-      avatar: 'https://images.unsplash.com/photo-1494790108755-2616c9c0b8d3?w=40&h=40&fit=crop&crop=face',
-      isVerified: false,
-      level: 'Bronze'
-    },
-    content: '진짜 치열한 경쟁이었는데 결과가 아쉽네요 ㅠㅠ 그래도 재밌었어요!',
-    timestamp: '5분 전',
-    createdAt: new Date(Date.now() - 5 * 60 * 1000), // 5분 전
-    likes: 12,
-    isLiked: true,
-    isOwner: true,
-    replies: [
-      {
-        id: 201,
-        author: {
-          name: '김태희',
-          avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=40&h=40&fit=crop&crop=face',
-          isVerified: false,
-          level: 'Bronze'
-        },
-        content: '저도 아쉬웠어요. 다음에는 다른 결과가 나왔으면 좋겠네요!',
-        timestamp: '3분 전',
-        createdAt: new Date(Date.now() - 3 * 60 * 1000), // 3분 전
-        likes: 3,
-        isLiked: false,
-        isOwner: false
-      }
-    ]
-  },
-  {
-    id: 3,
-    author: {
-      name: '이준호',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=40&h=40&fit=crop&crop=face',
-      isVerified: true,
-      level: 'Gold'
-    },
-    content: '다음에는 더 다양한 아티스트들로 토너먼트 해주세요! 기대됩니다 🔥',
-    timestamp: '10분 전',
-    createdAt: new Date(Date.now() - 10 * 60 * 1000), // 10분 전
-    likes: 8,
-    isLiked: false,
-    isOwner: false,
-    replies: []
-  }
-];
+import { Heart, MessageCircle, Edit3, Trash2, User, Reply } from 'lucide-react';
+import { sampleComments } from '../data.tsx';
 
 export default function TournamentCommentChatPage() {
   const [isClient, setIsClient] = useState(false);
@@ -307,7 +209,7 @@ export default function TournamentCommentChatPage() {
   };
 
   const totalPages = Math.ceil(comments.length / commentsPerPage);
-  const currentComments = comments.slice(
+  const currentComments = sortComments(comments).slice(
     (currentPage - 1) * commentsPerPage,
     currentPage * commentsPerPage
   );
@@ -389,7 +291,7 @@ export default function TournamentCommentChatPage() {
 
             {/* 채팅 메시지 영역 */}
             <div className="bg-white min-h-96 max-h-96 overflow-y-auto p-4 space-y-3 border-x-2 border-orange-200">
-              {currentComments.map((comment, index) => (
+              {currentComments.map((comment) => (
                 <div key={comment.id} className={`flex gap-3 ${comment.isOwner ? 'flex-row-reverse' : ''}`}>
                   <img
                     src={comment.author.avatar}
@@ -684,73 +586,17 @@ export default function TournamentCommentChatPage() {
                     <button
                       onClick={handleSubmitComment}
                       disabled={!newComment.trim() || (!isLoggedIn && !guestName.trim())}
-                      className="px-4 py-2 bg-gradient-to-r from-orange-500 to-yellow-500 text-white rounded-full hover:from-orange-600 hover:to-yellow-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm"
+                      className="px-4 py-2 bg-gradient-to-r from-orange-500 to-yellow-500 text-white rounded-full hover:from-orange-600 hover:to-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                     >
-                      <Send className="w-4 h-4" />
-                      Send
+                      <span>Send</span>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                      </svg>
                     </button>
                   </div>
                 </div>
               </div>
             </div>
-
-            {/* 온라인 사용자 목록 */}
-            <div className="bg-white p-4 border-t border-orange-200">
-              <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                Online Users ({currentComments.length})
-              </h4>
-              <div className="flex flex-wrap gap-2">
-                {currentComments.map((comment) => (
-                  <div key={comment.id} className="flex items-center gap-2 bg-orange-50 rounded-full px-3 py-1">
-                    <img
-                      src={comment.author.avatar}
-                      alt={comment.author.name}
-                      className="w-5 h-5 rounded-full object-cover"
-                    />
-                    <span className="text-sm text-gray-700">{comment.author.name}</span>
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* 페이지네이션 */}
-            {totalPages > 1 && (
-              <div className="flex justify-center p-4 bg-white border-t border-orange-200">
-                <div className="flex items-center gap-2 bg-orange-50 rounded-full p-2">
-                  <button
-                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                    disabled={currentPage === 1}
-                    className="px-4 py-2 text-orange-600 hover:bg-orange-100 rounded-full transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    ← Load Earlier
-                  </button>
-                  <div className="flex items-center gap-1">
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                      <button
-                        key={page}
-                        onClick={() => setCurrentPage(page)}
-                        className={`w-8 h-8 rounded-full text-sm transition-all ${
-                          currentPage === page
-                            ? 'bg-gradient-to-r from-orange-500 to-yellow-500 text-white shadow-md'
-                            : 'text-gray-600 hover:bg-orange-100'
-                        }`}
-                      >
-                        {page}
-                      </button>
-                    ))}
-                  </div>
-                  <button
-                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                    disabled={currentPage === totalPages}
-                    className="px-4 py-2 text-orange-600 hover:bg-orange-100 rounded-full transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Load More →
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>
