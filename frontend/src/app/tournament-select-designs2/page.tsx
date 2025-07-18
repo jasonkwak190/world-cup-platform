@@ -1,153 +1,190 @@
 'use client';
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { tournamentOptions } from './data.tsx';
+import { useState, useEffect } from 'react';
+import { tournamentOptions } from './data';
+import { useTheme } from '@/contexts/ThemeContext';
+import ThemeSelector from './components/ThemeSelector';
+import TournamentTitle from './components/TournamentTitle';
+import StartButton from './components/StartButton';
 
 export default function TournamentSelectDesigns2Page() {
-  const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
+  const [selectedTournament, setSelectedTournament] = useState<string | null>(null);
+  const [isClient, setIsClient] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const { currentTheme, getThemeClass } = useTheme();
 
-  const designStyles = [
-    {
-      id: 'neon',
-      name: '네온 사이버 스타일',
-      description: '미래적인 네온 디자인의 토너먼트 선택 UI',
-      bgClass: 'bg-gradient-to-br from-purple-900 via-pink-900 to-blue-900',
-      textClass: 'text-cyan-400',
-      path: '/tournament-select-designs2/neon'
-    },
-    {
-      id: 'paper',
-      name: '종이 찢기 스타일',
-      description: '아날로그 감성의 종이 디자인 토너먼트 선택 UI',
-      bgClass: 'bg-amber-50',
-      textClass: 'text-amber-800',
-      path: '/tournament-select-designs2/paper'
-    },
-    {
-      id: 'comic',
-      name: '만화책 스타일',
-      description: '팝아트 감성의 만화책 디자인 토너먼트 선택 UI',
-      bgClass: 'bg-gradient-to-b from-blue-100 to-purple-100',
-      textClass: 'text-purple-800',
-      path: '/tournament-select-designs2/comic'
-    },
-    {
-      id: 'minimal',
-      name: '미니멀 엘레강스',
-      description: '세련되고 심플한 미니멀 디자인 토너먼트 선택 UI',
-      bgClass: 'bg-white',
-      textClass: 'text-gray-800',
-      path: '/tournament-select-designs2/minimal'
-    },
-    {
-      id: 'gaming',
-      name: '게이밍 RGB 스타일',
-      description: '화려한 게이밍 RGB 디자인의 토너먼트 선택 UI',
-      bgClass: 'bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900',
-      textClass: 'text-white',
-      path: '/tournament-select-designs2/gaming'
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  const handleStartTournament = () => {
+    if (!selectedTournament) return;
+    
+    setLoading(true);
+    
+    // 3초 후 로딩 해제 (실제로는 페이지 이동이나 다른 액션)
+    setTimeout(() => {
+      setLoading(false);
+      // 여기서 실제 토너먼트 시작 로직 실행
+      console.log(`Starting ${selectedTournament} tournament with ${currentTheme} theme`);
+    }, 3000);
+  };
+
+  const getContainerStyle = () => {
+    return `min-h-screen py-8 ${getThemeClass('background')}`;
+  };
+
+  const getMainContainerStyle = () => {
+    const baseStyle = 'p-8 relative overflow-hidden';
+    return `${baseStyle} ${getThemeClass('container')}`;
+  };
+
+  const getInstructionStyle = () => {
+    switch (currentTheme) {
+      case 'neon':
+        return 'text-gray-400 font-mono text-sm mt-4';
+      case 'paper':
+        return 'text-amber-700 text-lg mt-4';
+      case 'comic':
+        return 'text-purple-800 font-bold text-lg mt-4';
+      case 'gaming':
+        return 'text-gray-300 font-medium text-lg mt-4';
+      case 'minimal':
+      default:
+        return 'text-gray-500 text-lg mt-4';
     }
-  ];
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className={getContainerStyle()}>
       <div className="max-w-7xl mx-auto px-4">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">토너먼트 선택 디자인</h1>
-          <p className="text-gray-600">5가지 독창적인 토너먼트 선택 UI 디자인</p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 mb-12">
-          {designStyles.map((style) => (
-            <div
-              key={style.id}
-              className={`cursor-pointer transition-all duration-300 rounded-xl overflow-hidden shadow-lg ${
-                selectedStyle === style.id ? 'ring-4 ring-blue-500 scale-105' : 'hover:scale-102'
-              }`}
-              onClick={() => setSelectedStyle(style.id)}
-            >
-              <div className={`${style.bgClass} p-6 h-48 flex flex-col justify-between`}>
-                <div className={`${style.textClass} font-bold text-xl mb-2`}>{style.name}</div>
-                <div className="text-white text-sm">{style.description}</div>
-              </div>
-              <div className="bg-white p-4">
-                <Link 
-                  href={style.path}
-                  className="block w-full py-2 px-4 bg-blue-500 hover:bg-blue-600 text-white text-center rounded-lg transition-colors"
-                >
-                  디자인 보기
-                </Link>
-              </div>
+        <div className={getMainContainerStyle()}>
+          <div className="relative z-10">
+            {/* 테마 선택 영역 */}
+            <div className="flex justify-end mb-6">
+              <ThemeSelector className="w-64" />
             </div>
-          ))}
-        </div>
 
-        <div className="bg-white p-8 rounded-xl shadow-lg">
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">토너먼트 옵션 정보</h2>
-          <div className="overflow-x-auto">
-            <table className="min-w-full bg-white">
-              <thead>
-                <tr>
-                  <th className="py-3 px-4 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    토너먼트
-                  </th>
-                  <th className="py-3 px-4 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    선택지 수
-                  </th>
-                  <th className="py-3 px-4 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    라운드 수
-                  </th>
-                  <th className="py-3 px-4 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    소요 시간
-                  </th>
-                  <th className="py-3 px-4 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    분위기
-                  </th>
-                  <th className="py-3 px-4 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    설명
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {tournamentOptions.map((option) => (
-                  <tr key={option.id}>
-                    <td className="py-4 px-4 border-b border-gray-200">
-                      <div className="flex items-center">
-                        <div className="mr-3">{option.icon}</div>
-                        <div className="font-medium text-gray-900">{option.name}</div>
+            {/* 토너먼트 제목 */}
+            <TournamentTitle 
+              title="토너먼트 선택"
+              subtitle="원하는 토너먼트 규모를 선택하세요"
+            />
+
+            {/* 토너먼트 옵션 그리드 */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+              {tournamentOptions.map((option) => (
+                <div
+                  key={option.id}
+                  className={`cursor-pointer ${getThemeClass('transition')} ${
+                    isClient && selectedTournament === option.id ? 'scale-105' : 'hover:scale-102'
+                  }`}
+                  onClick={() => setSelectedTournament(option.id)}
+                >
+                  <div className={`relative p-6 ${getThemeClass('card')} ${
+                    isClient && selectedTournament === option.id
+                      ? currentTheme === 'neon'
+                        ? 'border-yellow-400 bg-yellow-400/10 shadow-lg shadow-yellow-400/25'
+                        : currentTheme === 'paper'
+                        ? 'border-orange-500 bg-orange-100 shadow-lg shadow-orange-200'
+                        : currentTheme === 'comic'
+                        ? 'bg-yellow-100 shadow-[12px_12px_0px_0px_#000]'
+                        : currentTheme === 'gaming'
+                        ? 'border-blue-500 bg-blue-500/10 shadow-lg shadow-blue-500/25'
+                        : 'border-gray-400 bg-gray-100 shadow-2xl'
+                      : ''
+                  }`}>
+                    
+                    {/* 아이콘 */}
+                    <div className={`flex justify-center mb-4 ${
+                      isClient && selectedTournament === option.id 
+                        ? currentTheme === 'neon' ? 'text-yellow-400'
+                          : currentTheme === 'paper' ? 'text-orange-600'
+                          : currentTheme === 'comic' ? 'text-red-500'
+                          : currentTheme === 'gaming' ? 'text-blue-400'
+                          : 'text-gray-700'
+                        : currentTheme === 'neon' ? 'text-cyan-400'
+                          : currentTheme === 'paper' ? 'text-amber-700'
+                          : currentTheme === 'comic' ? 'text-black'
+                          : currentTheme === 'gaming' ? 'text-white'
+                          : 'text-gray-600'
+                    }`}>
+                      {option.icon}
+                    </div>
+                    
+                    {/* 제목 */}
+                    <div className="text-center">
+                      <div className={`text-xl font-bold mb-2 ${
+                        currentTheme === 'neon' ? 'font-mono' : 
+                        currentTheme === 'comic' ? 'font-black' : 
+                        currentTheme === 'minimal' ? 'font-light' : 'font-bold'
+                      } ${
+                        isClient && selectedTournament === option.id 
+                          ? currentTheme === 'neon' ? 'text-yellow-400'
+                            : currentTheme === 'paper' ? 'text-orange-800'
+                            : currentTheme === 'comic' ? 'text-black'
+                            : currentTheme === 'gaming' ? 'text-white'
+                            : 'text-gray-900'
+                          : getThemeClass('text')
+                      }`}>
+                        {option.name}
                       </div>
-                    </td>
-                    <td className="py-4 px-4 border-b border-gray-200 text-gray-700">
-                      {option.choices}
-                    </td>
-                    <td className="py-4 px-4 border-b border-gray-200 text-gray-700">
-                      {option.rounds}
-                    </td>
-                    <td className="py-4 px-4 border-b border-gray-200 text-gray-700">
-                      {option.duration}
-                    </td>
-                    <td className="py-4 px-4 border-b border-gray-200 text-gray-700">
-                      {option.vibe}
-                    </td>
-                    <td className="py-4 px-4 border-b border-gray-200 text-gray-700">
-                      {option.description}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div className="text-center mt-12">
-          <p className="text-gray-600 mb-6 text-lg">5가지 독창적인 디자인으로 다양한 사용자 경험을 제공합니다</p>
-          <div className="flex flex-wrap justify-center gap-3">
-            <span className="px-4 py-2 bg-purple-100 text-purple-800 rounded-lg text-sm font-medium">네온 사이버</span>
-            <span className="px-4 py-2 bg-amber-100 text-amber-800 rounded-lg text-sm font-medium">종이 찢기</span>
-            <span className="px-4 py-2 bg-blue-100 text-blue-800 rounded-lg text-sm font-medium">만화책</span>
-            <span className="px-4 py-2 bg-gray-100 text-gray-800 rounded-lg text-sm font-medium">미니멀</span>
-            <span className="px-4 py-2 bg-gradient-to-r from-red-100 to-purple-100 text-gray-800 rounded-lg text-sm font-medium">게이밍 RGB</span>
+                      
+                      {/* 선택지 수 */}
+                      <div className={`text-sm mb-1 ${getThemeClass('textSecondary')}`}>
+                        {option.choices} CHOICES
+                      </div>
+                      
+                      {/* 분위기 */}
+                      <div className={`text-xs mb-2 ${
+                        currentTheme === 'neon' ? 'text-gray-400' :
+                        currentTheme === 'paper' ? 'text-amber-600' :
+                        currentTheme === 'comic' ? 'text-gray-600' :
+                        currentTheme === 'gaming' ? 'text-gray-400' :
+                        'text-gray-500'
+                      }`}>
+                        {option.vibe}
+                      </div>
+                      
+                      {/* 소요 시간 */}
+                      <div className={`text-xs font-medium ${
+                        currentTheme === 'neon' ? 'text-pink-300' :
+                        currentTheme === 'paper' ? 'text-amber-800' :
+                        currentTheme === 'comic' ? 'text-purple-800' :
+                        currentTheme === 'gaming' ? 'text-green-400' :
+                        'text-gray-700'
+                      }`}>
+                        {option.duration}
+                      </div>
+                    </div>
+                    
+                    {/* 선택된 표시 */}
+                    {isClient && selectedTournament === option.id && (
+                      <div className={`absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                        currentTheme === 'neon' ? 'bg-yellow-400 text-black' :
+                        currentTheme === 'paper' ? 'bg-orange-500 text-white' :
+                        currentTheme === 'comic' ? 'bg-red-500 text-white' :
+                        currentTheme === 'gaming' ? 'bg-blue-500 text-white' :
+                        'bg-gray-700 text-white'
+                      }`}>
+                        {currentTheme === 'neon' ? '⚡' :
+                         currentTheme === 'paper' ? '✓' :
+                         currentTheme === 'comic' ? '!' :
+                         currentTheme === 'gaming' ? '◆' :
+                         '✓'}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            {/* 시작 버튼 */}
+            <StartButton 
+              selectedTournament={selectedTournament}
+              isLoading={loading}
+              onClick={handleStartTournament}
+            />
           </div>
         </div>
       </div>

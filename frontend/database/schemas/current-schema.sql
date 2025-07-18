@@ -1,165 +1,230 @@
--- World Cup Platform Database Schema
--- Generated: 2025-07-08
--- Source: MCP Database Query
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
 
--- =============================================
--- TABLE: worldcups
--- =============================================
-CREATE TABLE IF NOT EXISTS worldcups (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    title VARCHAR(255) NOT NULL,
-    description TEXT,
-    category VARCHAR(100) NOT NULL,
-    thumbnail_url TEXT,
-    author_id UUID NOT NULL,
-    participants INTEGER DEFAULT 0,
-    likes INTEGER DEFAULT 0,
-    comments INTEGER DEFAULT 0,
-    is_public BOOLEAN DEFAULT true,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-    category_id INTEGER,
-    slug VARCHAR(255),
-    status VARCHAR(50) DEFAULT 'published',
-    visibility VARCHAR(50) DEFAULT 'public',
-    allow_anonymous_play BOOLEAN DEFAULT true,
-    tags TEXT[],
-    search_vector TSVECTOR,
-    bookmark_count INTEGER DEFAULT 0
+CREATE TABLE public.audit_logs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  event_type text NOT NULL,
+  user_id uuid,
+  user_email text,
+  ip_address inet,
+  user_agent text,
+  resource_type text,
+  resource_id text,
+  action_details jsonb,
+  success boolean NOT NULL,
+  error_message text,
+  event_timestamp timestamp with time zone DEFAULT now(),
+  session_id text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT audit_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT audit_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
-
--- =============================================
--- TABLE: users
--- =============================================
-CREATE TABLE IF NOT EXISTS users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    username VARCHAR(100) NOT NULL,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    profile_image_url TEXT,
-    role VARCHAR(50) DEFAULT 'user',
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-    display_name VARCHAR(255),
-    bio TEXT,
-    cover_image_url TEXT,
-    is_verified BOOLEAN DEFAULT false,
-    is_active BOOLEAN DEFAULT true,
-    followers_count INTEGER DEFAULT 0,
-    following_count INTEGER DEFAULT 0,
-    worldcups_count INTEGER DEFAULT 0,
-    last_login_at TIMESTAMPTZ
+CREATE TABLE public.comments (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  worldcup_id uuid NOT NULL,
+  author_id uuid,
+  parent_id uuid,
+  content text NOT NULL CHECK (length(TRIM(BOTH FROM content)) >= 1 AND length(content) <= 2000),
+  guest_name character varying,
+  guest_session_id character varying,
+  is_edited boolean DEFAULT false,
+  is_pinned boolean DEFAULT false,
+  is_deleted boolean DEFAULT false,
+  like_count integer DEFAULT 0,
+  reply_count integer DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT comments_pkey PRIMARY KEY (id),
+  CONSTRAINT comments_worldcup_id_fkey FOREIGN KEY (worldcup_id) REFERENCES public.worldcups(id),
+  CONSTRAINT comments_author_id_fkey FOREIGN KEY (author_id) REFERENCES public.users(id),
+  CONSTRAINT comments_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES public.comments(id)
 );
-
--- =============================================
--- TABLE: worldcup_items
--- =============================================
-CREATE TABLE IF NOT EXISTS worldcup_items (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    worldcup_id UUID NOT NULL,
-    title VARCHAR(255) NOT NULL,
-    image_url TEXT,
-    description TEXT,
-    order_index INTEGER NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    seed INTEGER,
-    win_count INTEGER DEFAULT 0,
-    loss_count INTEGER DEFAULT 0,
-    win_rate DECIMAL(5,2) DEFAULT 0.00,
-    video_url TEXT,
-    video_start_time INTEGER DEFAULT 0,
-    video_end_time INTEGER,
-    video_id VARCHAR(20), -- YouTube video ID (11자리)
-    media_type VARCHAR(10) DEFAULT 'image', -- 'image' or 'video'
-    video_thumbnail TEXT, -- YouTube thumbnail URL
-    video_duration INTEGER, -- 비디오 길이 (초)
-    video_metadata JSONB, -- YouTube 메타데이터
-    source_url TEXT,
-    attribution TEXT,
-    total_appearances INTEGER DEFAULT 0,
-    championship_wins INTEGER DEFAULT 0,
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE public.game_matches (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  session_id uuid NOT NULL,
+  worldcup_id uuid NOT NULL,
+  round_number integer NOT NULL,
+  match_number integer NOT NULL,
+  item1_id uuid NOT NULL,
+  item2_id uuid NOT NULL,
+  winner_id uuid NOT NULL,
+  decision_time_ms integer,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT game_matches_pkey PRIMARY KEY (id),
+  CONSTRAINT game_matches_item1_id_fkey FOREIGN KEY (item1_id) REFERENCES public.worldcup_items(id),
+  CONSTRAINT game_matches_winner_id_fkey FOREIGN KEY (winner_id) REFERENCES public.worldcup_items(id),
+  CONSTRAINT game_matches_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.game_sessions(id),
+  CONSTRAINT game_matches_worldcup_id_fkey FOREIGN KEY (worldcup_id) REFERENCES public.worldcups(id),
+  CONSTRAINT game_matches_item2_id_fkey FOREIGN KEY (item2_id) REFERENCES public.worldcup_items(id)
 );
-
--- =============================================
--- TABLE: game_sessions
--- =============================================
-CREATE TABLE IF NOT EXISTS game_sessions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    worldcup_id UUID NOT NULL,
-    player_id UUID,
-    session_token VARCHAR(255) NOT NULL,
-    tournament_bracket JSONB NOT NULL,
-    current_round INTEGER DEFAULT 1,
-    status VARCHAR(50) DEFAULT 'active',
-    winner_item_id UUID,
-    runner_up_item_id UUID,
-    total_rounds INTEGER,
-    total_matches INTEGER,
-    play_time_seconds INTEGER,
-    player_ip INET,
-    user_agent TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    completed_at TIMESTAMPTZ
+CREATE TABLE public.game_results (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  worldcup_id uuid,
+  user_id uuid,
+  winner_item_id uuid,
+  runner_up_item_id uuid,
+  rounds_played integer NOT NULL,
+  play_time_seconds integer,
+  user_ip inet,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT game_results_pkey PRIMARY KEY (id),
+  CONSTRAINT game_results_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT game_results_winner_item_id_fkey FOREIGN KEY (winner_item_id) REFERENCES public.worldcup_items(id),
+  CONSTRAINT game_results_worldcup_id_fkey FOREIGN KEY (worldcup_id) REFERENCES public.worldcups(id),
+  CONSTRAINT game_results_runner_up_item_id_fkey FOREIGN KEY (runner_up_item_id) REFERENCES public.worldcup_items(id)
 );
-
--- =============================================
--- INDEXES
--- =============================================
-CREATE INDEX IF NOT EXISTS idx_worldcups_author_id ON worldcups(author_id);
-CREATE INDEX IF NOT EXISTS idx_worldcups_category ON worldcups(category);
-CREATE INDEX IF NOT EXISTS idx_worldcups_created_at ON worldcups(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_worldcups_is_public ON worldcups(is_public);
-CREATE INDEX IF NOT EXISTS idx_worldcups_search_vector ON worldcups USING GIN(search_vector);
-
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
-CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at DESC);
-
-CREATE INDEX IF NOT EXISTS idx_worldcup_items_worldcup_id ON worldcup_items(worldcup_id);
-CREATE INDEX IF NOT EXISTS idx_worldcup_items_order_index ON worldcup_items(order_index);
-CREATE INDEX IF NOT EXISTS idx_worldcup_items_video_url ON worldcup_items(video_url);
-CREATE INDEX IF NOT EXISTS idx_worldcup_items_created_at ON worldcup_items(created_at DESC);
-
-CREATE INDEX IF NOT EXISTS idx_game_sessions_worldcup_id ON game_sessions(worldcup_id);
-CREATE INDEX IF NOT EXISTS idx_game_sessions_player_id ON game_sessions(player_id);
-CREATE INDEX IF NOT EXISTS idx_game_sessions_session_token ON game_sessions(session_token);
-CREATE INDEX IF NOT EXISTS idx_game_sessions_status ON game_sessions(status);
-CREATE INDEX IF NOT EXISTS idx_game_sessions_created_at ON game_sessions(created_at DESC);
-
--- =============================================
--- FOREIGN KEY CONSTRAINTS
--- =============================================
-ALTER TABLE worldcups ADD CONSTRAINT fk_worldcups_author_id 
-    FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE;
-
-ALTER TABLE worldcup_items ADD CONSTRAINT fk_worldcup_items_worldcup_id 
-    FOREIGN KEY (worldcup_id) REFERENCES worldcups(id) ON DELETE CASCADE;
-
-ALTER TABLE game_sessions ADD CONSTRAINT fk_game_sessions_worldcup_id 
-    FOREIGN KEY (worldcup_id) REFERENCES worldcups(id) ON DELETE CASCADE;
-
-ALTER TABLE game_sessions ADD CONSTRAINT fk_game_sessions_player_id 
-    FOREIGN KEY (player_id) REFERENCES users(id) ON DELETE SET NULL;
-
--- =============================================
--- TRIGGERS FOR UPDATED_AT
--- =============================================
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
-
-CREATE TRIGGER update_worldcups_updated_at 
-    BEFORE UPDATE ON worldcups 
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_users_updated_at 
-    BEFORE UPDATE ON users 
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_worldcup_items_updated_at 
-    BEFORE UPDATE ON worldcup_items 
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TABLE public.game_sessions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  worldcup_id uuid NOT NULL,
+  player_id uuid,
+  session_token character varying UNIQUE,
+  tournament_bracket jsonb,
+  current_round integer DEFAULT 1,
+  status character varying DEFAULT 'in_progress'::character varying CHECK (status::text = ANY (ARRAY['in_progress'::character varying, 'completed'::character varying, 'abandoned'::character varying]::text[])),
+  winner_item_id uuid,
+  runner_up_item_id uuid,
+  total_rounds integer,
+  total_matches integer,
+  play_time_seconds integer,
+  player_ip inet,
+  user_agent text,
+  created_at timestamp with time zone DEFAULT now(),
+  completed_at timestamp with time zone,
+  CONSTRAINT game_sessions_pkey PRIMARY KEY (id),
+  CONSTRAINT game_sessions_worldcup_id_fkey FOREIGN KEY (worldcup_id) REFERENCES public.worldcups(id),
+  CONSTRAINT game_sessions_player_id_fkey FOREIGN KEY (player_id) REFERENCES public.users(id),
+  CONSTRAINT game_sessions_winner_item_id_fkey FOREIGN KEY (winner_item_id) REFERENCES public.worldcup_items(id),
+  CONSTRAINT game_sessions_runner_up_item_id_fkey FOREIGN KEY (runner_up_item_id) REFERENCES public.worldcup_items(id)
+);
+CREATE TABLE public.user_interactions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  target_type character varying NOT NULL CHECK (target_type::text = ANY (ARRAY['worldcup'::character varying, 'comment'::character varying, 'user'::character varying]::text[])),
+  target_id uuid NOT NULL,
+  interaction_type character varying NOT NULL CHECK (interaction_type::text = ANY (ARRAY['like'::character varying, 'bookmark'::character varying, 'follow'::character varying, 'report'::character varying, 'block'::character varying]::text[])),
+  metadata jsonb,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT user_interactions_pkey PRIMARY KEY (id),
+  CONSTRAINT user_interactions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.user_migration_log (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  old_email character varying,
+  new_supabase_auth_id uuid,
+  migration_status character varying DEFAULT 'pending'::character varying,
+  migration_date timestamp with time zone DEFAULT now(),
+  error_message text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT user_migration_log_pkey PRIMARY KEY (id),
+  CONSTRAINT user_migration_log_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.users (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  username character varying NOT NULL UNIQUE,
+  email character varying NOT NULL UNIQUE,
+  profile_image_url text,
+  role character varying DEFAULT 'user'::character varying CHECK (role::text = ANY (ARRAY['user'::character varying, 'admin'::character varying, 'moderator'::character varying]::text[])),
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  display_name character varying,
+  bio text,
+  cover_image_url text,
+  is_verified boolean DEFAULT false,
+  is_active boolean DEFAULT true,
+  followers_count integer DEFAULT 0,
+  following_count integer DEFAULT 0,
+  worldcups_count integer DEFAULT 0,
+  last_login_at timestamp with time zone,
+  supabase_auth_id uuid UNIQUE,
+  provider character varying DEFAULT 'email'::character varying,
+  provider_id text,
+  avatar_url text,
+  google_email text,
+  is_migrated boolean DEFAULT false,
+  CONSTRAINT users_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.worldcup_draft_saves (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  title text,
+  description text,
+  category character varying,
+  items jsonb DEFAULT '[]'::jsonb,
+  settings jsonb DEFAULT '{}'::jsonb,
+  image_files jsonb DEFAULT '[]'::jsonb,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT worldcup_draft_saves_pkey PRIMARY KEY (id),
+  CONSTRAINT worldcup_draft_saves_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.worldcup_items (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  worldcup_id uuid,
+  title character varying NOT NULL,
+  image_url text NOT NULL,
+  description text,
+  order_index integer NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  seed integer,
+  win_count integer NOT NULL DEFAULT 0,
+  loss_count integer NOT NULL DEFAULT 0,
+  win_rate numeric NOT NULL DEFAULT 0 CHECK (win_rate >= 0::numeric AND win_rate <= 100::numeric),
+  video_url text,
+  video_start_time integer DEFAULT 0,
+  video_end_time integer,
+  source_url text,
+  attribution text,
+  total_appearances integer NOT NULL DEFAULT 0,
+  championship_wins integer NOT NULL DEFAULT 0,
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  media_type character varying DEFAULT 'image'::character varying CHECK (media_type::text = ANY (ARRAY['image'::character varying, 'video'::character varying]::text[])),
+  video_duration integer DEFAULT 0,
+  video_id character varying,
+  video_thumbnail text,
+  video_metadata jsonb,
+  CONSTRAINT worldcup_items_pkey PRIMARY KEY (id),
+  CONSTRAINT worldcup_items_worldcup_id_fkey FOREIGN KEY (worldcup_id) REFERENCES public.worldcups(id)
+);
+CREATE TABLE public.worldcup_play_saves (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid,
+  worldcup_id uuid NOT NULL,
+  session_id character varying,
+  current_round integer NOT NULL,
+  total_rounds integer NOT NULL,
+  bracket_state jsonb NOT NULL,
+  remaining_items jsonb NOT NULL DEFAULT '[]'::jsonb,
+  selected_items jsonb NOT NULL DEFAULT '[]'::jsonb,
+  round_history jsonb NOT NULL DEFAULT '[]'::jsonb,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  expires_at timestamp with time zone DEFAULT (now() + '7 days'::interval),
+  CONSTRAINT worldcup_play_saves_pkey PRIMARY KEY (id),
+  CONSTRAINT worldcup_play_saves_worldcup_id_fkey FOREIGN KEY (worldcup_id) REFERENCES public.worldcups(id),
+  CONSTRAINT worldcup_play_saves_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.worldcups (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  title character varying NOT NULL,
+  description text,
+  category character varying DEFAULT 'entertainment'::character varying,
+  thumbnail_url text,
+  author_id uuid,
+  participants integer DEFAULT 0,
+  likes integer DEFAULT 0,
+  comments integer DEFAULT 0,
+  is_public boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  category_id integer,
+  slug character varying,
+  status character varying DEFAULT 'published'::character varying CHECK (status::text = ANY (ARRAY['draft'::character varying, 'published'::character varying, 'archived'::character varying, 'banned'::character varying]::text[])),
+  visibility character varying DEFAULT 'public'::character varying CHECK (visibility::text = ANY (ARRAY['public'::character varying, 'private'::character varying, 'unlisted'::character varying]::text[])),
+  allow_anonymous_play boolean DEFAULT true,
+  tags ARRAY,
+  search_vector tsvector,
+  bookmark_count integer DEFAULT 0,
+  CONSTRAINT worldcups_pkey PRIMARY KEY (id),
+  CONSTRAINT worldcups_author_id_fkey FOREIGN KEY (author_id) REFERENCES public.users(id)
+);

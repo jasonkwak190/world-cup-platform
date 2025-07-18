@@ -13,7 +13,7 @@ const voteSchema = z.object({
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Rate limiting
@@ -24,7 +24,8 @@ export async function POST(
       return createRateLimitResponse(rateLimitResult);
     }
 
-    const worldcupId = params.id;
+    const resolvedParams = await params;
+    const worldcupId = resolvedParams.id;
     const body = await request.json();
     const validatedData = voteSchema.parse(body);
 
@@ -77,23 +78,76 @@ export async function POST(
       );
     }
 
-    // Update item statistics (winner gets a win, loser gets a loss)
-    const updatePromises = [
-      // Update winner stats
-      supabase.rpc('increment_item_wins', {
-        item_id: validatedData.winnerId
-      }),
-      // Update loser stats
-      supabase.rpc('increment_item_losses', {
-        item_id: validatedData.loserId
-      })
-    ];
+    // Update item statistics using correct column names
+    try {
+      // Get current stats for both items
+      const { data: currentStats, error: statsError } = await supabase
+        .from('worldcup_items')
+        .select('id, win_count, loss_count, total_appearances')
+        .in('id', [validatedData.winnerId, validatedData.loserId]);
 
-    const results = await Promise.allSettled(updatePromises);
-    const failed = results.filter(r => r.status === 'rejected').length;
-    
-    if (failed > 0) {
-      console.warn(`${failed} item stat updates failed`);
+      if (statsError || !currentStats) {
+        console.error('Failed to fetch current item stats:', statsError);
+      } else {
+        const winnerStats = currentStats.find(s => s.id === validatedData.winnerId);
+        const loserStats = currentStats.find(s => s.id === validatedData.loserId);
+
+        const updatePromises = [];
+
+        if (winnerStats) {
+          const newWinCount = (winnerStats.win_count || 0) + 1;
+          const newTotalAppearances = (winnerStats.total_appearances || 0) + 1;
+          const newWinRate = newTotalAppearances > 0 ? (newWinCount / newTotalAppearances) * 100 : 0;
+
+          updatePromises.push(
+            supabase
+              .from('worldcup_items')
+              .update({ 
+                win_count: newWinCount,
+                total_appearances: newTotalAppearances,
+                win_rate: newWinRate,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', validatedData.winnerId)
+          );
+        }
+
+        if (loserStats) {
+          const newLossCount = (loserStats.loss_count || 0) + 1;
+          const newTotalAppearances = (loserStats.total_appearances || 0) + 1;
+          const newWinRate = newTotalAppearances > 0 ? ((loserStats.win_count || 0) / newTotalAppearances) * 100 : 0;
+
+          updatePromises.push(
+            supabase
+              .from('worldcup_items')
+              .update({ 
+                loss_count: newLossCount,
+                total_appearances: newTotalAppearances,
+                win_rate: newWinRate,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', validatedData.loserId)
+          );
+        }
+
+        if (updatePromises.length > 0) {
+          const results = await Promise.allSettled(updatePromises);
+          const failed = results.filter(r => r.status === 'rejected').length;
+          
+          if (failed > 0) {
+            console.warn(`${failed} item stat updates failed`);
+            // Log the actual errors for debugging
+            results.forEach((result, index) => {
+              if (result.status === 'rejected') {
+                console.error(`Update ${index} failed:`, result.reason);
+              }
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error updating item statistics:', error);
+      // Don't fail the vote if stats update fails
     }
 
     return NextResponse.json({
@@ -127,7 +181,7 @@ export async function POST(
 // Get voting statistics for a worldcup
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Rate limiting
@@ -138,7 +192,8 @@ export async function GET(
       return createRateLimitResponse(rateLimitResult);
     }
 
-    const worldcupId = params.id;
+    const resolvedParams = await params;
+    const worldcupId = resolvedParams.id;
 
     // Get vote statistics
     const { data: voteStats, error: voteStatsError } = await supabase
