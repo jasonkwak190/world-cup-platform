@@ -266,7 +266,7 @@ export default function ComicResultTheme({
         <div className="bg-white rounded-2xl p-6 border-4 border-purple-400 shadow-xl transform -rotate-1">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xl font-black text-purple-800 transform skew-x-6">
-              댓글 ({comments.length})
+              댓글 ({Array.isArray(comments) ? comments.length : 0})
             </h3>
             
             <div className="flex space-x-2">
@@ -341,7 +341,7 @@ export default function ComicResultTheme({
 
           {/* 댓글 목록 */}
           <div className="space-y-4">
-            {comments.map((comment, index) => (
+            {Array.isArray(comments) && comments.map((comment, index) => (
               <div 
                 key={comment.id} 
                 className={`p-4 rounded-xl bg-gradient-to-r from-purple-100 to-pink-100 border-2 border-purple-300 transform ${

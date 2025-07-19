@@ -114,10 +114,16 @@ export function useResultLogic({ worldcupId }: UseResultLogicProps) {
       const response = await fetch(`/api/worldcups/${worldcupId}/comments`);
       if (response.ok) {
         const commentsData = await response.json();
-        setComments(commentsData);
+        // Handle both array and object response formats
+        const comments = Array.isArray(commentsData) ? commentsData : (commentsData.comments || []);
+        setComments(comments);
+      } else {
+        console.error('Failed to load comments:', response.status, response.statusText);
+        setComments([]); // Set empty array on error
       }
     } catch (error) {
       console.error('Failed to load comments:', error);
+      setComments([]); // Set empty array on error to prevent iteration issues
     }
   }, [worldcupId]);
 
@@ -253,14 +259,14 @@ export function useResultLogic({ worldcupId }: UseResultLogicProps) {
     }
   }, []);
 
-  // Sort comments based on filter
-  const sortedComments = [...comments].sort((a, b) => {
+  // Sort comments based on filter - ensure comments is an array
+  const sortedComments = Array.isArray(comments) ? [...comments].sort((a, b) => {
     if (commentFilter === 'likes') {
       return b.likes - a.likes;
     } else {
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     }
-  });
+  }) : [];
 
   return {
     // Data

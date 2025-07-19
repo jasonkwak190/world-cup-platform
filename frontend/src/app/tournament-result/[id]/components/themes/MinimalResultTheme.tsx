@@ -244,7 +244,7 @@ export default function MinimalResultTheme({
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-xl font-medium text-gray-900">
-              댓글 ({comments.length})
+              댓글 ({Array.isArray(comments) ? comments.length : 0})
             </h3>
             
             <div className="flex space-x-2">
@@ -319,7 +319,7 @@ export default function MinimalResultTheme({
 
           {/* 댓글 목록 */}
           <div className="space-y-4">
-            {comments.map((comment) => (
+            {Array.isArray(comments) && comments.map((comment) => (
               <div 
                 key={comment.id} 
                 className={`p-4 rounded-lg bg-gray-50 border ${

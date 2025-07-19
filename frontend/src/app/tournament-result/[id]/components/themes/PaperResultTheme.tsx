@@ -268,7 +268,7 @@ export default function PaperResultTheme({
           
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xl font-bold text-amber-800 transform -skew-x-6">
-              댓글 ({comments.length})
+              댓글 ({Array.isArray(comments) ? comments.length : 0})
             </h3>
             
             <div className="flex space-x-2">
@@ -343,7 +343,7 @@ export default function PaperResultTheme({
 
           {/* 댓글 목록 */}
           <div className="space-y-4">
-            {comments.map((comment, index) => (
+            {Array.isArray(comments) && comments.map((comment, index) => (
               <div 
                 key={comment.id} 
                 className={`p-4 rounded-lg bg-amber-50 border border-dashed border-amber-300 transform ${

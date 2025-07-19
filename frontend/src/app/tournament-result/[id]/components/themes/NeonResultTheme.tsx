@@ -249,7 +249,7 @@ export default function NeonResultTheme({
         <div className="bg-gray-900/80 backdrop-blur-sm border border-cyan-400/30 rounded-xl p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xl font-bold text-cyan-400 font-mono">
-              COMMENTS_({comments.length})
+              COMMENTS_({Array.isArray(comments) ? comments.length : 0})
             </h3>
             
             <div className="flex space-x-2">
@@ -324,7 +324,7 @@ export default function NeonResultTheme({
 
           {/* 댓글 목록 */}
           <div className="space-y-4">
-            {comments.map((comment) => (
+            {Array.isArray(comments) && comments.map((comment) => (
               <div 
                 key={comment.id} 
                 className={`p-4 rounded-lg bg-gray-800/50 border border-gray-600/50 ${
