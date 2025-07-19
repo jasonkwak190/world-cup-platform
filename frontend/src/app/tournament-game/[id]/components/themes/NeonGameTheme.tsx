@@ -11,9 +11,11 @@ export default function NeonGameTheme({
   currentMatch,
   selectedItem,
   voteStats,
+  itemPercentages,
   showStats,
   isProcessing,
   canUndo,
+  winStreaks,
   onChoice,
   onUndo,
   onRestart,
@@ -23,6 +25,18 @@ export default function NeonGameTheme({
   roundName
 }: GameThemeProps) {
   if (!currentMatch) return null;
+
+  // Function to get percentage for an item
+  const getItemPercentage = (itemId: string): number | null => {
+    if (!selectedItem || itemPercentages.length === 0) return null;
+    const itemPercentage = itemPercentages.find(p => p.itemId === itemId);
+    return itemPercentage ? itemPercentage.percentage : null;
+  };
+
+  // Function to get win streak for an item
+  const getWinStreak = (itemId: string): number => {
+    return winStreaks.get(itemId) || 0;
+  };
 
   return (
     <div className="min-h-screen bg-black relative overflow-hidden">
@@ -74,10 +88,17 @@ export default function NeonGameTheme({
           </div>
         </div>
 
+        {/* 타이틀 - 헤더 중앙에 위치 */}
+        <div className="text-center mb-4">
+          <h1 className="text-3xl font-bold font-mono bg-gradient-to-r from-cyan-400 to-pink-400 bg-clip-text text-transparent">
+            {worldcupData.title}
+          </h1>
+        </div>
+
         {/* 프로그레스 바 */}
         <div className="text-center">
           <div className="text-cyan-400 font-mono text-sm mb-2">
-            {roundName} • MATCH {progress.currentMatch}/{progress.totalMatches}
+            {roundName}
           </div>
           <div className="w-full bg-gray-800/50 rounded-full h-3 border border-cyan-400/30">
             <div 
@@ -93,17 +114,8 @@ export default function NeonGameTheme({
         </div>
       </div>
 
-      {/* 메인 게임 영역 */}
-      <div className="relative z-10 flex flex-col items-center justify-center min-h-[calc(100vh-200px)] p-8">
-        {/* 타이틀 */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold font-mono bg-gradient-to-r from-cyan-400 to-pink-400 bg-clip-text text-transparent mb-2">
-            {worldcupData.title}
-          </h1>
-          <p className="text-cyan-300 font-mono text-lg">
-            &gt;&gt; SELECT_YOUR_CHOICE &lt;&lt;
-          </p>
-        </div>
+      {/* 메인 게임 영역 - 헤더와 가깝게 */}
+      <div className="relative z-10 flex flex-col items-center justify-start pt-6 min-h-[calc(100vh-200px)] p-8">
 
         {/* 게임 카드들 */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-6xl">
@@ -138,6 +150,33 @@ export default function NeonGameTheme({
                       NO_IMAGE
                     </div>
                   )}
+                  
+                  {/* Win Streak Badge */}
+                  {getWinStreak(item.id) >= 2 && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.8, y: -10 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      className="absolute top-2 right-2 bg-gradient-to-r from-cyan-400 to-pink-400 text-black px-3 py-1 rounded-lg font-mono font-bold text-sm shadow-lg shadow-cyan-400/50 border border-cyan-300"
+                    >
+                      {getWinStreak(item.id)}연승
+                    </motion.div>
+                  )}
+                  
+                  {/* WINNER floating rectangle overlay */}
+                  {selectedItem?.id === item.id && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30"
+                    >
+                      <div className="bg-gradient-to-r from-cyan-400 to-pink-400 text-black px-6 py-3 rounded-lg border-2 border-yellow-400 shadow-lg shadow-cyan-400/50 flex items-center gap-2 font-mono font-bold text-lg">
+                        <span className="text-yellow-900">⚡</span>
+                        WINNER
+                        <span className="text-yellow-900">⚡</span>
+                      </div>
+                    </motion.div>
+                  )}
+
                 </div>
 
                 {/* 제목 */}
@@ -146,6 +185,14 @@ export default function NeonGameTheme({
                 }`}>
                   {item.title}
                 </h3>
+                {/* 승률 표시 */}
+                {getItemPercentage(item.id) !== null && (
+                  <div className="text-center mt-2">
+                    <div className="text-xs text-cyan-400 font-mono">
+                      WIN_RATE: {getItemPercentage(item.id)!.toFixed(1)}%
+                    </div>
+                  </div>
+                )}
 
                 {/* 승리 표시 */}
                 {selectedItem?.id === item.id && (
@@ -167,36 +214,6 @@ export default function NeonGameTheme({
           ))}
         </div>
 
-        {/* 투표 통계 */}
-        <AnimatePresence>
-          {showStats && voteStats && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="mt-8 bg-gray-900/80 backdrop-blur-sm rounded-xl p-6 border border-cyan-400/30"
-            >
-              <div className="text-center mb-4">
-                <h3 className="text-lg font-bold text-cyan-400 font-mono">BATTLE_STATS</h3>
-                <p className="text-gray-400 font-mono text-sm">TOTAL_VOTES: {voteStats.totalVotes}</p>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-cyan-400 font-mono">
-                    {voteStats.leftPercentage.toFixed(1)}%
-                  </div>
-                  <div className="text-gray-400 font-mono text-sm">{currentMatch.left.title}</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-pink-400 font-mono">
-                    {voteStats.rightPercentage.toFixed(1)}%
-                  </div>
-                  <div className="text-gray-400 font-mono text-sm">{currentMatch.right.title}</div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
 
       {/* 키보드 단축키 안내 */}
@@ -206,6 +223,15 @@ export default function NeonGameTheme({
           <div>→ RIGHT_ARROW: RIGHT_CHOICE</div>
           <div>Z: UNDO_LAST</div>
           <div>R: RESTART_GAME</div>
+        </div>
+      </div>
+
+      {/* Footer instruction text */}
+      <div className="fixed bottom-10 left-1/2 transform -translate-x-1/2 z-10">
+        <div className="bg-gray-900/90 backdrop-blur-md rounded-lg px-6 py-3 border border-cyan-400/30 shadow-lg">
+          <div className="text-cyan-400 font-mono text-sm font-bold text-center">
+            {isProcessing ? 'PROCESSING_BATTLE...' : 'CLICK_TO_CHOOSE_YOUR_CHAMPION'}
+          </div>
         </div>
       </div>
 

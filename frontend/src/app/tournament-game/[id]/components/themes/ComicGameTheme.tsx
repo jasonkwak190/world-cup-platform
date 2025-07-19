@@ -11,9 +11,11 @@ export default function ComicGameTheme({
   currentMatch,
   selectedItem,
   voteStats,
+  itemPercentages,
   showStats,
   isProcessing,
   canUndo,
+  winStreaks,
   onChoice,
   onUndo,
   onRestart,
@@ -23,6 +25,18 @@ export default function ComicGameTheme({
   roundName
 }: GameThemeProps) {
   if (!currentMatch) return null;
+
+  // Function to get percentage for an item
+  const getItemPercentage = (itemId: string): number | null => {
+    if (!selectedItem || itemPercentages.length === 0) return null;
+    const itemPercentage = itemPercentages.find(p => p.itemId === itemId);
+    return itemPercentage ? itemPercentage.percentage : null;
+  };
+
+  // Function to get win streak for an item
+  const getWinStreak = (itemId: string): number => {
+    return winStreaks.get(itemId) || 0;
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-100 via-purple-100 to-pink-100 relative">
@@ -75,10 +89,17 @@ export default function ComicGameTheme({
           </div>
         </div>
 
+        {/* 타이틀 - 헤더 중앙에 위치 */}
+        <div className="text-center mb-4">
+          <h1 className="text-3xl font-black text-purple-800 transform skew-x-6">
+            {worldcupData.title}
+          </h1>
+        </div>
+
         {/* 프로그레스 바 */}
         <div className="text-center">
           <div className="text-purple-800 font-black text-sm mb-2 transform -skew-x-12">
-            {roundName} • {progress.currentMatch}번째 대결 (총 {progress.totalMatches}개)
+            {roundName}
           </div>
           <div className="w-full bg-white rounded-full h-6 border-4 border-purple-400 shadow-lg relative overflow-hidden">
             <div 
@@ -96,27 +117,8 @@ export default function ComicGameTheme({
         </div>
       </div>
 
-      {/* 메인 게임 영역 */}
-      <div className="relative z-10 flex flex-col items-center justify-center min-h-[calc(100vh-200px)] p-8">
-        {/* 타이틀 */}
-        <div className="text-center mb-8">
-          <div className="relative inline-block">
-            <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white p-6 rounded-2xl transform -rotate-2 shadow-xl">
-              <h1 className="text-4xl font-black mb-2 transform skew-x-6">
-                {worldcupData.title}
-              </h1>
-              <p className="text-purple-100 text-lg font-bold transform -skew-x-3">
-                어느 쪽이 더 마음에 드시나요?
-              </p>
-            </div>
-            {/* 말풍선 꼬리 */}
-            <div className="absolute -bottom-4 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-8 border-r-8 border-t-8 border-transparent border-t-purple-600"></div>
-          </div>
-          
-          {/* 만화 효과 장식 */}
-          <div className="absolute -top-4 -left-4 text-3xl animate-bounce">💥</div>
-          <div className="absolute -top-2 -right-4 text-2xl animate-pulse">⭐</div>
-        </div>
+      {/* 메인 게임 영역 - 헤더와 가깝게 */}
+      <div className="relative z-10 flex flex-col items-center justify-start pt-6 min-h-[calc(100vh-200px)] p-8">
 
         {/* 게임 카드들 */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-6xl">
@@ -156,6 +158,18 @@ export default function ComicGameTheme({
                   
                   {/* 만화 스타일 하이라이트 */}
                   <div className="absolute top-2 left-2 w-8 h-8 bg-white/60 rounded-full blur-sm"></div>
+                  
+                  {/* Win Streak Badge */}
+                  {getWinStreak(item.id) >= 2 && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.8, y: -10 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      className="absolute top-2 right-2 bg-gradient-to-r from-red-500 to-yellow-400 text-white px-3 py-1 rounded-xl font-black text-sm shadow-lg border-4 border-white transform -rotate-12"
+                    >
+                      {getWinStreak(item.id)}연승
+                    </motion.div>
+                  )}
+                  
                 </div>
 
                 {/* 제목 */}
@@ -164,6 +178,14 @@ export default function ComicGameTheme({
                 } ${index % 2 === 0 ? 'skew-x-3' : '-skew-x-3'}`}>
                   {item.title}
                 </h3>
+                {/* 승률 표시 */}
+                {getItemPercentage(item.id) !== null && (
+                  <div className="text-center mt-2">
+                    <div className="text-xs text-purple-600 font-bold">
+                      승률: {getItemPercentage(item.id)!.toFixed(1)}%
+                    </div>
+                  </div>
+                )}
 
                 {/* 승리 표시 */}
                 {selectedItem?.id === item.id && (
@@ -205,36 +227,6 @@ export default function ComicGameTheme({
           </div>
         </div>
 
-        {/* 투표 통계 */}
-        <AnimatePresence>
-          {showStats && voteStats && (
-            <motion.div
-              initial={{ opacity: 0, y: 20, scale: 0.8 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -20, scale: 0.8 }}
-              className="mt-8 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-2xl p-6 border-4 border-white shadow-2xl transform -rotate-1"
-            >
-              <div className="text-center mb-4">
-                <h3 className="text-lg font-black">투표 결과</h3>
-                <p className="text-purple-100 text-sm font-bold">총 투표수: {voteStats.totalVotes}표</p>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="text-center bg-white/20 rounded-xl p-3">
-                  <div className="text-3xl font-black text-yellow-300">
-                    {voteStats.leftPercentage.toFixed(1)}%
-                  </div>
-                  <div className="text-white text-sm font-bold">{currentMatch.left.title}</div>
-                </div>
-                <div className="text-center bg-white/20 rounded-xl p-3">
-                  <div className="text-3xl font-black text-yellow-300">
-                    {voteStats.rightPercentage.toFixed(1)}%
-                  </div>
-                  <div className="text-white text-sm font-bold">{currentMatch.right.title}</div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
 
       {/* 키보드 단축키 안내 */}
@@ -244,6 +236,15 @@ export default function ComicGameTheme({
           <div>→ 오른쪽 화살표: 오른쪽 선택</div>
           <div>Z: 되돌리기</div>
           <div>R: 다시시작</div>
+        </div>
+      </div>
+
+      {/* Footer instruction text */}
+      <div className="fixed bottom-10 left-1/2 transform -translate-x-1/2 z-10">
+        <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl px-6 py-3 border-4 border-white shadow-xl transform -rotate-1">
+          <div className="font-black text-sm text-center">
+            {isProcessing ? 'PROCESSING BATTLE...' : 'CLICK TO CHOOSE YOUR CHAMPION'}
+          </div>
         </div>
       </div>
 

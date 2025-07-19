@@ -6,6 +6,11 @@ export interface VoteStats {
   totalVotes: number;
 }
 
+export interface ItemPercentage {
+  itemId: string;
+  percentage: number;
+}
+
 export interface WorldCupData {
   id: string;
   title: string;
@@ -29,9 +34,11 @@ export interface GameThemeProps {
   } | null;
   selectedItem: WorldCupItem | null;
   voteStats: VoteStats | null;
+  itemPercentages: ItemPercentage[];
   showStats: boolean;
   isProcessing: boolean;
   canUndo: boolean;
+  winStreaks: Map<string, number>;
   onChoice: (item: WorldCupItem) => void;
   onUndo: () => void;
   onRestart: () => void;

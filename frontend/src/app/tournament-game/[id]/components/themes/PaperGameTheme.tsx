@@ -11,9 +11,11 @@ export default function PaperGameTheme({
   currentMatch,
   selectedItem,
   voteStats,
+  itemPercentages,
   showStats,
   isProcessing,
   canUndo,
+  winStreaks,
   onChoice,
   onUndo,
   onRestart,
@@ -23,6 +25,18 @@ export default function PaperGameTheme({
   roundName
 }: GameThemeProps) {
   if (!currentMatch) return null;
+
+  // Function to get percentage for an item
+  const getItemPercentage = (itemId: string): number | null => {
+    if (!selectedItem || itemPercentages.length === 0) return null;
+    const itemPercentage = itemPercentages.find(p => p.itemId === itemId);
+    return itemPercentage ? itemPercentage.percentage : null;
+  };
+
+  // Function to get win streak for an item
+  const getWinStreak = (itemId: string): number => {
+    return winStreaks.get(itemId) || 0;
+  };
 
   return (
     <div className="min-h-screen bg-amber-50 relative">
@@ -75,10 +89,17 @@ export default function PaperGameTheme({
           </div>
         </div>
 
+        {/* 타이틀 - 헤더 중앙에 위치 */}
+        <div className="text-center mb-4">
+          <h1 className="text-3xl font-bold text-amber-900 transform -rotate-1">
+            {worldcupData.title}
+          </h1>
+        </div>
+
         {/* 프로그레스 바 */}
         <div className="text-center">
           <div className="text-amber-800 font-bold text-sm mb-2 transform -rotate-1">
-            {roundName} • {progress.currentMatch}번째 대결 (총 {progress.totalMatches}개)
+            {roundName}
           </div>
           <div className="w-full bg-amber-100 rounded-lg h-4 border-2 border-dashed border-amber-300 relative">
             <div 
@@ -94,22 +115,8 @@ export default function PaperGameTheme({
         </div>
       </div>
 
-      {/* 메인 게임 영역 */}
-      <div className="relative z-10 flex flex-col items-center justify-center min-h-[calc(100vh-200px)] p-8">
-        {/* 타이틀 */}
-        <div className="text-center mb-8">
-          <div className="inline-block bg-white rounded-lg p-6 border-2 border-dashed border-amber-600 transform -rotate-1 shadow-lg shadow-amber-200 mb-4">
-            <h1 className="text-4xl font-bold text-amber-900 mb-2">
-              {worldcupData.title}
-            </h1>
-            <p className="text-amber-700 text-lg font-medium">
-              어느 쪽이 더 마음에 드시나요?
-            </p>
-          </div>
-          
-          {/* 종이 테이프 효과 */}
-          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 w-20 h-6 bg-amber-300 opacity-60 transform rotate-12"></div>
-        </div>
+      {/* 메인 게임 영역 - 헤더와 가깝게 */}
+      <div className="relative z-10 flex flex-col items-center justify-start pt-6 min-h-[calc(100vh-200px)] p-8">
 
         {/* 게임 카드들 */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-6xl">
@@ -146,6 +153,31 @@ export default function PaperGameTheme({
                       이미지 없음
                     </div>
                   )}
+                  
+                  {/* Win Streak Badge */}
+                  {getWinStreak(item.id) >= 2 && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.8, y: -10 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      className="absolute top-2 right-2 bg-orange-500 text-white px-3 py-1 rounded-lg font-bold text-sm shadow-lg transform rotate-3 border-2 border-dashed border-white"
+                    >
+                      {getWinStreak(item.id)}연승
+                    </motion.div>
+                  )}
+                  
+                  {/* WINNER floating rectangle overlay */}
+                  {selectedItem?.id === item.id && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.8, rotate: -5 }}
+                      animate={{ opacity: 1, scale: 1, rotate: 2 }}
+                      className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30"
+                    >
+                      <div className="bg-white border-2 border-dashed border-orange-500 text-orange-800 px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 font-bold text-lg transform rotate-1">
+                        WINNER
+                      </div>
+                    </motion.div>
+                  )}
+
                 </div>
 
                 {/* 제목 */}
@@ -154,6 +186,14 @@ export default function PaperGameTheme({
                 }`}>
                   {item.title}
                 </h3>
+                {/* 승률 표시 */}
+                {getItemPercentage(item.id) !== null && (
+                  <div className="text-center mt-2">
+                    <div className="text-xs text-amber-600 font-medium">
+                      승률: {getItemPercentage(item.id)!.toFixed(1)}%
+                    </div>
+                  </div>
+                )}
 
                 {/* 승리 표시 */}
                 {selectedItem?.id === item.id && (
@@ -174,36 +214,6 @@ export default function PaperGameTheme({
           ))}
         </div>
 
-        {/* 투표 통계 */}
-        <AnimatePresence>
-          {showStats && voteStats && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="mt-8 bg-white rounded-lg p-6 border-2 border-dashed border-amber-600 shadow-lg transform rotate-1"
-            >
-              <div className="text-center mb-4">
-                <h3 className="text-lg font-bold text-amber-800">투표 결과</h3>
-                <p className="text-amber-600 text-sm">총 투표수: {voteStats.totalVotes}표</p>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-amber-800">
-                    {voteStats.leftPercentage.toFixed(1)}%
-                  </div>
-                  <div className="text-amber-600 text-sm">{currentMatch.left.title}</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-orange-700">
-                    {voteStats.rightPercentage.toFixed(1)}%
-                  </div>
-                  <div className="text-amber-600 text-sm">{currentMatch.right.title}</div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
 
       {/* 키보드 단축키 안내 */}
@@ -213,6 +223,15 @@ export default function PaperGameTheme({
           <div>→ 오른쪽 화살표: 오른쪽 선택</div>
           <div>Z: 되돌리기</div>
           <div>R: 다시시작</div>
+        </div>
+      </div>
+
+      {/* Footer instruction text */}
+      <div className="fixed bottom-10 left-1/2 transform -translate-x-1/2 z-10">
+        <div className="bg-white rounded-lg px-6 py-3 border-2 border-dashed border-amber-600 shadow-lg transform -rotate-1">
+          <div className="text-amber-800 text-sm font-bold text-center">
+            {isProcessing ? 'PROCESSING BATTLE...' : 'CLICK TO CHOOSE YOUR CHAMPION'}
+          </div>
         </div>
       </div>
 

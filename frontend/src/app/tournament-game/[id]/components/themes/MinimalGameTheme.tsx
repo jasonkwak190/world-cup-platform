@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Home, ArrowLeft, RotateCcw, ChevronRight } from 'lucide-react';
 import Image from 'next/image';
@@ -11,9 +12,11 @@ export default function MinimalGameTheme({
   currentMatch,
   selectedItem,
   voteStats,
+  itemPercentages,
   showStats,
   isProcessing,
   canUndo,
+  winStreaks,
   onChoice,
   onUndo,
   onRestart,
@@ -23,6 +26,18 @@ export default function MinimalGameTheme({
   roundName
 }: GameThemeProps) {
   if (!currentMatch) return null;
+
+  // Function to get percentage for an item
+  const getItemPercentage = (itemId: string): number | null => {
+    if (!selectedItem || itemPercentages.length === 0) return null;
+    const itemPercentage = itemPercentages.find(p => p.itemId === itemId);
+    return itemPercentage ? itemPercentage.percentage : null;
+  };
+
+  // Function to get win streak for an item
+  const getWinStreak = (itemId: string): number => {
+    return winStreaks.get(itemId) || 0;
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
@@ -70,35 +85,32 @@ export default function MinimalGameTheme({
           </div>
         </div>
 
+        {/* 타이틀 - 헤더 중앙에 위치 */}
+        <div className="text-center mb-4">
+          <h1 className="text-2xl font-light text-gray-900 tracking-tight">
+            {worldcupData.title}
+          </h1>
+        </div>
+
         {/* 프로그레스 바 */}
         <div className="text-center">
           <div className="text-gray-700 font-medium text-sm mb-3">
-            {roundName} • {progress.currentMatch}번째 대결 (총 {progress.totalMatches}개)
+            {roundName}
           </div>
           <div className="w-full bg-gray-200 rounded-full h-2 relative overflow-hidden">
             <div 
               className="bg-gray-900 h-full rounded-full transition-all duration-500"
-              style={{ width: `${progress.percentage}%` }}
+              style={{ width: `${progress?.percentage || 0}%` }}
             ></div>
           </div>
           <div className="text-gray-600 font-medium text-xs mt-2">
-            진행률: {progress.percentage.toFixed(1)}%
+            진행률: {progress?.percentage?.toFixed(1) || 0}%
           </div>
         </div>
       </div>
 
-      {/* 메인 게임 영역 */}
-      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] p-8">
-        {/* 타이틀 */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-light text-gray-900 mb-3 tracking-tight">
-            {worldcupData.title}
-          </h1>
-          <p className="text-gray-600 text-lg font-light">
-            어느 쪽이 더 마음에 드시나요?
-          </p>
-        </div>
-
+      {/* 메인 게임 영역 - 헤더와 가깝게 */}
+      <div className="flex flex-col items-center justify-start pt-6 min-h-[calc(100vh-200px)] p-8">
         {/* 게임 카드들 */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12 w-full max-w-6xl">
           {[currentMatch.left, currentMatch.right].map((item, index) => (
@@ -132,6 +144,32 @@ export default function MinimalGameTheme({
                       이미지 없음
                     </div>
                   )}
+                  
+                  {/* Win Streak Badge */}
+                  {getWinStreak(item.id) >= 2 && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.8, y: -10 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      className="absolute top-3 right-3 bg-gray-900 text-white px-3 py-1 rounded-full font-medium text-sm shadow-lg"
+                    >
+                      {getWinStreak(item.id)}연승
+                    </motion.div>
+                  )}
+                  
+                  {/* WINNER floating rectangle overlay */}
+                  {selectedItem?.id === item.id && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30"
+                    >
+                      <div className="bg-white border-2 border-gray-900 text-gray-900 px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 font-bold text-lg">
+                        WINNER
+                      </div>
+                    </motion.div>
+                  )}
+
+                  
                 </div>
 
                 {/* 제목 */}
@@ -141,6 +179,14 @@ export default function MinimalGameTheme({
                   }`}>
                     {item.title}
                   </h3>
+                  {/* 승률 표시 */}
+                  {getItemPercentage(item.id) !== null && (
+                    <div className="text-center mt-2">
+                      <div className="text-xs text-gray-500">
+                        승률: {getItemPercentage(item.id)!.toFixed(1)}%
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* 승리 표시 */}
@@ -158,36 +204,6 @@ export default function MinimalGameTheme({
           ))}
         </div>
 
-        {/* 투표 통계 */}
-        <AnimatePresence>
-          {showStats && voteStats && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="mt-12 bg-white rounded-lg p-6 shadow-sm border border-gray-200"
-            >
-              <div className="text-center mb-4">
-                <h3 className="text-lg font-medium text-gray-900">투표 결과</h3>
-                <p className="text-gray-600 text-sm">총 투표수: {voteStats.totalVotes}표</p>
-              </div>
-              <div className="grid grid-cols-2 gap-6">
-                <div className="text-center">
-                  <div className="text-3xl font-light text-gray-900">
-                    {voteStats.leftPercentage.toFixed(1)}%
-                  </div>
-                  <div className="text-gray-600 text-sm font-medium">{currentMatch.left.title}</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-3xl font-light text-gray-900">
-                    {voteStats.rightPercentage.toFixed(1)}%
-                  </div>
-                  <div className="text-gray-600 text-sm font-medium">{currentMatch.right.title}</div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
 
       {/* 키보드 단축키 안내 */}
@@ -197,6 +213,15 @@ export default function MinimalGameTheme({
           <div>→ 오른쪽 화살표: 오른쪽 선택</div>
           <div>Z: 되돌리기</div>
           <div>R: 다시시작</div>
+        </div>
+      </div>
+
+      {/* Footer instruction text */}
+      <div className="fixed bottom-10 left-1/2 transform -translate-x-1/2 z-10">
+        <div className="bg-white rounded-lg px-6 py-3 border border-gray-200 shadow-sm">
+          <div className="text-gray-700 text-sm font-medium text-center">
+            {isProcessing ? 'PROCESSING BATTLE...' : 'CLICK TO CHOOSE YOUR CHAMPION'}
+          </div>
         </div>
       </div>
     </div>
