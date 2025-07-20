@@ -5,9 +5,34 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { WorldCupItem } from '@/types/game';
 import { WinnerStats, Comment, WorldCupData } from '../components/themes/types';
+import { supabase } from '@/lib/supabase';
 
 interface UseResultLogicProps {
   worldcupId: string;
+}
+
+// Helper function to get authentication headers
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  try {
+    const { data: { session }, error } = await supabase.auth.getSession();
+    
+    if (error) {
+      console.error('Failed to get auth session:', error);
+      throw new Error('Authentication failed');
+    }
+    
+    if (!session?.access_token) {
+      throw new Error('No valid authentication token found');
+    }
+    
+    return {
+      'Authorization': `Bearer ${session.access_token}`,
+      'Content-Type': 'application/json',
+    };
+  } catch (error) {
+    console.error('Failed to get auth headers:', error);
+    throw new Error('Authentication failed');
+  }
 }
 
 export function useResultLogic({ worldcupId }: UseResultLogicProps) {
@@ -28,6 +53,8 @@ export function useResultLogic({ worldcupId }: UseResultLogicProps) {
   // User interactions
   const [liked, setLiked] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
+  const [reported, setReported] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
   const [likes, setLikes] = useState(0);
   
   // Modal states
@@ -72,7 +99,7 @@ export function useResultLogic({ worldcupId }: UseResultLogicProps) {
           title: worldcup.title,
           description: worldcup.description,
           items: worldcup.items,
-          creator_name: worldcup.creator_name,
+          creator_name: worldcup.author || worldcup.creator_name || 'Unknown', // Fix: use author field from API
           created_at: worldcup.created_at,
           likes: worldcup.likes || 0
         });
@@ -80,14 +107,42 @@ export function useResultLogic({ worldcupId }: UseResultLogicProps) {
 
         if (winnerResponse?.ok) {
           const winnerResult = await winnerResponse.json();
-          setWinnerData(winnerResult);
+          setWinnerData(winnerResult.item); // Extract the item from the response
           
-          // Simulate winner statistics
-          setWinnerStats({
-            votes: Math.floor(Math.random() * 1000) + 100,
-            winRate: Math.floor(Math.random() * 30) + 70,
-            totalMatches: Math.floor(Math.random() * 50) + 20
-          });
+          // Fetch real winner statistics from database
+          const winnerId = searchParams.get('winner');
+          if (winnerId) {
+            try {
+              const statsResponse = await fetch(`/api/worldcup/${worldcupId}/stats`);
+              if (statsResponse.ok) {
+                const statsData = await statsResponse.json();
+                const winnerItemStats = statsData.items?.find((item: any) => item.id === winnerId);
+                
+                if (winnerItemStats) {
+                  setWinnerStats({
+                    votes: winnerItemStats.total_appearances || 0,
+                    winRate: Math.round(winnerItemStats.win_rate || 0),
+                    totalMatches: (winnerItemStats.win_count || 0) + (winnerItemStats.loss_count || 0)
+                  });
+                } else {
+                  // Fallback to reasonable defaults if item not found
+                  setWinnerStats({
+                    votes: 1,
+                    winRate: 100, // Winner by definition
+                    totalMatches: 1
+                  });
+                }
+              }
+            } catch (error) {
+              console.error('Failed to fetch winner statistics:', error);
+              // Fallback stats for winner
+              setWinnerStats({
+                votes: 1,
+                winRate: 100,
+                totalMatches: 1
+              });
+            }
+          }
         }
 
         // Load comments and user states
@@ -129,9 +184,23 @@ export function useResultLogic({ worldcupId }: UseResultLogicProps) {
 
   const checkLikeBookmarkStatus = useCallback(async () => {
     try {
-      const [likeResponse, bookmarkResponse] = await Promise.all([
-        fetch(`/api/worldcups/${worldcupId}/like`),
-        fetch(`/api/worldcups/${worldcupId}/bookmark`)
+      // Get headers with authentication if user is authenticated
+      const baseHeaders = { 'Content-Type': 'application/json' };
+      let headers = baseHeaders;
+      
+      if (isAuthenticated) {
+        try {
+          headers = await getAuthHeaders();
+        } catch (error) {
+          console.warn('Failed to get auth headers, using anonymous request:', error);
+          headers = baseHeaders;
+        }
+      }
+
+      const [likeResponse, bookmarkResponse, reportResponse] = await Promise.all([
+        fetch(`/api/worldcups/${worldcupId}/like`, { headers }),
+        fetch(`/api/worldcups/${worldcupId}/bookmark`, { headers }),
+        fetch(`/api/worldcups/${worldcupId}/report`, { headers })
       ]);
       
       if (likeResponse.ok) {
@@ -143,10 +212,15 @@ export function useResultLogic({ worldcupId }: UseResultLogicProps) {
         const bookmarkData = await bookmarkResponse.json();
         setBookmarked(bookmarkData.bookmarked);
       }
+
+      if (reportResponse.ok) {
+        const reportData = await reportResponse.json();
+        setReported(reportData.reported);
+      }
     } catch (error) {
-      console.error('Failed to check like/bookmark status:', error);
+      console.error('Failed to check like/bookmark/report status:', error);
     }
-  }, [worldcupId]);
+  }, [worldcupId, isAuthenticated]);
 
   const handleLike = useCallback(async () => {
     if (!isAuthenticated) {
@@ -155,14 +229,19 @@ export function useResultLogic({ worldcupId }: UseResultLogicProps) {
     }
 
     try {
+      const headers = await getAuthHeaders();
       const response = await fetch(`/api/worldcups/${worldcupId}/like`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers
       });
       
       if (response.ok) {
         setLiked(!liked);
         setLikes(prev => liked ? prev - 1 : prev + 1);
+      } else {
+        console.error('Failed to toggle like:', response.status, response.statusText);
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Error details:', errorData);
       }
     } catch (error) {
       console.error('Failed to toggle like:', error);
@@ -176,18 +255,51 @@ export function useResultLogic({ worldcupId }: UseResultLogicProps) {
     }
 
     try {
+      const headers = await getAuthHeaders();
       const response = await fetch(`/api/worldcups/${worldcupId}/bookmark`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers
       });
       
       if (response.ok) {
         setBookmarked(!bookmarked);
+      } else {
+        console.error('Failed to toggle bookmark:', response.status, response.statusText);
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Error details:', errorData);
       }
     } catch (error) {
       console.error('Failed to toggle bookmark:', error);
     }
   }, [isAuthenticated, worldcupId, bookmarked]);
+
+  const handleWorldcupReport = useCallback(async (reason: string, description?: string) => {
+    if (!isAuthenticated) {
+      alert('로그인이 필요합니다.');
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/worldcups/${worldcupId}/report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason, description })
+      });
+      
+      const result = await response.json();
+      
+      if (response.ok) {
+        setReported(true);
+        setShowReportModal(false);
+        alert('신고가 접수되었습니다. 검토 후 조치하겠습니다.');
+      } else {
+        alert(result.error || '신고 접수 중 오류가 발생했습니다.');
+      }
+    } catch (error) {
+      console.error('Failed to submit report:', error);
+      alert('신고 접수 중 오류가 발생했습니다.');
+    }
+  }, [isAuthenticated, worldcupId]);
 
   const handleShare = useCallback(async () => {
     try {
@@ -281,6 +393,8 @@ export function useResultLogic({ worldcupId }: UseResultLogicProps) {
     // User interactions
     liked,
     bookmarked,
+    reported,
+    showReportModal,
     likes,
     
     // Modal states
@@ -299,19 +413,21 @@ export function useResultLogic({ worldcupId }: UseResultLogicProps) {
     // Actions
     handleLike,
     handleBookmark,
+    handleWorldcupReport,
     handleShare,
     handleRestart,
     handleGoHome,
     handleShowRanking,
     handleShowImageModal,
     handleCommentSubmit,
-    handleReport,
+    handleReport, // comment report
     
     // Setters
     setCommentText,
     setGuestName,
     setCommentFilter,
     setShowCommentForm,
+    setShowReportModal,
     
     // Auth
     isAuthenticated
