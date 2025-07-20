@@ -64,6 +64,8 @@ function TournamentResultContent({ worldcupId }: { worldcupId: string }) {
     handleShowImageModal,
     handleCommentSubmit,
     handleReport,
+    handleCommentLike,
+    handleRetry,
     
     // Setters
     setCommentText,
@@ -96,12 +98,20 @@ function TournamentResultContent({ worldcupId }: { worldcupId: string }) {
           <div className="text-6xl mb-6">⚠️</div>
           <h1 className="text-2xl font-bold mb-4">오류가 발생했습니다</h1>
           <p className="text-gray-300 mb-6">{error}</p>
-          <button
-            onClick={handleGoHome}
-            className="bg-emerald-600 hover:bg-emerald-700 px-6 py-3 rounded-lg transition-colors"
-          >
-            홈으로 돌아가기
-          </button>
+          <div className="space-y-3">
+            <button
+              onClick={handleRetry}
+              className="w-full bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg transition-colors"
+            >
+              다시 시도
+            </button>
+            <button
+              onClick={handleGoHome}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 px-6 py-3 rounded-lg transition-colors"
+            >
+              홈으로 돌아가기
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -149,6 +159,7 @@ function TournamentResultContent({ worldcupId }: { worldcupId: string }) {
     onShowImageModal: handleShowImageModal,
     onCommentSubmit: handleCommentSubmit,
     onReport: handleReport,
+    onCommentLike: handleCommentLike,
     setCommentText,
     setGuestName,
     setCommentFilter,

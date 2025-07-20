@@ -12,8 +12,9 @@ export interface Comment {
   author: string;
   createdAt: string;
   likes: number;
+  liked?: boolean;
   isCreator: boolean;
-  level: 'bronze' | 'silver' | 'gold' | 'vip';
+  level: 'bronze' | 'silver' | 'gold' | 'vip' | 'user';
   replies?: Comment[];
 }
 
@@ -41,8 +42,12 @@ export interface ResultThemeProps {
   showReportModal: boolean;
   likes: number;
   
-  // Comment system (for CommentSystem component)
+  // Comment system
   comments: Comment[];
+  commentText: string;
+  guestName: string;
+  commentFilter: 'likes' | 'recent';
+  showCommentForm: boolean;
   
   // Actions
   onLike: () => void;
@@ -53,9 +58,18 @@ export interface ResultThemeProps {
   onGoHome: () => void;
   onShowRanking: () => void;
   onShowImageModal: () => void;
+  onCommentSubmit: (e: React.FormEvent) => void;
+  onReport: (commentId: string) => void;
+  
+  // Comment actions
+  onCommentLike?: (commentId: string) => void;
   
   // Setters
   setShowReportModal: (show: boolean) => void;
+  setCommentText: (text: string) => void;
+  setGuestName: (name: string) => void;
+  setCommentFilter: (filter: 'likes' | 'recent') => void;
+  setShowCommentForm: (show: boolean) => void;
   
   // Authentication state
   isAuthenticated?: boolean;

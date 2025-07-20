@@ -12,6 +12,7 @@ import {
   undoLastMatch 
 } from '@/utils/tournament';
 import { VoteStats, WorldCupData, ItemPercentage } from '../components/themes/types';
+import { secureSubmitVote, secureGetWorldcupStats, secureUpdateWorldcupStats } from '@/lib/api/secure-api';
 
 interface UseGameLogicProps {
   worldcupId: string;
@@ -42,18 +43,11 @@ export function useGameLogic({ worldcupId }: UseGameLogicProps) {
   // Function to fetch item statistics and calculate percentages
   const fetchItemPercentages = useCallback(async (items: WorldCupItem[]) => {
     try {
-      const response = await fetch(`/api/worldcup/${worldcupId}/stats`);
-      if (!response.ok) {
-        console.warn('Failed to fetch item stats, using fallback percentages');
-        // Fallback to random percentages if API fails
-        return items.map(item => ({
-          itemId: item.id,
-          percentage: Math.random() * 100
-        }));
-      }
-      
-      const statsData = await response.json();
+      console.log('📊 Fetching item percentages for', items.length, 'items');
+      const statsData = await secureGetWorldcupStats(worldcupId);
       const itemStats = statsData.items || [];
+      
+      console.log('📊 Stats received:', itemStats.length, 'items');
       
       // Calculate percentages based on win rate from database
       const percentages: ItemPercentage[] = items.map(item => {
@@ -73,14 +67,17 @@ export function useGameLogic({ worldcupId }: UseGameLogicProps) {
         }
       });
       
+      console.log('📊 Calculated percentages:', percentages.slice(0, 3)); // Log first 3
       return percentages;
     } catch (error) {
-      console.error('Error fetching item percentages:', error);
+      console.error('❌ Error fetching item percentages:', error);
       // Fallback to random percentages
-      return items.map(item => ({
+      const fallbackPercentages = items.map(item => ({
         itemId: item.id,
         percentage: Math.random() * 100
       }));
+      console.log('🎲 Using fallback percentages for', fallbackPercentages.length, 'items');
+      return fallbackPercentages;
     }
   }, [worldcupId]);
 
@@ -197,18 +194,21 @@ export function useGameLogic({ worldcupId }: UseGameLogicProps) {
       setVoteStats(stats);
       setShowStats(true);
       
-      // API call for voting
+      // API call for voting using secure API
       try {
-        await fetch(`/api/worldcups/${worldcupId}/vote`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            winnerId: winner.id,
-            loserId: rawMatch ? (isLeftWinner ? rawMatch.item2.id : rawMatch.item1.id) : null
-          })
+        console.log('💳 Submitting vote via secure API:', {
+          winnerId: winner.id,
+          loserId: rawMatch ? (isLeftWinner ? rawMatch.item2.id : rawMatch.item1.id) : null
         });
+        
+        await secureSubmitVote(worldcupId, { 
+          winnerId: winner.id,
+          loserId: rawMatch ? (isLeftWinner ? rawMatch.item2.id : rawMatch.item1.id) : null
+        });
+        
+        console.log('✅ Vote submitted successfully');
       } catch (apiError) {
-        console.warn('Vote API call failed:', apiError);
+        console.warn('❌ Vote API call failed:', apiError);
         // Continue with local game logic even if API fails
       }
       
@@ -364,12 +364,60 @@ export function useGameLogic({ worldcupId }: UseGameLogicProps) {
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [gameState, isProcessing, handleChoice, handleUndo, handleRestart, handleGoHome]);
 
-  // Check for game completion
+  // Check for game completion and handle stats update
   useEffect(() => {
-    if (gameState?.tournament.isCompleted) {
-      const playTime = Date.now() - gameState.startTime;
-      const resultUrl = `/tournament-result/${worldcupId}?theme=${theme}&playTime=${playTime}&winner=${gameState.tournament.winner?.id}`;
-      router.push(resultUrl);
+    if (gameState?.tournament.isCompleted && gameState.tournament.winner) {
+      const handleGameCompletion = async () => {
+        try {
+          console.log('🏆 Game completed, processing results...');
+          const playTime = Date.now() - gameState.startTime;
+          
+          console.log('📊 Game completion data:', {
+            worldcupId,
+            winner: gameState.tournament.winner,
+            playTime,
+            theme
+          });
+          
+          // Update tournament statistics using secure API
+          try {
+            console.log('📊 Updating tournament statistics via secure API');
+            
+            await secureUpdateWorldcupStats(worldcupId, {
+              matches: gameState.tournament.matches,
+              winner: gameState.tournament.winner,
+              sessionToken: `game_${Date.now()}`
+            });
+            
+            console.log('✅ Statistics updated successfully');
+          } catch (error) {
+            console.warn('❌ Statistics update failed, but proceeding to results:', error);
+          }
+          
+          // Small delay to ensure all state updates are complete
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Validate winner ID before navigation
+          const winnerId = gameState.tournament.winner.id;
+          if (!winnerId) {
+            console.error('❌ Winner ID is missing, cannot navigate to results');
+            return;
+          }
+          
+          // Navigate to results page
+          const resultUrl = `/tournament-result/${worldcupId}?theme=${encodeURIComponent(theme)}&playTime=${playTime}&winner=${encodeURIComponent(winnerId)}`;
+          console.log('🚀 Navigating to results:', resultUrl);
+          router.push(resultUrl);
+        } catch (error) {
+          console.error('Error handling game completion:', error);
+          // Still navigate to results even if stats update fails
+          const playTime = Date.now() - gameState.startTime;
+          const resultUrl = `/tournament-result/${worldcupId}?theme=${theme}&playTime=${playTime}&winner=${gameState.tournament.winner?.id}`;
+          router.push(resultUrl);
+        }
+      };
+      
+      handleGameCompletion();
     }
   }, [gameState, worldcupId, theme, router]);
 

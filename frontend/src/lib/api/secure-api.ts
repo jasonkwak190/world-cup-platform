@@ -217,6 +217,72 @@ export async function secureGetUserBookmarks(userId: string): Promise<string[]> 
 }
 
 /**
+ * Submit a vote for worldcup battle (with optional authentication)
+ */
+export async function secureSubmitVote(
+  worldcupId: string, 
+  vote: { winnerId: string; loserId?: string; roundType?: string }
+): Promise<void> {
+  validateInput(worldcupId, 'Worldcup ID');
+  validateInput(vote, 'Vote data');
+  
+  await secureApiCall<void>(
+    `/api/worldcups/${encodeURIComponent(worldcupId)}/vote`,
+    {
+      method: 'POST',
+      body: JSON.stringify(vote),
+    },
+    false // Don't require auth for voting
+  );
+}
+
+/**
+ * Get vote statistics (public data, no auth required)
+ */
+export async function secureGetVoteStats(worldcupId: string): Promise<any> {
+  validateInput(worldcupId, 'Worldcup ID');
+  
+  return await secureApiCall<any>(
+    `/api/worldcups/${encodeURIComponent(worldcupId)}/vote`,
+    { method: 'GET' },
+    false // Public data
+  );
+}
+
+/**
+ * Get worldcup statistics (public data, no auth required)
+ */
+export async function secureGetWorldcupStats(worldcupId: string): Promise<any> {
+  validateInput(worldcupId, 'Worldcup ID');
+  
+  return await secureApiCall<any>(
+    `/api/worldcup/${encodeURIComponent(worldcupId)}/stats`,
+    { method: 'GET' },
+    false // Public data
+  );
+}
+
+/**
+ * Update worldcup statistics after game completion (with optional authentication)
+ */
+export async function secureUpdateWorldcupStats(
+  worldcupId: string, 
+  data: { matches: any[]; winner: any; sessionToken: string }
+): Promise<void> {
+  validateInput(worldcupId, 'Worldcup ID');
+  validateInput(data, 'Stats data');
+  
+  await secureApiCall<void>(
+    `/api/worldcup/${encodeURIComponent(worldcupId)}/stats`,
+    {
+      method: 'POST',
+      body: JSON.stringify(data),
+    },
+    false // Allow anonymous stats updates for public worldcups
+  );
+}
+
+/**
  * Check if current user is authenticated
  */
 export async function checkAuthStatus(): Promise<{ isAuthenticated: boolean; user?: any }> {

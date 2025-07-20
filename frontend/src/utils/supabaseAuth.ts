@@ -20,6 +20,23 @@ export async function signOutFromSupabase() {
   }
 }
 
+// 현재 세션 토큰 가져오기 (API 호출용)
+export async function getCurrentSessionToken(): Promise<string | null> {
+  try {
+    const { data: { session }, error } = await supabase.auth.getSession();
+    
+    if (error) {
+      console.warn('Session token retrieval error:', error);
+      return null;
+    }
+    
+    return session?.access_token || null;
+  } catch (error) {
+    console.error('Error getting session token:', error);
+    return null;
+  }
+}
+
 // 현재 사용자 가져오기
 export async function getCurrentSupabaseUser(): Promise<SupabaseUser | null> {
   try {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { z } from 'zod';
 import { rateLimiters, checkRateLimit, getUserIdentifier, createRateLimitResponse } from '@/lib/ratelimit';
+import { getCurrentSupabaseUser } from '@/utils/supabaseAuth';
 
 // Validation schema for voting
 const voteSchema = z.object({
@@ -16,9 +17,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Rate limiting
+    // Rate limiting for anonymous users (more lenient)
     const identifier = getUserIdentifier(request);
-    const rateLimitResult = await checkRateLimit(rateLimiters.stats, identifier);
+    const rateLimitResult = await checkRateLimit(rateLimiters.interaction, identifier);
     
     if (!rateLimitResult.success) {
       return createRateLimitResponse(rateLimitResult);
@@ -28,7 +29,11 @@ export async function POST(
     const worldcupId = resolvedParams.id;
     const body = await request.json();
     
-    console.log('Vote request received:', { worldcupId, body });
+    console.log('💳 Vote request received:', { worldcupId, body });
+    
+    // Check current user (optional - for analytics)
+    const currentUser = await getCurrentSupabaseUser();
+    console.log('👤 User context:', currentUser ? `${currentUser.username} (${currentUser.id})` : 'Anonymous');
     
     const validatedData = voteSchema.parse(body);
     console.log('Vote data validated:', validatedData);

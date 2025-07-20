@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { z } from 'zod';
 import { rateLimiters, checkRateLimit, getUserIdentifier, createRateLimitResponse } from '@/lib/ratelimit';
-import { withOptionalAuth } from '@/lib/auth';
+import { withOptionalAuth } from '@/lib/auth-middleware';
 
 // Validation schema for comment creation
 const commentSchema = z.object({

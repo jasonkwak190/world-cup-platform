@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import { type NextRequest, NextResponse } from 'next/server';
 import { Database } from '@/types/supabase';
 import { withOptionalAuth, verifyWorldcupOwnership, isWorldcupPublic } from '@/lib/auth-middleware';
+import { rateLimiters, checkRateLimit, getUserIdentifier } from '@/lib/ratelimit';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -243,16 +244,33 @@ export async function POST(
   );
 }
 
-// 🔒 SECURITY: 인증된 GET 핸들러 - 통계 조회 (공개 데이터는 인증 불필요)
+// 📊 PUBLIC: 통계 조회 (공개 데이터는 인증 불필요)
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: worldcupId } = await params;
   
-  // 🚨 TEMPORARY FIX: 공개 월드컵 통계는 인증 없이 접근 허용
+  // Rate limiting for anonymous access
+  const identifier = getUserIdentifier(request);
+  const rateLimitResult = await checkRateLimit(rateLimiters.api, identifier);
+  
+  if (!rateLimitResult.success) {
+    return NextResponse.json({ 
+      error: 'Too Many Requests',
+      message: `Rate limit exceeded. Try again in ${rateLimitResult.retryAfter || 60} seconds.`
+    }, { 
+      status: 429,
+      headers: {
+        'Retry-After': (rateLimitResult.retryAfter || 60).toString(),
+      }
+    });
+  }
+  
   try {
-    // 월드컵 존재 확인 (공개 월드컵만 허용)
+    console.log('📊 Stats GET request for worldcup:', worldcupId);
+    
+    // 월드컵 존재 확인 (공개 월드컵은 누구나 접근 가능)
     const { data: worldcup, error: worldcupError } = await supabase
       .from('worldcups')
       .select('is_public, author_id, title')
@@ -260,17 +278,16 @@ export async function GET(
       .single();
 
     if (worldcupError || !worldcup) {
+      console.error('❌ Worldcup not found:', worldcupError);
       return NextResponse.json({ 
         error: 'Worldcup not found' 
       }, { status: 404 });
     }
 
-    // 🚨 TEMPORARY: 비공개 월드컵도 일시적으로 허용 (성능상 이유)
-    // if (!worldcup.is_public) {
-    //   return NextResponse.json({ 
-    //     error: 'Access denied for private worldcup' 
-    //   }, { status: 403 });
-    // }
+    console.log('✅ Worldcup found:', { 
+      title: worldcup.title, 
+      is_public: worldcup.is_public 
+    });
 
     // 통계 데이터 조회
     const { data: items, error: itemsError } = await supabase

@@ -53,6 +53,9 @@ export const rateLimiters = {
   
   // 관리자 작업: 10req/hour (민감한 작업)
   admin: createRatelimiter(10, "1h"),
+  
+  // 사용자 상호작용: 30req/10min (좋아요, 북마크 등)
+  interaction: createRatelimiter(30, "10m"),
 };
 
 // Rate Limit 체크 헬퍼 함수

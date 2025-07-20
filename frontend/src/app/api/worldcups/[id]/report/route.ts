@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { z } from 'zod';
 import { rateLimiters, checkRateLimit, getUserIdentifier, createRateLimitResponse } from '@/lib/ratelimit';
-import { getCurrentSupabaseUser } from '@/lib/auth';
+import { getCurrentSupabaseUser } from '@/utils/supabaseAuth';
 
 // Validation schema
 const worldcupIdSchema = z.string().uuid();
@@ -37,9 +37,9 @@ export async function GET(
     }
 
     // Get current user
-    const { user, error: authError } = await getCurrentSupabaseUser(request);
+    const user = await getCurrentSupabaseUser();
     
-    if (authError || !user) {
+    if (!user) {
       return NextResponse.json({
         reported: false,
         requiresAuth: true
@@ -100,9 +100,9 @@ export async function POST(
     const reportData = reportSchema.parse(body);
 
     // Get current user
-    const { user, error: authError } = await getCurrentSupabaseUser(request);
+    const user = await getCurrentSupabaseUser();
     
-    if (authError || !user) {
+    if (!user) {
       return NextResponse.json(
         { error: 'Authentication required to report content' },
         { status: 401 }
