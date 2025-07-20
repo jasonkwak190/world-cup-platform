@@ -38,7 +38,9 @@ export default function GamingResultTheme({
   onShowRanking,
   onShowImageModal,
   setShowReportModal,
-  isAuthenticated
+  isAuthenticated,
+  currentUser,
+  worldcupCreatorId
 }: ResultThemeProps) {
   if (!worldcupData) return null;
 
@@ -247,6 +249,8 @@ export default function GamingResultTheme({
         <CommentSystem
           initialComments={comments}
           isAuthenticated={isAuthenticated}
+          currentUser={currentUser}
+          worldcupCreatorId={worldcupCreatorId}
           theme="gaming"
           className="comment-system-gaming"
         />

@@ -495,6 +495,11 @@ const CommentItem: React.FC<CommentItemProps> = ({
                             인증됨
                           </span>
                         )}
+                        {reply.isCreator && (
+                          <span className={themeClasses.creatorBadge}>
+                            제작자
+                          </span>
+                        )}
                         <span className={theme === 'gaming' ? 'text-xs text-gray-400' : theme === 'neon' ? 'text-xs text-cyan-400' : theme === 'paper' ? 'text-xs text-amber-700' : theme === 'comic' ? 'text-xs text-gray-700' : 'text-xs text-gray-500'}>
                           {reply.timestamp}
                         </span>

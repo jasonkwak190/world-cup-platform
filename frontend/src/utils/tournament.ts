@@ -459,16 +459,33 @@ export function getTournamentProgress(tournament: Tournament): {
   total: number;
   percentage: number;
 } {
-  // 실제 토너먼트에 존재하는 매치 수를 기준으로 계산
-  const totalMatches = tournament.matches.length;
-  const completedMatches = tournament.matches.filter(match => match.isCompleted).length;
+  // 라운드 기반 프로그래스 계산
+  const currentRound = tournament.currentRound;
+  const totalRounds = tournament.totalRounds;
   
-  // 안전하게 계산 (0으로 나누기 방지)
-  const percentage = totalMatches > 0 ? Math.round((completedMatches / totalMatches) * 100) : 0;
+  // 현재 라운드에서의 진행도 계산
+  const currentRoundMatches = tournament.matches.filter(m => m.round === currentRound);
+  const completedCurrentRoundMatches = currentRoundMatches.filter(m => m.isCompleted).length;
+  const totalCurrentRoundMatches = currentRoundMatches.length;
+  
+  // 이전 라운드들은 100% 완료된 것으로 간주
+  const completedRounds = currentRound - 1;
+  const roundCompletionPercentage = totalRounds > 0 ? (100 / totalRounds) : 0;
+  
+  // 현재 라운드 내에서의 진행률
+  const currentRoundProgress = totalCurrentRoundMatches > 0 
+    ? (completedCurrentRoundMatches / totalCurrentRoundMatches) * roundCompletionPercentage 
+    : 0;
+  
+  // 전체 진행률 = 이전 라운드 완료율 + 현재 라운드 진행률
+  const totalProgress = (completedRounds * roundCompletionPercentage) + currentRoundProgress;
+  
+  // 토너먼트가 완료되었다면 100%
+  const finalPercentage = tournament.isCompleted ? 100 : Math.min(Math.round(totalProgress), 100);
   
   return {
-    current: completedMatches,
-    total: totalMatches,
-    percentage: Math.min(percentage, 100), // 최대 100%로 제한
+    current: currentRound,
+    total: totalRounds,
+    percentage: Math.max(0, finalPercentage), // 최소 0%, 최대 100%
   };
 }

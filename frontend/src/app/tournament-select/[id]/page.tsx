@@ -2,18 +2,19 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Zap, Target, Trophy, Flame, Swords } from 'lucide-react';
 import { useTheme, ThemeType } from '@/contexts/ThemeContext';
 import { NeonTheme, PaperTheme, ComicTheme, MinimalTheme, GamingTheme } from '@/app/tournament-select-designs2/components/themes';
 import { useThemeSelection } from '@/app/tournament-select-designs2/hooks/useThemeSelection';
+import ThemeSelector from '@/app/tournament-select-designs2/components/ThemeSelector';
 
-// 토너먼트 옵션 정의
+// 토너먼트 옵션 정의 - 참조 디자인과 동일한 구조
 const tournamentOptions = [
-  { id: '4', name: '4강', choices: 4, rounds: 2, duration: '2분', description: '빠른 게임' },
-  { id: '8', name: '8강', choices: 8, rounds: 3, duration: '3분', description: '적당한 게임' },
-  { id: '16', name: '16강', choices: 16, rounds: 4, duration: '5분', description: '클래식 게임' },
-  { id: '32', name: '32강', choices: 32, rounds: 5, duration: '8분', description: '본격적인 게임' },
-  { id: '64', name: '64강', choices: 64, rounds: 6, duration: '12분', description: '하드코어 게임' }
+  { id: '4', name: '4강', choices: 4, rounds: 2, duration: '2분', description: '빠른 결정', icon: <Zap className="w-6 h-6" /> },
+  { id: '8', name: '8강', choices: 8, rounds: 3, duration: '3분', description: '적당한 고민', icon: <Target className="w-6 h-6" /> },
+  { id: '16', name: '16강', choices: 16, rounds: 4, duration: '5분', description: '진지한 선택', icon: <Trophy className="w-6 h-6" /> },
+  { id: '32', name: '32강', choices: 32, rounds: 5, duration: '8분', description: '치열한 경쟁', icon: <Flame className="w-6 h-6" /> },
+  { id: '64', name: '64강', choices: 64, rounds: 6, duration: '12분', description: '극한의 선택', icon: <Swords className="w-6 h-6" /> }
 ];
 
 interface TournamentSelectProps {
@@ -139,22 +140,9 @@ export default function TournamentSelectPage({ params }: TournamentSelectProps) 
 
   return (
     <div className="relative">
-      {/* 테마 선택 드롭다운 */}
+      {/* 테마 선택 드롭다운 - 참조 디자인과 동일한 스타일 */}
       <div className="fixed top-4 right-4 z-50">
-        <div className="relative">
-          <select
-            value={currentTheme}
-            onChange={(e) => setTheme(e.target.value as ThemeType)}
-            className="bg-white/90 backdrop-blur-sm border-2 border-gray-300 rounded-lg px-4 py-2 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none min-w-[200px]"
-          >
-            {themeOptions?.map(theme => (
-              <option key={theme.id} value={theme.id}>
-                {theme.name} - {theme.description}
-              </option>
-            )) || []}
-          </select>
-          <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
-        </div>
+        <ThemeSelector className="w-64" />
       </div>
 
       {/* 테마별 컴포넌트 렌더링 */}

@@ -52,7 +52,7 @@ export default function GamingTheme({
                   </p>
                 )}
                 <div className="text-sm text-gray-400 bg-purple-900/50 inline-block px-4 py-2 rounded-full border border-purple-400">
-                  {worldcupData.items?.length || 0} PLAYERS • CREATED BY {worldcupData.creator_name}
+                  {worldcupData.items?.length || 0} PLAYERS •
                 </div>
               </div>
             </div>
@@ -61,7 +61,7 @@ export default function GamingTheme({
             <div className="mb-8">
               <h3 className="text-xl font-bold text-center mb-6">
                 <span className="bg-gradient-to-r from-red-500 via-yellow-500 via-green-500 via-blue-500 to-purple-500 bg-clip-text text-transparent">
-                  CHOOSE YOUR BATTLE MODE
+                  원하는 토너먼트 규모를 선택하세요
                 </span>
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
@@ -73,13 +73,20 @@ export default function GamingTheme({
                     }`}
                     onClick={() => setSelectedTournament(option.id)}
                   >
-                    <div className={`relative p-6 rounded-xl border-2 bg-gray-800/50 backdrop-blur-sm transition-all duration-300 ${
+                    <div className={`relative p-6 rounded-xl border-2 bg-gray-800/50 backdrop-blur-sm transition-all duration-300 min-h-[200px] flex flex-col ${
                       isClient && selectedTournament === option.id
                         ? 'border-blue-500 bg-blue-500/10 shadow-lg shadow-blue-500/25 animate-pulse'
                         : 'border-purple-500 hover:border-blue-500 animate-pulse'
                     }`}>
                       
-                      <div className="text-center">
+                      {/* 아이콘 */}
+                      <div className={`flex justify-center mb-4 ${
+                        isClient && selectedTournament === option.id ? 'text-blue-400' : 'text-white'
+                      }`}>
+                        {option.icon}
+                      </div>
+                      
+                      <div className="text-center flex-1 flex flex-col justify-center">
                         <div className={`text-xl font-bold mb-2 ${
                           isClient && selectedTournament === option.id 
                             ? 'text-blue-400' 
@@ -88,15 +95,12 @@ export default function GamingTheme({
                           {option.name}
                         </div>
                         <div className="text-sm text-gray-300 mb-1 bg-red-900/50 inline-block px-2 py-1 rounded border border-red-400">
-                          {option.choices} FIGHTERS
+                          {option.choices} CHOICES
                         </div>
-                        <div className="text-xs text-gray-400 mb-2 bg-yellow-900/50 inline-block px-2 py-1 rounded border border-yellow-400 mt-1">
-                          {option.rounds} ROUNDS
-                        </div>
+                        <div className="text-xs text-gray-500 mb-2">{option.description}</div>
                         <div className="text-xs font-medium text-green-400 bg-green-900/50 inline-block px-2 py-1 rounded border border-green-400">
-                          DURATION: {option.duration}
+                          {option.duration}
                         </div>
-                        <div className="text-xs text-gray-500 mt-2">{option.description}</div>
                       </div>
                       
                       {isClient && selectedTournament === option.id && (

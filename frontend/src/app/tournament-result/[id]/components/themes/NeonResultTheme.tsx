@@ -3,10 +3,12 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Heart, Bookmark, Share2, Home, RotateCcw, BarChart, Flag, Clock, Trophy, 
-  User, Eye, ThumbsUp, MessageCircle, Star 
+  User, Eye 
 } from 'lucide-react';
 import Image from 'next/image';
 import { ResultThemeProps } from './types';
+import ReportModal from '../ReportModal';
+import CommentSystem from '../comments/CommentSystem';
 
 // Utility functions
 const formatTime = (ms: number) => {
@@ -16,29 +18,6 @@ const formatTime = (ms: number) => {
   return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
 };
 
-const formatRelativeTime = (dateString: string) => {
-  const now = new Date();
-  const date = new Date(dateString);
-  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-  
-  if (diffInSeconds < 60) return 'JUST_NOW';
-  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}M_AGO`;
-  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}H_AGO`;
-  return `${Math.floor(diffInSeconds / 86400)}D_AGO`;
-};
-
-const getLevelBadge = (level: string) => {
-  switch (level) {
-    case 'vip':
-      return <Star className="w-4 h-4 text-cyan-400 fill-current" />;
-    case 'gold':
-      return <Star className="w-4 h-4 text-yellow-400 fill-current" />;
-    case 'silver':
-      return <Star className="w-4 h-4 text-gray-400 fill-current" />;
-    default:
-      return <Star className="w-4 h-4 text-purple-400 fill-current" />;
-  }
-};
 
 export default function NeonResultTheme({
   worldcupData,
@@ -47,26 +26,22 @@ export default function NeonResultTheme({
   playTime,
   liked,
   bookmarked,
+  reported,
+  showReportModal,
   likes,
   comments,
-  commentText,
-  guestName,
-  commentFilter,
-  showCommentForm,
   onLike,
   onBookmark,
+  onWorldcupReport,
   onShare,
   onRestart,
   onGoHome,
   onShowRanking,
   onShowImageModal,
-  onCommentSubmit,
-  onReport,
-  setCommentText,
-  setGuestName,
-  setCommentFilter,
-  setShowCommentForm,
-  isAuthenticated
+  setShowReportModal,
+  isAuthenticated,
+  currentUser,
+  worldcupCreatorId
 }: ResultThemeProps) {
   if (!worldcupData) return null;
 
@@ -205,6 +180,19 @@ export default function NeonResultTheme({
               <Bookmark className={`w-5 h-5 ${bookmarked ? 'fill-current' : ''}`} />
               <span>BOOKMARK</span>
             </button>
+
+            <button
+              onClick={() => setShowReportModal(true)}
+              className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors font-mono ${
+                reported 
+                  ? 'bg-gray-600 text-gray-400 cursor-not-allowed' 
+                  : 'bg-gray-800/50 border border-red-400/50 text-red-400 hover:bg-red-400/10 hover:shadow-[0_0_20px_rgba(239,68,68,0.3)]'
+              }`}
+              disabled={reported}
+            >
+              <Flag className="w-5 h-5" />
+              <span>{reported ? 'REPORTED' : 'REPORT'}</span>
+            </button>
           </div>
         </div>
 
@@ -246,129 +234,15 @@ export default function NeonResultTheme({
         </div>
 
         {/* 댓글 섹션 */}
-        <div className="bg-gray-900/80 backdrop-blur-sm border border-cyan-400/30 rounded-xl p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xl font-bold text-cyan-400 font-mono">
-              COMMENTS_({Array.isArray(comments) ? comments.length : 0})
-            </h3>
-            
-            <div className="flex space-x-2">
-              <button
-                onClick={() => setCommentFilter('likes')}
-                className={`px-3 py-1 rounded text-sm font-mono ${
-                  commentFilter === 'likes' 
-                    ? 'bg-cyan-600 text-black' 
-                    : 'bg-gray-800/50 border border-cyan-400/50 text-cyan-400'
-                }`}
-              >
-                LIKES
-              </button>
-              <button
-                onClick={() => setCommentFilter('recent')}
-                className={`px-3 py-1 rounded text-sm font-mono ${
-                  commentFilter === 'recent' 
-                    ? 'bg-cyan-600 text-black' 
-                    : 'bg-gray-800/50 border border-cyan-400/50 text-cyan-400'
-                }`}
-              >
-                RECENT
-              </button>
-            </div>
-          </div>
-
-          {/* 댓글 작성 */}
-          {!showCommentForm ? (
-            <button
-              onClick={() => setShowCommentForm(true)}
-              className="w-full p-3 rounded-lg bg-gray-800/50 border border-cyan-400/30 text-cyan-400 text-left transition-colors font-mono hover:bg-cyan-400/10"
-            >
-              &gt;&gt; WRITE_COMMENT...
-            </button>
-          ) : (
-            <form onSubmit={onCommentSubmit} className="mb-6">
-              {!isAuthenticated && (
-                <input
-                  type="text"
-                  placeholder="USERNAME"
-                  value={guestName}
-                  onChange={(e) => setGuestName(e.target.value)}
-                  className="w-full p-3 rounded-lg bg-gray-800/50 border border-cyan-400/30 text-white mb-3 focus:outline-none focus:ring-2 focus:ring-cyan-400 font-mono placeholder-gray-500"
-                  required
-                />
-              )}
-              <textarea
-                placeholder="ENTER_COMMENT..."
-                value={commentText}
-                onChange={(e) => setCommentText(e.target.value)}
-                className="w-full p-3 rounded-lg bg-gray-800/50 border border-cyan-400/30 text-white mb-3 focus:outline-none focus:ring-2 focus:ring-cyan-400 font-mono placeholder-gray-500"
-                rows={3}
-                required
-              />
-              <div className="flex space-x-2">
-                <button
-                  type="submit"
-                  className="bg-cyan-600 text-black px-4 py-2 rounded-lg transition-colors font-mono hover:bg-cyan-500"
-                >
-                  SUBMIT
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowCommentForm(false)}
-                  className="bg-gray-800/50 border border-cyan-400/50 text-cyan-400 px-4 py-2 rounded-lg transition-colors font-mono hover:bg-cyan-400/10"
-                >
-                  CANCEL
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* 댓글 목록 */}
-          <div className="space-y-4">
-            {Array.isArray(comments) && comments.map((comment) => (
-              <div 
-                key={comment.id} 
-                className={`p-4 rounded-lg bg-gray-800/50 border border-gray-600/50 ${
-                  comment.isCreator ? 'ring-2 ring-cyan-400 animate-pulse' : ''
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center space-x-2">
-                    {getLevelBadge(comment.level)}
-                    <span className="font-semibold text-white font-mono">
-                      {comment.author}
-                    </span>
-                    {comment.isCreator && (
-                      <span className="px-2 py-1 bg-cyan-400 text-black text-xs rounded-full font-mono">
-                        CREATOR
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sm text-cyan-400 font-mono">
-                      {formatRelativeTime(comment.createdAt)}
-                    </span>
-                    <button
-                      onClick={() => onReport(comment.id)}
-                      className="p-1 rounded bg-gray-700/50 hover:bg-red-500 hover:text-white transition-colors"
-                    >
-                      <Flag className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-                <p className="text-white mb-2 font-mono">{comment.content}</p>
-                <div className="flex items-center space-x-4">
-                  <button className="flex items-center space-x-1 text-cyan-400 hover:text-red-500 transition-colors">
-                    <ThumbsUp className="w-4 h-4" />
-                    <span className="font-mono">{comment.likes}</span>
-                  </button>
-                  <button className="flex items-center space-x-1 text-cyan-400 hover:text-blue-500 transition-colors">
-                    <MessageCircle className="w-4 h-4" />
-                    <span className="font-mono">REPLY</span>
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+        <div className="bg-gray-900/80 backdrop-blur-sm border border-cyan-400/30 rounded-xl overflow-hidden">
+          <CommentSystem
+            initialComments={comments}
+            isAuthenticated={isAuthenticated}
+            currentUser={currentUser}
+            worldcupCreatorId={worldcupCreatorId}
+            theme="neon"
+            className="p-6"
+          />
         </div>
       </div>
 
@@ -379,6 +253,14 @@ export default function NeonResultTheme({
       <div className="fixed bottom-20 right-20 text-6xl text-pink-400/5 animate-pulse pointer-events-none font-mono">
         [WIN]
       </div>
+
+      {/* 신고 모달 */}
+      <ReportModal
+        isOpen={showReportModal || false}
+        onClose={() => setShowReportModal(false)}
+        onSubmit={onWorldcupReport}
+        title="월드컵 신고하기"
+      />
     </div>
   );
 }

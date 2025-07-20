@@ -29,10 +29,6 @@ export default function MinimalResultTheme({
   showReportModal,
   likes,
   comments,
-  commentText,
-  guestName,
-  commentFilter,
-  showCommentForm,
   onLike,
   onBookmark,
   onWorldcupReport,
@@ -41,14 +37,10 @@ export default function MinimalResultTheme({
   onGoHome,
   onShowRanking,
   onShowImageModal,
-  onCommentSubmit,
-  onReport,
-  setCommentText,
-  setGuestName,
-  setCommentFilter,
-  setShowCommentForm,
   setShowReportModal,
-  isAuthenticated
+  isAuthenticated,
+  currentUser,
+  worldcupCreatorId
 }: ResultThemeProps) {
   if (!worldcupData) return null;
 
@@ -241,6 +233,9 @@ export default function MinimalResultTheme({
           <CommentSystem
             initialComments={comments}
             isAuthenticated={isAuthenticated}
+            currentUser={currentUser}
+            worldcupCreatorId={worldcupCreatorId}
+            worldcupId={worldcupData.id}
             theme="minimal"
             className="comment-system-minimal"
           />

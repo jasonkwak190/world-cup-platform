@@ -50,9 +50,7 @@ export default function MinimalTheme({
                   </p>
                 )}
                 <div className="flex items-center justify-center space-x-8 text-sm text-gray-400 font-light">
-                  <span>{worldcupData.items?.length || 0}개 항목</span>
-                  <div className="w-1 h-1 bg-gray-300 rounded-full"></div>
-                  <span>{worldcupData.creator_name}</span>
+                  <span>{worldcupData.items?.length || 0}개 항목 •</span>
                 </div>
               </div>
             </div>
@@ -60,7 +58,7 @@ export default function MinimalTheme({
             {/* 토너먼트 선택 */}
             <div className="mb-16 px-8">
               <h3 className="text-xl font-light text-gray-900 mb-12 text-center tracking-wide">
-                토너먼트 규모 선택
+                원하는 토너먼트 규모를 선택하세요
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                 {tournamentOptions.map((option) => (
@@ -77,6 +75,13 @@ export default function MinimalTheme({
                         : 'border-gray-200 bg-white shadow-xl hover:shadow-2xl hover:border-gray-300'
                     }`}>
                       
+                      {/* 아이콘 */}
+                      <div className={`flex justify-center mb-4 ${
+                        isClient && selectedTournament === option.id ? 'text-gray-700' : 'text-gray-600'
+                      }`}>
+                        {option.icon}
+                      </div>
+                      
                       <div className="text-center">
                         <div className={`text-2xl font-light mb-4 ${
                           isClient && selectedTournament === option.id ? 'text-gray-900' : 'text-gray-900'
@@ -84,10 +89,9 @@ export default function MinimalTheme({
                           {option.name}
                         </div>
                         <div className="space-y-2 text-sm text-gray-500 font-light">
-                          <div>{option.choices}개 선택지</div>
-                          <div>{option.rounds}라운드</div>
-                          <div className="text-gray-700">{option.duration}</div>
+                          <div>{option.choices} CHOICES</div>
                           <div className="text-xs text-gray-400 mt-3">{option.description}</div>
+                          <div className="text-gray-700">{option.duration}</div>
                         </div>
                       </div>
                       

@@ -12,6 +12,7 @@ export interface CommentSystemProps {
   isAuthenticated?: boolean;
   currentUser?: CurrentUser;
   worldcupCreatorId?: string;
+  worldcupId?: string;
   theme: 'minimal' | 'neon' | 'paper' | 'comic' | 'gaming';
   className?: string;
 }
@@ -21,6 +22,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({
   isAuthenticated = false,
   currentUser,
   worldcupCreatorId,
+  worldcupId,
   theme,
   className = ''
 }) => {
@@ -28,7 +30,8 @@ const CommentSystem: React.FC<CommentSystemProps> = ({
     initialComments,
     isAuthenticated,
     currentUser,
-    worldcupCreatorId
+    worldcupCreatorId,
+    worldcupId
   });
 
   const {
@@ -76,7 +79,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({
       {/* Header with filter and count */}
       <div className="comment-header mb-6">
         <div className="text-center mb-4">
-          <div className="flex justify-center mb-4">
+          <div className="flex justify-center mb-6">
             <CommentFilter
               sortOption={sortOption}
               setSortOption={setSortOption}

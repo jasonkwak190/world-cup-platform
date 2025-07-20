@@ -36,6 +36,8 @@ function TournamentResultContent({ worldcupId }: { worldcupId: string }) {
     // User interactions
     liked,
     bookmarked,
+    reported,
+    showReportModal,
     likes,
     
     // Modal states
@@ -54,6 +56,7 @@ function TournamentResultContent({ worldcupId }: { worldcupId: string }) {
     // Actions
     handleLike,
     handleBookmark,
+    handleWorldcupReport,
     handleShare,
     handleRestart,
     handleGoHome,
@@ -67,9 +70,12 @@ function TournamentResultContent({ worldcupId }: { worldcupId: string }) {
     setGuestName,
     setCommentFilter,
     setShowCommentForm,
+    setShowReportModal,
     
     // Auth
-    isAuthenticated
+    isAuthenticated,
+    currentUser,
+    worldcupCreatorId
   } = useResultLogic({ worldcupId });
 
   if (loading) {
@@ -125,6 +131,8 @@ function TournamentResultContent({ worldcupId }: { worldcupId: string }) {
     playTime,
     liked,
     bookmarked,
+    reported,
+    showReportModal,
     likes,
     comments,
     commentText,
@@ -133,6 +141,7 @@ function TournamentResultContent({ worldcupId }: { worldcupId: string }) {
     showCommentForm,
     onLike: handleLike,
     onBookmark: handleBookmark,
+    onWorldcupReport: handleWorldcupReport,
     onShare: handleShare,
     onRestart: handleRestart,
     onGoHome: handleGoHome,
@@ -144,7 +153,10 @@ function TournamentResultContent({ worldcupId }: { worldcupId: string }) {
     setGuestName,
     setCommentFilter,
     setShowCommentForm,
-    isAuthenticated
+    setShowReportModal,
+    isAuthenticated,
+    currentUser,
+    worldcupCreatorId
   };
 
   // Render appropriate theme component
@@ -218,21 +230,46 @@ function TournamentResultContent({ worldcupId }: { worldcupId: string }) {
 
 function TournamentResultWrapper({ params }: TournamentResultProps) {
   const [worldcupId, setWorldcupId] = React.useState<string>('');
+  const [isParamsLoaded, setIsParamsLoaded] = React.useState(false);
 
   React.useEffect(() => {
     const loadParams = async () => {
-      const resolvedParams = await params;
-      setWorldcupId(resolvedParams.id);
+      try {
+        const resolvedParams = await params;
+        setWorldcupId(resolvedParams.id);
+        setIsParamsLoaded(true);
+      } catch (error) {
+        console.error('Failed to resolve params:', error);
+        setIsParamsLoaded(true); // Still set to true to avoid infinite loading
+      }
     };
     loadParams();
   }, [params]);
 
-  if (!worldcupId) {
+  if (!isParamsLoaded) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-          <p className="text-white">로딩 중...</p>
+          <p className="text-white">페이지를 불러오는 중...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!worldcupId) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-center text-white max-w-md mx-auto p-6">
+          <div className="text-6xl mb-6">⚠️</div>
+          <h1 className="text-2xl font-bold mb-4">잘못된 URL입니다</h1>
+          <p className="text-gray-300 mb-6">올바른 토너먼트 결과 페이지로 이동해주세요.</p>
+          <button
+            onClick={() => window.location.href = '/'}
+            className="bg-emerald-600 hover:bg-emerald-700 px-6 py-3 rounded-lg transition-colors"
+          >
+            홈으로 돌아가기
+          </button>
         </div>
       </div>
     );

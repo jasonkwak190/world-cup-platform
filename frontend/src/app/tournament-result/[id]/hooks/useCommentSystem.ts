@@ -27,6 +27,7 @@ export interface CommentReply {
   likes: number;
   isLiked: boolean;
   isOwner: boolean;
+  isCreator?: boolean;
 }
 
 export interface EnhancedComment {
@@ -47,16 +48,19 @@ export interface UseCommentSystemProps {
   isAuthenticated?: boolean;
   currentUser?: CurrentUser;
   worldcupCreatorId?: string;
+  worldcupId?: string;
 }
 
 export const useCommentSystem = ({
   initialComments = [],
   isAuthenticated = false,
   currentUser,
-  worldcupCreatorId
+  worldcupCreatorId,
+  worldcupId
 }: UseCommentSystemProps = {}) => {
   const currentUserId = currentUser?.id;
-  // State management
+  
+  // State management - ALL state declarations come first
   const [comments, setComments] = useState<EnhancedComment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [guestName, setGuestName] = useState('');
@@ -72,7 +76,7 @@ export const useCommentSystem = ({
   const [openMenu, setOpenMenu] = useState<number | null>(null);
   const [openReplyMenu, setOpenReplyMenu] = useState<{commentId: number, replyId: number} | null>(null);
 
-  // Helper function to check ownership
+  // Helper function to check ownership - comes after all state declarations
   const checkOwnership = useCallback((authorId: string | undefined, authorName: string, isAuthorAuthenticated: boolean) => {
     if (isAuthenticated && isAuthorAuthenticated && currentUser) {
       return currentUser.id === authorId;
@@ -89,10 +93,14 @@ export const useCommentSystem = ({
       const enhanced = initialComments.map(comment => ({
         id: typeof comment.id === 'string' ? parseInt(comment.id) : comment.id,
         author: {
-          // Use actual user name or guest name, never fallback to unknown
-          name: comment.user?.name || comment.guestName || comment.author || 'Unknown',
-          // Use actual user avatar from Google profile or guest avatar
-          avatar: comment.user?.image || `https://avatar.vercel.sh/${comment.guestName || 'guest'}.png`,
+          // Use current user name if it's the current user's comment, otherwise use comment user name or guest name
+          name: (currentUser && comment.user && currentUser.id === comment.user.id) 
+            ? currentUser.name 
+            : (comment.user?.name || comment.guestName || comment.author || 'Unknown'),
+          // Use current user avatar if it's the current user's comment, otherwise use comment user avatar or guest avatar
+          avatar: (currentUser && comment.user && currentUser.id === comment.user.id) 
+            ? currentUser.avatar 
+            : (comment.user?.image || `https://avatar.vercel.sh/${comment.guestName || 'guest'}.png`),
           // Verified only if there is an actual user account
           isVerified: !!comment.user,
           // Proper level handling for both users and guests
@@ -114,10 +122,14 @@ export const useCommentSystem = ({
         replies: comment.replies ? comment.replies.map(reply => ({
           id: typeof reply.id === 'string' ? parseInt(reply.id) : reply.id,
           author: {
-            // Use actual user name or guest name for replies
-            name: reply.user?.name || reply.guestName || reply.author || 'Unknown',
-            // Use actual user avatar from Google profile or guest avatar for replies
-            avatar: reply.user?.image || `https://avatar.vercel.sh/${reply.guestName || 'guest'}.png`,
+            // Use current user name if it's the current user's reply, otherwise use reply user name or guest name
+            name: (currentUser && reply.user && currentUser.id === reply.user.id) 
+              ? currentUser.name 
+              : (reply.user?.name || reply.guestName || reply.author || 'Unknown'),
+            // Use current user avatar if it's the current user's reply, otherwise use reply user avatar or guest avatar
+            avatar: (currentUser && reply.user && currentUser.id === reply.user.id) 
+              ? currentUser.avatar 
+              : (reply.user?.image || `https://avatar.vercel.sh/${reply.guestName || 'guest'}.png`),
             // Verified only if there is an actual user account for replies
             isVerified: !!reply.user,
             // Proper level handling for reply authors
@@ -133,7 +145,9 @@ export const useCommentSystem = ({
           likes: reply.likes || 0,
           isLiked: false,
           // Calculate ownership properly for replies by comparing user IDs
-          isOwner: !!(currentUser && reply.user && currentUser.id === reply.user.id)
+          isOwner: !!(currentUser && reply.user && currentUser.id === reply.user.id),
+          // Calculate creator status for replies by comparing with worldcup creator ID
+          isCreator: !!(reply.user && reply.user.id === worldcupCreatorId)
         })) : []
       }));
       setComments(enhanced);
@@ -245,23 +259,64 @@ export const useCommentSystem = ({
     }
   }, [comments]);
 
-  const handleSaveEdit = useCallback((commentId: number) => {
-    setComments(prev => prev.map(comment => 
-      comment.id === commentId 
-        ? { ...comment, content: editContent }
-        : comment
-    ));
-    setEditingComment(null);
-    setEditContent('');
-  }, [editContent]);
+  const handleSaveEdit = useCallback(async (commentId: number) => {
+    if (!worldcupId || !editContent.trim()) return;
+
+    try {
+      const response = await fetch(`/api/worldcups/${worldcupId}/comments`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          commentId: commentId.toString(),
+          content: editContent.trim()
+        })
+      });
+
+      if (response.ok) {
+        // Update the comment in local state
+        setComments(prev => prev.map(comment => 
+          comment.id === commentId 
+            ? { ...comment, content: editContent }
+            : comment
+        ));
+        setEditingComment(null);
+        setEditContent('');
+      } else {
+        const errorData = await response.json();
+        alert(errorData.error || '댓글 수정에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('Failed to edit comment:', error);
+      alert('댓글 수정 중 오류가 발생했습니다.');
+    }
+  }, [editContent, worldcupId]);
 
   // Comment deletion
-  const handleDeleteComment = useCallback((commentId: number) => {
+  const handleDeleteComment = useCallback(async (commentId: number) => {
+    if (!worldcupId) return;
+    
     if (confirm('댓글을 삭제하시겠습니까?')) {
-      setComments(prev => prev.filter(comment => comment.id !== commentId));
-      setOpenMenu(null);
+      try {
+        const response = await fetch(`/api/worldcups/${worldcupId}/comments?commentId=${commentId}`, {
+          method: 'DELETE'
+        });
+
+        if (response.ok) {
+          // Remove the comment from local state
+          setComments(prev => prev.filter(comment => comment.id !== commentId));
+          setOpenMenu(null);
+        } else {
+          const errorData = await response.json();
+          alert(errorData.error || '댓글 삭제에 실패했습니다.');
+        }
+      } catch (error) {
+        console.error('Failed to delete comment:', error);
+        alert('댓글 삭제 중 오류가 발생했습니다.');
+      }
     }
-  }, []);
+  }, [worldcupId]);
 
   // Reply handling
   const handleSubmitReply = useCallback((commentId: number) => {

@@ -3,6 +3,8 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { Home, ArrowLeft, RotateCcw, ChevronRight } from 'lucide-react';
 import Image from 'next/image';
+import YouTubePlayer from '@/components/YouTubePlayer';
+import { WorldCupItem } from '@/types/game';
 import { GameThemeProps } from './types';
 
 export default function PaperGameTheme({
@@ -36,6 +38,58 @@ export default function PaperGameTheme({
   // Function to get win streak for an item
   const getWinStreak = (itemId: string): number => {
     return winStreaks.get(itemId) || 0;
+  };
+
+  // Function to render media content (image or video)
+  const renderMediaContent = (item: WorldCupItem) => {
+    // Check if this item should be rendered as video
+    const hasVideoUrl = !!(item.videoUrl && item.videoUrl.trim());
+    const hasVideoId = !!(item.videoId && item.videoId.trim());
+    const isVideoType = item.mediaType === 'video';
+    const hasYouTubeUrl = !!(item.videoUrl && item.videoUrl.includes('youtube.com'));
+    
+    // Any of these conditions means it's a video
+    const isVideo = isVideoType || hasVideoId || hasYouTubeUrl;
+    
+    // Extract video ID if needed
+    let finalVideoId = item.videoId;
+    if (isVideo && !finalVideoId && item.videoUrl) {
+      const youtubeRegex = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/;
+      const match = item.videoUrl.match(youtubeRegex);
+      if (match) {
+        finalVideoId = match[1];
+      }
+    }
+    
+    if (isVideo && finalVideoId) {
+      return (
+        <YouTubePlayer
+          videoId={finalVideoId}
+          startTime={item.videoStartTime || 0}
+          endTime={item.videoEndTime}
+          autoplay={false}
+          controls={true}
+          playInGame={false}
+          className="w-full h-full rounded-lg"
+        />
+      );
+    } else if (item.image_url) {
+      return (
+        <Image
+          src={item.image_url}
+          alt={item.title}
+          fill
+          className="object-cover"
+          sizes="(max-width: 768px) 100vw, 50vw"
+        />
+      );
+    } else {
+      return (
+        <div className="flex items-center justify-center h-full text-amber-600/60 font-medium">
+          {isVideo ? '📼 동영상' : '📄 이미지 없음'}
+        </div>
+      );
+    }
   };
 
   return (
@@ -138,21 +192,9 @@ export default function PaperGameTheme({
                   : 'border-amber-600 hover:shadow-xl hover:border-orange-500'
               }`}>
                 
-                {/* 이미지 */}
+                {/* 미디어 (이미지 또는 동영상) */}
                 <div className="aspect-square mb-4 rounded-lg overflow-hidden bg-amber-50 relative border-2 border-dashed border-amber-300">
-                  {item.image_url ? (
-                    <Image
-                      src={item.image_url}
-                      alt={item.title}
-                      fill
-                      className="object-cover"
-                      sizes="(max-width: 768px) 100vw, 50vw"
-                    />
-                  ) : (
-                    <div className="flex items-center justify-center h-full text-amber-500/50 font-medium">
-                      이미지 없음
-                    </div>
-                  )}
+                  {renderMediaContent(item)}
                   
                   {/* Win Streak Badge */}
                   {getWinStreak(item.id) >= 2 && (

@@ -162,7 +162,7 @@ export function useResultLogic({ worldcupId }: UseResultLogicProps) {
     if (worldcupId) {
       loadData();
     }
-  }, [worldcupId, searchParams, isAuthenticated]);
+  }, [worldcupId, searchParams]);
 
   const loadComments = useCallback(async () => {
     try {
@@ -430,6 +430,13 @@ export function useResultLogic({ worldcupId }: UseResultLogicProps) {
     setShowReportModal,
     
     // Auth
-    isAuthenticated
+    isAuthenticated,
+    currentUser: user ? {
+      id: user.id,
+      name: user.user_metadata?.full_name || user.user_metadata?.name || user.identities?.[0]?.identity_data?.full_name || user.identities?.[0]?.identity_data?.name || user.email?.split('@')[0] || 'Unknown User',
+      avatar: user.user_metadata?.avatar_url || user.user_metadata?.picture || user.identities?.[0]?.identity_data?.avatar_url || user.identities?.[0]?.identity_data?.picture || `https://avatar.vercel.sh/${user.email}.png`,
+      level: 'Bronze' as const // Default level, can be enhanced later
+    } : undefined,
+    worldcupCreatorId: worldcupData?.creator_id
   };
 }

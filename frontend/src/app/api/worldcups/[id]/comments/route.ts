@@ -61,14 +61,7 @@ export async function GET(
         created_at,
         updated_at,
         author_id,
-        parent_id,
-        users!author_id (
-          id,
-          username,
-          display_name,
-          avatar_url,
-          role
-        )
+        parent_id
       `)
       .eq('worldcup_id', worldcupId)
       .eq('is_deleted', false)
@@ -91,21 +84,67 @@ export async function GET(
       );
     }
 
+    // Get user details for authenticated comments
+    const userIds = comments
+      .filter(comment => comment.author_id)
+      .map(comment => comment.author_id);
+
+    let userDetails = {};
+    if (userIds.length > 0) {
+      // Get user metadata from auth.users
+      const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
+      
+      if (!authError && authUsers?.users) {
+        userDetails = authUsers.users.reduce((acc, user) => {
+          // Extract display name from Google OAuth metadata
+          const displayName = 
+            user.user_metadata?.full_name || 
+            user.user_metadata?.name || 
+            user.identities?.[0]?.identity_data?.full_name || 
+            user.identities?.[0]?.identity_data?.name || 
+            user.email?.split('@')[0] || 
+            'Unknown User';
+          
+          acc[user.id] = {
+            displayName,
+            avatar: user.user_metadata?.avatar_url || 
+                   user.user_metadata?.picture || 
+                   user.identities?.[0]?.identity_data?.avatar_url || 
+                   user.identities?.[0]?.identity_data?.picture || 
+                   `https://avatar.vercel.sh/${user.email}.png`
+          };
+          return acc;
+        }, {});
+      }
+    }
+
     // Transform comments to match frontend expectations
-    const transformedComments = comments.map(comment => ({
-      id: comment.id,
-      content: comment.content,
-      author: comment.users?.display_name || comment.users?.username || comment.guest_name || 'Anonymous',
-      authorId: comment.author_id,
-      guestName: comment.guest_name,
-      likes: comment.like_count || 0,
-      replies: comment.reply_count || 0,
-      isCreator: false, // Would need to check if author is worldcup creator
-      isPinned: comment.is_pinned,
-      level: comment.users?.role || 'user',
-      createdAt: comment.created_at,
-      parentId: comment.parent_id
-    }));
+    const transformedComments = comments.map(comment => {
+      let authorName = 'Anonymous';
+      
+      if (comment.author_id && userDetails[comment.author_id]) {
+        // Use display name from auth metadata
+        authorName = userDetails[comment.author_id].displayName;
+      } else if (comment.guest_name) {
+        // For guest comments, use guest_name
+        authorName = comment.guest_name;
+      }
+
+      return {
+        id: comment.id,
+        content: comment.content,
+        author: authorName,
+        authorId: comment.author_id,
+        guestName: comment.guest_name,
+        likes: comment.like_count || 0,
+        replies: comment.reply_count || 0,
+        isCreator: false, // Would need to check if author is worldcup creator
+        isPinned: comment.is_pinned,
+        level: 'user', // Default level
+        createdAt: comment.created_at,
+        parentId: comment.parent_id
+      };
+    });
 
     return NextResponse.json({
       success: true,
@@ -233,18 +272,37 @@ export async function POST(
         }
       }
 
+      // Get user display name for the new comment
+      let authorName = 'Anonymous';
+      if (user) {
+        // Get user details from auth
+        const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(user.id);
+        
+        if (!authError && authUser?.user) {
+          authorName = 
+            authUser.user.user_metadata?.full_name || 
+            authUser.user.user_metadata?.name || 
+            authUser.user.identities?.[0]?.identity_data?.full_name || 
+            authUser.user.identities?.[0]?.identity_data?.name || 
+            authUser.user.email?.split('@')[0] || 
+            'Unknown User';
+        }
+      } else if (comment.guest_name) {
+        authorName = comment.guest_name;
+      }
+
       // Transform comment to match frontend expectations
       const transformedComment = {
         id: comment.id,
         content: comment.content,
-        author: comment.users?.display_name || comment.users?.username || comment.guest_name || 'Anonymous',
+        author: authorName,
         authorId: comment.author_id,
         guestName: comment.guest_name,
         likes: comment.like_count || 0,
         replies: comment.reply_count || 0,
         isCreator: comment.author_id === worldcup.author_id,
         isPinned: false,
-        level: comment.users?.role || 'user',
+        level: 'user',
         createdAt: comment.created_at,
         parentId: comment.parent_id
       };
@@ -265,6 +323,213 @@ export async function POST(
         );
       }
       
+      return NextResponse.json(
+        { error: 'Internal server error' },
+        { status: 500 }
+      );
+    }
+  });
+}
+
+// PUT - Update an existing comment
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  return withOptionalAuth(request, async (user) => {
+    try {
+      const resolvedParams = await params;
+      const worldcupId = resolvedParams.id;
+      const body = await request.json();
+      
+      const { commentId, content } = body;
+      
+      if (!commentId || !content) {
+        return NextResponse.json(
+          { error: 'Comment ID and content are required' },
+          { status: 400 }
+        );
+      }
+
+      // Get the comment to verify ownership
+      const { data: comment, error: fetchError } = await supabase
+        .from('comments')
+        .select('id, author_id, guest_session_id')
+        .eq('id', commentId)
+        .eq('worldcup_id', worldcupId)
+        .single();
+
+      if (fetchError || !comment) {
+        return NextResponse.json(
+          { error: 'Comment not found' },
+          { status: 404 }
+        );
+      }
+
+      // Verify ownership
+      if (user) {
+        if (comment.author_id !== user.id) {
+          return NextResponse.json(
+            { error: 'Not authorized to edit this comment' },
+            { status: 403 }
+          );
+        }
+      } else {
+        // For guests, check session ID (simplified check)
+        return NextResponse.json(
+          { error: 'Guests cannot edit comments after page refresh' },
+          { status: 403 }
+        );
+      }
+
+      // Update the comment
+      const { data: updatedComment, error: updateError } = await supabase
+        .from('comments')
+        .update({ 
+          content: content.trim(),
+          is_edited: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', commentId)
+        .select(`
+          id,
+          content,
+          guest_name,
+          like_count,
+          reply_count,
+          created_at,
+          updated_at,
+          author_id,
+          parent_id,
+          users!author_id (
+            id,
+            username,
+            display_name,
+            avatar_url,
+            role
+          )
+        `)
+        .single();
+
+      if (updateError) {
+        console.error('Comment update error:', updateError);
+        return NextResponse.json(
+          { error: 'Failed to update comment' },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: 'Comment updated successfully',
+        comment: updatedComment
+      });
+
+    } catch (error) {
+      console.error('API error:', error);
+      return NextResponse.json(
+        { error: 'Internal server error' },
+        { status: 500 }
+      );
+    }
+  });
+}
+
+// DELETE - Delete a comment
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  return withOptionalAuth(request, async (user) => {
+    try {
+      const resolvedParams = await params;
+      const worldcupId = resolvedParams.id;
+      const url = new URL(request.url);
+      const commentId = url.searchParams.get('commentId');
+      
+      if (!commentId) {
+        return NextResponse.json(
+          { error: 'Comment ID is required' },
+          { status: 400 }
+        );
+      }
+
+      // Get the comment to verify ownership
+      const { data: comment, error: fetchError } = await supabase
+        .from('comments')
+        .select('id, author_id, guest_session_id')
+        .eq('id', commentId)
+        .eq('worldcup_id', worldcupId)
+        .single();
+
+      if (fetchError || !comment) {
+        return NextResponse.json(
+          { error: 'Comment not found' },
+          { status: 404 }
+        );
+      }
+
+      // Verify ownership
+      if (user) {
+        if (comment.author_id !== user.id) {
+          return NextResponse.json(
+            { error: 'Not authorized to delete this comment' },
+            { status: 403 }
+          );
+        }
+      } else {
+        // For guests, check session ID (simplified check)
+        return NextResponse.json(
+          { error: 'Guests cannot delete comments after page refresh' },
+          { status: 403 }
+        );
+      }
+
+      // Soft delete the comment
+      const { error: deleteError } = await supabase
+        .from('comments')
+        .update({ 
+          is_deleted: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', commentId);
+
+      if (deleteError) {
+        console.error('Comment delete error:', deleteError);
+        return NextResponse.json(
+          { error: 'Failed to delete comment' },
+          { status: 500 }
+        );
+      }
+
+      // Update worldcup comment count
+      const { data: currentWorldcup, error: fetchWorldcupError } = await supabase
+        .from('worldcups')
+        .select('comments')
+        .eq('id', worldcupId)
+        .single();
+
+      if (!fetchWorldcupError && currentWorldcup) {
+        const { error: updateError } = await supabase
+          .from('worldcups')
+          .update({ 
+            comments: Math.max((currentWorldcup.comments || 1) - 1, 0),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', worldcupId);
+
+        if (updateError) {
+          console.warn('Failed to update worldcup comment count:', updateError);
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: 'Comment deleted successfully'
+      });
+
+    } catch (error) {
+      console.error('API error:', error);
       return NextResponse.json(
         { error: 'Internal server error' },
         { status: 500 }

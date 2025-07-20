@@ -50,7 +50,7 @@ export default function PaperTheme({
                   </p>
                 )}
                 <div className="text-sm text-amber-600">
-                  {worldcupData.items?.length || 0}개의 선택지 • {worldcupData.creator_name}
+                  {worldcupData.items?.length || 0}개의 선택지 •
                 </div>
               </div>
               
@@ -61,7 +61,7 @@ export default function PaperTheme({
             {/* 토너먼트 선택 */}
             <div className="mb-8">
               <h3 className="text-xl font-semibold text-amber-900 mb-6 text-center transform -rotate-1">
-                토너먼트 강수를 선택해주세요
+                원하는 토너먼트 규모를 선택하세요
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
                 {tournamentOptions.map((option, index) => (
@@ -80,16 +80,22 @@ export default function PaperTheme({
                         : 'border-amber-600 bg-white shadow-md hover:shadow-lg'
                     }`}>
                       
+                      {/* 아이콘 */}
+                      <div className={`flex justify-center mb-4 ${
+                        isClient && selectedTournament === option.id ? 'text-orange-600' : 'text-amber-700'
+                      }`}>
+                        {option.icon}
+                      </div>
+                      
                       <div className="text-center">
                         <div className={`text-xl font-bold mb-2 ${
                           isClient && selectedTournament === option.id ? 'text-orange-800' : 'text-amber-900'
                         }`}>
                           {option.name}
                         </div>
-                        <div className="text-sm text-amber-700 mb-1">{option.choices}개 선택지</div>
-                        <div className="text-xs text-amber-600 mb-2">{option.rounds}라운드</div>
-                        <div className="text-xs font-medium text-amber-800">예상 시간: {option.duration}</div>
-                        <div className="text-xs text-amber-600 mt-2">{option.description}</div>
+                        <div className="text-sm text-amber-700 mb-1">{option.choices} CHOICES</div>
+                        <div className="text-xs text-amber-600 mb-2">{option.description}</div>
+                        <div className="text-xs font-medium text-amber-800">{option.duration}</div>
                       </div>
                       
                       {isClient && selectedTournament === option.id && (

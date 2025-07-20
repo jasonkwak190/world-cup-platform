@@ -52,7 +52,7 @@ export default function ComicTheme({
                   </p>
                 )}
                 <div className="text-sm font-bold text-black bg-yellow-400 inline-block px-4 py-2 rounded-full border-2 border-black">
-                  {worldcupData.items?.length || 0} ITEMS • BY {worldcupData.creator_name}
+                  {worldcupData.items?.length || 0} ITEMS •
                 </div>
               </div>
             </div>
@@ -61,7 +61,7 @@ export default function ComicTheme({
             <div className="mb-8">
               <div className="text-center mb-6">
                 <h3 className="text-2xl font-black text-black bg-red-500 inline-block px-6 py-3 rounded-lg border-4 border-black shadow-[8px_8px_0px_0px_#000] transform -rotate-2">
-                  PICK YOUR BATTLE!
+                  원하는 토너먼트 규모를 선택하세요!
                 </h3>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
@@ -79,6 +79,13 @@ export default function ComicTheme({
                         : 'shadow-[8px_8px_0px_0px_#000] hover:shadow-[12px_12px_0px_0px_#000]'
                     }`}>
                       
+                      {/* 아이콘 */}
+                      <div className={`flex justify-center mb-4 ${
+                        isClient && selectedTournament === option.id ? 'text-red-500' : 'text-black'
+                      }`}>
+                        {option.icon}
+                      </div>
+                      
                       <div className="text-center">
                         <div className={`text-2xl font-black mb-2 ${
                           isClient && selectedTournament === option.id ? 'text-red-600' : 'text-black'
@@ -86,15 +93,12 @@ export default function ComicTheme({
                           {option.name}
                         </div>
                         <div className="text-sm font-bold text-black mb-1 bg-blue-300 inline-block px-2 py-1 rounded border-2 border-black">
-                          {option.choices} FIGHTERS!
+                          {option.choices} CHOICES
                         </div>
-                        <div className="text-xs font-bold text-black mb-2 bg-green-300 inline-block px-2 py-1 rounded border-2 border-black mt-1">
-                          {option.rounds} ROUNDS
-                        </div>
+                        <div className="text-xs font-bold text-gray-800 mb-2">{option.description}</div>
                         <div className="text-xs font-black text-white bg-purple-600 inline-block px-2 py-1 rounded border-2 border-black">
                           {option.duration}
                         </div>
-                        <div className="text-xs font-bold text-gray-800 mt-2">{option.description}</div>
                       </div>
                       
                       {isClient && selectedTournament === option.id && (

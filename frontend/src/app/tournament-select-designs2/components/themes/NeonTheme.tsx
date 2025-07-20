@@ -54,14 +54,14 @@ export default function NeonTheme({
               )}
               
               <div className="text-sm text-gray-400 font-mono">
-                [{worldcupData.items?.length || 0}_ITEMS] • CREATED_BY: {worldcupData.creator_name}
+                [{worldcupData.items?.length || 0}_ITEMS] •
               </div>
             </div>
 
             {/* 토너먼트 선택 */}
             <div className="mb-8">
               <h3 className="text-xl font-semibold text-white mb-6 font-mono text-center">
-                &gt;&gt; SELECT_BATTLE_MODE &lt;&lt;
+                &gt;&gt; 원하는 토너먼트 규모를 선택하세요 &lt;&lt;
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
                 {tournamentOptions.map((option) => (
@@ -78,16 +78,22 @@ export default function NeonTheme({
                         : 'border-cyan-400/30 bg-cyan-400/5 hover:border-cyan-400 hover:bg-cyan-400/10'
                     }`}>
                       
+                      {/* 아이콘 */}
+                      <div className={`flex justify-center mb-4 ${
+                        isClient && selectedTournament === option.id ? 'text-yellow-400' : 'text-cyan-400'
+                      }`}>
+                        {option.icon}
+                      </div>
+                      
                       <div className="text-center">
                         <div className={`text-xl font-bold mb-2 font-mono ${
                           isClient && selectedTournament === option.id ? 'text-yellow-400' : 'text-white'
                         }`}>
                           {option.name}
                         </div>
-                        <div className="text-sm text-cyan-300 mb-1 font-mono">{option.choices}_TARGETS</div>
-                        <div className="text-xs text-gray-400 mb-2 font-mono">{option.rounds}_ROUNDS</div>
-                        <div className="text-xs font-medium text-pink-300 font-mono">TIME: {option.duration}</div>
-                        <div className="text-xs text-gray-500 mt-2 font-mono">{option.description}</div>
+                        <div className="text-sm text-cyan-300 mb-1 font-mono">{option.choices} CHOICES</div>
+                        <div className="text-xs text-gray-500 mb-2 font-mono">{option.description}</div>
+                        <div className="text-xs font-medium text-pink-300 font-mono">{option.duration}</div>
                       </div>
                       
                       {isClient && selectedTournament === option.id && (

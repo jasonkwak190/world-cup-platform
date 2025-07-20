@@ -30,8 +30,10 @@ function TournamentGameContent({ worldcupId }: { worldcupId: string }) {
     // UI State
     selectedItem,
     voteStats,
+    itemPercentages,
     isProcessing,
     showStats,
+    winStreaks,
     
     // Game Data
     currentMatch,
@@ -99,9 +101,11 @@ function TournamentGameContent({ worldcupId }: { worldcupId: string }) {
     currentMatch,
     selectedItem,
     voteStats,
+    itemPercentages,
     showStats,
     isProcessing,
     canUndo,
+    winStreaks,
     onChoice: handleChoice,
     onUndo: handleUndo,
     onRestart: handleRestart,

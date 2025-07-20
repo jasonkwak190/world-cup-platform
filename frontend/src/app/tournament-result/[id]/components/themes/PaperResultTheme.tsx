@@ -3,10 +3,12 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Heart, Bookmark, Share2, Home, RotateCcw, BarChart, Flag, Clock, Trophy, 
-  User, Eye, ThumbsUp, MessageCircle, Star 
+  User, Eye 
 } from 'lucide-react';
 import Image from 'next/image';
 import { ResultThemeProps } from './types';
+import ReportModal from '../ReportModal';
+import CommentSystem from '../comments/CommentSystem';
 
 // Utility functions
 const formatTime = (ms: number) => {
@@ -16,29 +18,6 @@ const formatTime = (ms: number) => {
   return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
 };
 
-const formatRelativeTime = (dateString: string) => {
-  const now = new Date();
-  const date = new Date(dateString);
-  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-  
-  if (diffInSeconds < 60) return '방금 전';
-  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}분 전`;
-  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}시간 전`;
-  return `${Math.floor(diffInSeconds / 86400)}일 전`;
-};
-
-const getLevelBadge = (level: string) => {
-  switch (level) {
-    case 'vip':
-      return <Star className="w-4 h-4 text-yellow-400 fill-current" />;
-    case 'gold':
-      return <Star className="w-4 h-4 text-yellow-600 fill-current" />;
-    case 'silver':
-      return <Star className="w-4 h-4 text-gray-400 fill-current" />;
-    default:
-      return <Star className="w-4 h-4 text-amber-600 fill-current" />;
-  }
-};
 
 export default function PaperResultTheme({
   worldcupData,
@@ -47,26 +26,22 @@ export default function PaperResultTheme({
   playTime,
   liked,
   bookmarked,
+  reported,
+  showReportModal,
   likes,
   comments,
-  commentText,
-  guestName,
-  commentFilter,
-  showCommentForm,
   onLike,
   onBookmark,
+  onWorldcupReport,
   onShare,
   onRestart,
   onGoHome,
   onShowRanking,
   onShowImageModal,
-  onCommentSubmit,
-  onReport,
-  setCommentText,
-  setGuestName,
-  setCommentFilter,
-  setShowCommentForm,
-  isAuthenticated
+  setShowReportModal,
+  isAuthenticated,
+  currentUser,
+  worldcupCreatorId
 }: ResultThemeProps) {
   if (!worldcupData) return null;
 
@@ -221,6 +196,19 @@ export default function PaperResultTheme({
               <Bookmark className={`w-5 h-5 ${bookmarked ? 'fill-current' : ''}`} />
               <span>북마크</span>
             </button>
+
+            <button
+              onClick={() => setShowReportModal(true)}
+              className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-300 font-semibold transform hover:-rotate-2 ${
+                reported 
+                  ? 'bg-gray-400 text-gray-200 cursor-not-allowed shadow-lg' 
+                  : 'bg-white border-2 border-dashed border-red-500 text-red-700 hover:bg-red-50'
+              }`}
+              disabled={reported}
+            >
+              <Flag className="w-5 h-5" />
+              <span>{reported ? '신고됨' : '신고'}</span>
+            </button>
           </div>
         </div>
 
@@ -262,132 +250,18 @@ export default function PaperResultTheme({
         </div>
 
         {/* 댓글 섹션 */}
-        <div className="bg-white rounded-lg p-6 border-2 border-dashed border-amber-600 transform rotate-1 shadow-lg shadow-amber-200 relative">
+        <div className="bg-white rounded-lg border-2 border-dashed border-amber-600 transform rotate-1 shadow-lg shadow-amber-200 relative overflow-hidden">
           <div className="absolute -top-1 left-10 w-1 h-4 bg-gray-400 transform rotate-45"></div>
           <div className="absolute -top-1 right-10 w-1 h-4 bg-gray-400 transform -rotate-45"></div>
           
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xl font-bold text-amber-800 transform -skew-x-6">
-              댓글 ({Array.isArray(comments) ? comments.length : 0})
-            </h3>
-            
-            <div className="flex space-x-2">
-              <button
-                onClick={() => setCommentFilter('likes')}
-                className={`px-3 py-1 rounded text-sm font-semibold transform hover:-rotate-1 transition-all ${
-                  commentFilter === 'likes' 
-                    ? 'bg-amber-600 text-white' 
-                    : 'bg-amber-100 text-amber-800 border border-dashed border-amber-600'
-                }`}
-              >
-                좋아요순
-              </button>
-              <button
-                onClick={() => setCommentFilter('recent')}
-                className={`px-3 py-1 rounded text-sm font-semibold transform hover:rotate-1 transition-all ${
-                  commentFilter === 'recent' 
-                    ? 'bg-amber-600 text-white' 
-                    : 'bg-amber-100 text-amber-800 border border-dashed border-amber-600'
-                }`}
-              >
-                최신순
-              </button>
-            </div>
-          </div>
-
-          {/* 댓글 작성 */}
-          {!showCommentForm ? (
-            <button
-              onClick={() => setShowCommentForm(true)}
-              className="w-full p-3 rounded-lg bg-amber-50 border-2 border-dashed border-amber-300 text-amber-800 text-left transition-colors hover:bg-amber-100 font-medium"
-            >
-              댓글을 작성해주세요...
-            </button>
-          ) : (
-            <form onSubmit={onCommentSubmit} className="mb-6">
-              {!isAuthenticated && (
-                <input
-                  type="text"
-                  placeholder="닉네임"
-                  value={guestName}
-                  onChange={(e) => setGuestName(e.target.value)}
-                  className="w-full p-3 rounded-lg border-2 border-dashed border-amber-300 mb-3 focus:outline-none focus:ring-2 focus:ring-amber-500 bg-amber-50"
-                  required
-                />
-              )}
-              <textarea
-                placeholder="댓글을 입력하세요..."
-                value={commentText}
-                onChange={(e) => setCommentText(e.target.value)}
-                className="w-full p-3 rounded-lg border-2 border-dashed border-amber-300 mb-3 focus:outline-none focus:ring-2 focus:ring-amber-500 bg-amber-50"
-                rows={3}
-                required
-              />
-              <div className="flex space-x-2">
-                <button
-                  type="submit"
-                  className="bg-amber-600 text-white px-4 py-2 rounded-lg transition-colors hover:bg-amber-700 font-semibold"
-                >
-                  댓글 작성
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowCommentForm(false)}
-                  className="bg-amber-100 border border-dashed border-amber-600 text-amber-800 px-4 py-2 rounded-lg transition-colors hover:bg-amber-200 font-semibold"
-                >
-                  취소
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* 댓글 목록 */}
-          <div className="space-y-4">
-            {Array.isArray(comments) && comments.map((comment, index) => (
-              <div 
-                key={comment.id} 
-                className={`p-4 rounded-lg bg-amber-50 border border-dashed border-amber-300 transform ${
-                  index % 2 === 0 ? 'rotate-1' : '-rotate-1'
-                } ${comment.isCreator ? 'ring-2 ring-yellow-400 animate-pulse' : ''}`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center space-x-2">
-                    {getLevelBadge(comment.level)}
-                    <span className="font-semibold text-amber-800">
-                      {comment.author}
-                    </span>
-                    {comment.isCreator && (
-                      <span className="px-2 py-1 bg-yellow-400 text-yellow-900 text-xs rounded-full">
-                        제작자
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sm text-amber-600">
-                      {formatRelativeTime(comment.createdAt)}
-                    </span>
-                    <button
-                      onClick={() => onReport(comment.id)}
-                      className="p-1 rounded bg-amber-100 hover:bg-red-500 hover:text-white transition-colors"
-                    >
-                      <Flag className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-                <p className="text-amber-800 mb-2">{comment.content}</p>
-                <div className="flex items-center space-x-4">
-                  <button className="flex items-center space-x-1 text-amber-600 hover:text-red-500 transition-colors">
-                    <ThumbsUp className="w-4 h-4" />
-                    <span>{comment.likes}</span>
-                  </button>
-                  <button className="flex items-center space-x-1 text-amber-600 hover:text-blue-500 transition-colors">
-                    <MessageCircle className="w-4 h-4" />
-                    <span>답글</span>
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+          <CommentSystem
+            initialComments={comments}
+            isAuthenticated={isAuthenticated}
+            currentUser={currentUser}
+            worldcupCreatorId={worldcupCreatorId}
+            theme="paper"
+            className="p-6"
+          />
         </div>
       </div>
 
@@ -403,6 +277,14 @@ export default function PaperResultTheme({
       <div className="absolute bottom-0 left-0 w-full h-8 bg-amber-100 opacity-50" style={{
         clipPath: 'polygon(0% 50%, 5% 0%, 10% 100%, 15% 30%, 20% 80%, 25% 20%, 30% 90%, 35% 40%, 40% 70%, 45% 10%, 50% 60%, 55% 30%, 60% 90%, 65% 20%, 70% 80%, 75% 40%, 80% 70%, 85% 10%, 90% 90%, 95% 30%, 100% 80%, 100% 100%, 0% 100%)'
       }}></div>
+
+      {/* 신고 모달 */}
+      <ReportModal
+        isOpen={showReportModal || false}
+        onClose={() => setShowReportModal(false)}
+        onSubmit={onWorldcupReport}
+        title="월드컵 신고하기"
+      />
     </div>
   );
 }

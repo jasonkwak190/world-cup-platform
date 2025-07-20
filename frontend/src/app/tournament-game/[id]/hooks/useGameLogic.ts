@@ -11,7 +11,7 @@ import {
   getTournamentProgress, 
   undoLastMatch 
 } from '@/utils/tournament';
-import { VoteStats, WorldCupData } from '../components/themes/types';
+import { VoteStats, WorldCupData, ItemPercentage } from '../components/themes/types';
 
 interface UseGameLogicProps {
   worldcupId: string;
@@ -30,12 +30,59 @@ export function useGameLogic({ worldcupId }: UseGameLogicProps) {
   // UI state
   const [selectedItem, setSelectedItem] = useState<WorldCupItem | null>(null);
   const [voteStats, setVoteStats] = useState<VoteStats | null>(null);
+  const [itemPercentages, setItemPercentages] = useState<ItemPercentage[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showStats, setShowStats] = useState(false);
+  const [winStreaks, setWinStreaks] = useState<Map<string, number>>(new Map());
   
   // Theme and tournament settings
   const [theme, setTheme] = useState<string>('minimal');
   const [tournamentSize, setTournamentSize] = useState<number>(16);
+
+  // Function to fetch item statistics and calculate percentages
+  const fetchItemPercentages = useCallback(async (items: WorldCupItem[]) => {
+    try {
+      const response = await fetch(`/api/worldcup/${worldcupId}/stats`);
+      if (!response.ok) {
+        console.warn('Failed to fetch item stats, using fallback percentages');
+        // Fallback to random percentages if API fails
+        return items.map(item => ({
+          itemId: item.id,
+          percentage: Math.random() * 100
+        }));
+      }
+      
+      const statsData = await response.json();
+      const itemStats = statsData.items || [];
+      
+      // Calculate percentages based on win rate from database
+      const percentages: ItemPercentage[] = items.map(item => {
+        const stats = itemStats.find((stat: any) => stat.id === item.id);
+        if (stats && (stats.win_count > 0 || stats.loss_count > 0)) {
+          // Use database win rate
+          return {
+            itemId: item.id,
+            percentage: stats.win_rate || 0
+          };
+        } else {
+          // Fallback percentage for items with no stats
+          return {
+            itemId: item.id,
+            percentage: 50 // Default 50% for items with no history
+          };
+        }
+      });
+      
+      return percentages;
+    } catch (error) {
+      console.error('Error fetching item percentages:', error);
+      // Fallback to random percentages
+      return items.map(item => ({
+        itemId: item.id,
+        percentage: Math.random() * 100
+      }));
+    }
+  }, [worldcupId]);
 
   // Load initial data
   useEffect(() => {
@@ -101,6 +148,9 @@ export function useGameLogic({ worldcupId }: UseGameLogicProps) {
           startTime: Date.now()
         });
 
+        // Initialize win streaks
+        setWinStreaks(new Map());
+
       } catch (err) {
         console.error('Failed to load game data:', err);
         setError(err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.');
@@ -122,12 +172,20 @@ export function useGameLogic({ worldcupId }: UseGameLogicProps) {
     setSelectedItem(winner);
     
     try {
+      const rawMatch = getCurrentMatch(gameState.tournament);
+      
+      // Fetch item percentages for both items in the current match
+      if (rawMatch) {
+        const matchItems = [rawMatch.item1, rawMatch.item2];
+        const percentages = await fetchItemPercentages(matchItems);
+        setItemPercentages(percentages);
+      }
+      
       // Simulate vote stats (in real app, this would come from API)
       const leftVotes = Math.floor(Math.random() * 100) + 20;
       const rightVotes = Math.floor(Math.random() * 100) + 20;
       const totalVotes = leftVotes + rightVotes;
       
-      const rawMatch = getCurrentMatch(gameState.tournament);
       const isLeftWinner = rawMatch?.item1.id === winner.id;
       
       const stats: VoteStats = {
@@ -157,6 +215,23 @@ export function useGameLogic({ worldcupId }: UseGameLogicProps) {
       // Wait before proceeding
       await new Promise(resolve => setTimeout(resolve, 2000));
       
+      // Update win streaks
+      const loser = rawMatch ? (isLeftWinner ? rawMatch.item2 : rawMatch.item1) : null;
+      setWinStreaks(prevStreaks => {
+        const newStreaks = new Map(prevStreaks);
+        
+        // Increment winner's streak
+        const currentWinnerStreak = newStreaks.get(winner.id) || 0;
+        newStreaks.set(winner.id, currentWinnerStreak + 1);
+        
+        // Reset loser's streak to 0
+        if (loser) {
+          newStreaks.set(loser.id, 0);
+        }
+        
+        return newStreaks;
+      });
+
       // Update game state
       const newTournament = selectWinner(gameState.tournament, winner);
       setGameState({
@@ -168,6 +243,7 @@ export function useGameLogic({ worldcupId }: UseGameLogicProps) {
       // Reset UI state
       setSelectedItem(null);
       setVoteStats(null);
+      setItemPercentages([]);
       setShowStats(false);
       
     } catch (error) {
@@ -175,7 +251,7 @@ export function useGameLogic({ worldcupId }: UseGameLogicProps) {
     } finally {
       setIsProcessing(false);
     }
-  }, [gameState, isProcessing, worldcupId]);
+  }, [gameState, isProcessing, worldcupId, fetchItemPercentages]);
 
   // Handle undo
   const handleUndo = useCallback(() => {
@@ -191,6 +267,7 @@ export function useGameLogic({ worldcupId }: UseGameLogicProps) {
     }
     setSelectedItem(null);
     setVoteStats(null);
+    setItemPercentages([]);
     setShowStats(false);
   }, [gameState]);
 
@@ -231,8 +308,12 @@ export function useGameLogic({ worldcupId }: UseGameLogicProps) {
       startTime: Date.now()
     });
     
+    // Reset win streaks
+    setWinStreaks(new Map());
+    
     setSelectedItem(null);
     setVoteStats(null);
+    setItemPercentages([]);
     setShowStats(false);
   }, [worldcupData, tournamentSize]);
 
@@ -242,8 +323,8 @@ export function useGameLogic({ worldcupId }: UseGameLogicProps) {
   }, [router]);
 
   const handleSelectOtherTournament = useCallback(() => {
-    router.push('/');
-  }, [router]);
+    router.push(`/tournament-select/${worldcupId}`);
+  }, [router, worldcupId]);
 
   // Keyboard event handler
   useEffect(() => {
@@ -321,8 +402,10 @@ export function useGameLogic({ worldcupId }: UseGameLogicProps) {
     // UI State
     selectedItem,
     voteStats,
+    itemPercentages,
     isProcessing,
     showStats,
+    winStreaks,
     
     // Game Data
     currentMatch,

@@ -23,6 +23,7 @@ export interface WorldCupData {
   description: string;
   items: any[];
   creator_name: string;
+  creator_id?: string;
   created_at: string;
   likes: number;
 }
@@ -36,29 +37,33 @@ export interface ResultThemeProps {
   // User interaction states
   liked: boolean;
   bookmarked: boolean;
+  reported: boolean;
+  showReportModal: boolean;
   likes: number;
   
-  // Comment system
+  // Comment system (for CommentSystem component)
   comments: Comment[];
-  commentText: string;
-  guestName: string;
-  commentFilter: 'likes' | 'recent';
-  showCommentForm: boolean;
   
   // Actions
   onLike: () => void;
   onBookmark: () => void;
+  onWorldcupReport: (reason: string, description?: string) => void;
   onShare: () => void;
   onRestart: () => void;
   onGoHome: () => void;
   onShowRanking: () => void;
   onShowImageModal: () => void;
-  onCommentSubmit: (e: React.FormEvent) => void;
-  onReport: (commentId: string) => void;
   
   // Setters
-  setCommentText: (text: string) => void;
-  setGuestName: (name: string) => void;
-  setCommentFilter: (filter: 'likes' | 'recent') => void;
-  setShowCommentForm: (show: boolean) => void;
+  setShowReportModal: (show: boolean) => void;
+  
+  // Authentication state
+  isAuthenticated?: boolean;
+  currentUser?: {
+    id: string;
+    name: string;
+    avatar: string;
+    level: 'Bronze' | 'Silver' | 'Gold' | 'VIP' | 'Guest';
+  };
+  worldcupCreatorId?: string;
 }
