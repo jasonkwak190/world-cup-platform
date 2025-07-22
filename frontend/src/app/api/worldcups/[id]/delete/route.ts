@@ -10,7 +10,7 @@ const deleteParamsSchema = z.object({
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     console.log('🗑️ DELETE WorldCup API called');
@@ -24,8 +24,11 @@ export async function DELETE(
       return createRateLimitResponse(rateLimitResult);
     }
 
+    // Resolve params
+    const resolvedParams = await params;
+
     // Validate ID format
-    const validationResult = deleteParamsSchema.safeParse(params);
+    const validationResult = deleteParamsSchema.safeParse(resolvedParams);
     if (!validationResult.success) {
       return NextResponse.json(
         { error: 'Invalid worldcup ID format' },
@@ -42,7 +45,7 @@ export async function DELETE(
       );
     }
 
-    const worldcupId = params.id;
+    const worldcupId = resolvedParams.id;
     console.log('🔍 Deleting worldcup:', worldcupId);
 
     // 1. Validation & Data Retrieval

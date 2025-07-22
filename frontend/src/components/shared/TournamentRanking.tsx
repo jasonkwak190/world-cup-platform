@@ -65,7 +65,7 @@ export default function TournamentRanking({
     setIsGlobalLoading(true);
     try {
       console.log('🌍 Loading global rankings...');
-      const response = await fetch(`/api/worldcup/${worldcupId}/stats?global=true`);
+      const response = await fetch(`/api/worldcups/${worldcupId}/stats?global=true`);
       const data = await response.json();
       
       if (data.items && Array.isArray(data.items)) {
@@ -128,7 +128,7 @@ export default function TournamentRanking({
       
       try {
         // API 직접 호출
-        const apiUrl = `/api/worldcup/${worldcupId}/stats?_t=${Date.now()}`;
+        const apiUrl = `/api/worldcups/${worldcupId}/stats?_t=${Date.now()}`;
         console.log('🌐 Fetching from URL:', apiUrl);
         
         const response = await fetch(apiUrl);

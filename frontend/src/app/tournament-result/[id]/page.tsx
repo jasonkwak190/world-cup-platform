@@ -228,6 +228,12 @@ function TournamentResultContent({ worldcupId }: { worldcupId: string }) {
       </AnimatePresence>
 
       {/* 랭킹 모달 */}
+      {console.log('🎯 TOURNAMENT RESULT: Rendering EnhancedRankingModal', { 
+        showRanking, 
+        worldcupId, 
+        worldcupTitle: worldcupData?.title,
+        theme 
+      })}
       <EnhancedRankingModal
         isOpen={showRanking}
         onClose={() => setShowRanking(false)}

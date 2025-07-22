@@ -4,7 +4,7 @@ import { rateLimiters, checkRateLimit, getUserIdentifier, createRateLimitRespons
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Rate limiting
@@ -15,7 +15,8 @@ export async function GET(
       return createRateLimitResponse(rateLimitResult);
     }
 
-    const worldcupId = params.id;
+    const resolvedParams = await params;
+    const worldcupId = resolvedParams.id;
 
     // Get worldcup with items
     const { data: worldcup, error: worldcupError } = await supabase
@@ -136,7 +137,7 @@ export async function GET(
 // Update worldcup statistics after playing
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Rate limiting
@@ -147,7 +148,8 @@ export async function POST(
       return createRateLimitResponse(rateLimitResult);
     }
 
-    const worldcupId = params.id;
+    const resolvedParams = await params;
+    const worldcupId = resolvedParams.id;
     const body = await request.json();
 
     // Validate request body

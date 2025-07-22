@@ -238,9 +238,26 @@ export async function withOptionalAuth(
       }
     }
     
-    // 옵셔널 인증 시도
-    const authResult = await authenticateUser(request);
-    const user = authResult.success ? authResult.user : undefined;
+    // 옵셔널 인증 시도 - Authorization 헤더가 없으면 게스트로 처리
+    const authHeader = request.headers.get('authorization');
+    console.log('🔍 withOptionalAuth - authHeader:', authHeader);
+    let user: AuthenticatedUser | undefined;
+    
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      console.log('🔍 withOptionalAuth - has Bearer token, calling authenticateUser');
+      const authResult = await authenticateUser(request);
+      console.log('🔍 withOptionalAuth - authResult:', JSON.stringify(authResult, null, 2));
+      user = authResult.success ? authResult.user : undefined;
+      console.log('🔍 withOptionalAuth - user after auth:', JSON.stringify(user, null, 2));
+    } else {
+      // 게스트 사용자 - 인증 시도하지 않음
+      console.log('🔍 withOptionalAuth - no auth header, setting user to undefined');
+      user = undefined;
+      console.log('🔍 withOptionalAuth - user set to:', JSON.stringify(user, null, 2));
+    }
+    
+    console.log('🔍 withOptionalAuth - final user before handler:', JSON.stringify(user, null, 2));
+    console.log('🔍 withOptionalAuth - final user type:', typeof user);
     
     // 인증 여부와 관계없이 핸들러 실행
     return await handler(request, user);

@@ -114,7 +114,7 @@ export async function saveGameResult(result: GameResult): Promise<void> {
       }
     });
 
-    const response = await fetch(`/api/worldcup/${result.worldcupId}/stats`, {
+    const response = await fetch(`/api/worldcups/${result.worldcupId}/stats`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

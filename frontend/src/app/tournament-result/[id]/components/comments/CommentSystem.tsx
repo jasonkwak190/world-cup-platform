@@ -50,6 +50,7 @@ const CommentSystem: React.FC<CommentSystemProps> = ({
     sortOption,
     openMenu,
     openReplyMenu,
+    loading,
     setNewComment,
     setGuestName,
     setEditContent,
@@ -104,38 +105,45 @@ const CommentSystem: React.FC<CommentSystemProps> = ({
       />
 
       {/* Comment List */}
-      <CommentList
-        comments={comments}
-        editingComment={editingComment}
-        editContent={editContent}
-        replyingTo={replyingTo}
-        replyContent={replyContent}
-        editingReply={editingReply}
-        editReplyContent={editReplyContent}
-        openMenu={openMenu}
-        openReplyMenu={openReplyMenu}
-        guestName={guestName}
-        isAuthenticated={isAuthenticated}
-        theme={theme}
-        onLike={handleLike}
-        onEdit={handleEditComment}
-        onSaveEdit={handleSaveEdit}
-        onDelete={handleDeleteComment}
-        onReply={setReplyingTo}
-        onSubmitReply={handleSubmitReply}
-        onEditReply={handleEditReply}
-        onSaveReplyEdit={handleSaveReplyEdit}
-        onDeleteReply={handleDeleteReply}
-        onReport={handleReport}
-        onToggleMenu={toggleMenu}
-        onToggleReplyMenu={toggleReplyMenu}
-        setEditContent={setEditContent}
-        setReplyContent={setReplyContent}
-        setEditReplyContent={setEditReplyContent}
-        setEditingComment={setEditingComment}
-        setEditingReply={setEditingReply}
-        setGuestName={setGuestName}
-      />
+      {loading ? (
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">댓글을 불러오는 중...</p>
+        </div>
+      ) : (
+        <CommentList
+          comments={comments}
+          editingComment={editingComment}
+          editContent={editContent}
+          replyingTo={replyingTo}
+          replyContent={replyContent}
+          editingReply={editingReply}
+          editReplyContent={editReplyContent}
+          openMenu={openMenu}
+          openReplyMenu={openReplyMenu}
+          guestName={guestName}
+          isAuthenticated={isAuthenticated}
+          theme={theme}
+          onLike={handleLike}
+          onEdit={handleEditComment}
+          onSaveEdit={handleSaveEdit}
+          onDelete={handleDeleteComment}
+          onReply={setReplyingTo}
+          onSubmitReply={handleSubmitReply}
+          onEditReply={handleEditReply}
+          onSaveReplyEdit={handleSaveReplyEdit}
+          onDeleteReply={handleDeleteReply}
+          onReport={handleReport}
+          onToggleMenu={toggleMenu}
+          onToggleReplyMenu={toggleReplyMenu}
+          setEditContent={setEditContent}
+          setReplyContent={setReplyContent}
+          setEditReplyContent={setEditReplyContent}
+          setEditingComment={setEditingComment}
+          setEditingReply={setEditingReply}
+          setGuestName={setGuestName}
+        />
+      )}
 
       {/* Pagination */}
       {totalPages > 1 && (

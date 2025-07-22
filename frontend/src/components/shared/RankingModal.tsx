@@ -36,7 +36,7 @@ export default function RankingModal({ isOpen, onClose, worldcupId, worldcupTitl
     try {
       console.log('🔍 RANKING MODAL: Loading data for worldcup:', worldcupId);
       
-      const url = `/api/worldcup/${worldcupId}/stats?_t=${Date.now()}`;
+      const url = `/api/worldcups/${worldcupId}/stats?_t=${Date.now()}`;
       console.log('🌐 RANKING MODAL: Fetching from URL:', url);
       
       const response = await fetch(url, {

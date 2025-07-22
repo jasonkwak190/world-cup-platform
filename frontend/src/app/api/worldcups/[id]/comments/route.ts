@@ -169,6 +169,11 @@ export async function POST(
 ) {
   return withOptionalAuth(request, async (user) => {
     try {
+      console.log('🚀 POST /api/worldcups/[id]/comments - Starting request processing');
+      console.log('👤 User object:', JSON.stringify(user, null, 2));
+      console.log('👤 User type:', typeof user);
+      console.log('👤 User is null:', user === null);
+      console.log('👤 User is undefined:', user === undefined);
       // Rate limiting - stricter for comment creation
       const identifier = getUserIdentifier(request);
       const rateLimitResult = await checkRateLimit(rateLimiters.comment, identifier);
@@ -179,8 +184,13 @@ export async function POST(
 
       const resolvedParams = await params;
       const worldcupId = resolvedParams.id;
+      console.log('🎯 WorldCup ID:', worldcupId);
+      
       const body = await request.json();
+      console.log('📝 Request body:', JSON.stringify(body, null, 2));
+      
       const validatedData = commentSchema.parse(body);
+      console.log('✅ Validated data:', JSON.stringify(validatedData, null, 2));
 
       // Verify worldcup exists
       const { data: worldcup, error: worldcupError } = await supabase
@@ -206,20 +216,35 @@ export async function POST(
       };
 
       // Add user or guest information
-      if (user) {
+      console.log('🔍 Checking user vs guest logic...');
+      console.log('🔍 user exists:', !!user);
+      console.log('🔍 user has id:', !!(user && user.id));
+      console.log('🔍 user object keys:', user ? Object.keys(user) : 'no user');
+      console.log('🔍 validatedData.guestName:', validatedData.guestName);
+      
+      // Check if user is a valid authenticated user (has id)
+      if (user && user.id) {
+        console.log('✅ Setting as authenticated user comment');
         commentData.author_id = user.id;
       } else {
+        console.log('👤 Setting as guest comment');
         if (!validatedData.guestName) {
+          console.log('❌ No guest name provided');
           return NextResponse.json(
             { error: 'Guest name is required for anonymous comments' },
             { status: 400 }
           );
         }
+        console.log('✅ Setting guest name:', validatedData.guestName);
         commentData.guest_name = validatedData.guestName.trim();
-        commentData.guest_session_id = request.ip || 'anonymous';
+        // Guest 세션 ID를 헤더에서 가져오기 (클라이언트에서 전송)
+        commentData.guest_session_id = request.headers.get('x-guest-session-id') || request.ip || 'anonymous';
+        console.log('✅ Final guest_name value:', commentData.guest_name);
       }
 
       // Insert comment
+      console.log('💾 Inserting comment with data:', JSON.stringify(commentData, null, 2));
+      
       const { data: comment, error: commentError } = await supabase
         .from('comments')
         .insert(commentData)
@@ -231,24 +256,25 @@ export async function POST(
           reply_count,
           created_at,
           author_id,
-          parent_id,
-          users!author_id (
-            id,
-            username,
-            display_name,
-            avatar_url,
-            role
-          )
+          parent_id
         `)
         .single();
 
       if (commentError) {
-        console.error('Comment insert error:', commentError);
+        console.error('❌ Comment insert error:', commentError);
+        console.error('❌ Comment error details:', {
+          code: commentError.code,
+          message: commentError.message,
+          details: commentError.details,
+          hint: commentError.hint
+        });
         return NextResponse.json(
-          { error: 'Failed to create comment' },
+          { error: 'Failed to create comment', details: commentError },
           { status: 500 }
         );
       }
+      
+      console.log('✅ Comment inserted successfully:', comment);
 
       // Update worldcup comment count
       // First get current count, then increment
@@ -274,20 +300,26 @@ export async function POST(
 
       // Get user display name for the new comment
       let authorName = 'Anonymous';
-      if (user) {
-        // Get user details from auth
-        const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(user.id);
-        
-        if (!authError && authUser?.user) {
-          authorName = 
-            authUser.user.user_metadata?.full_name || 
-            authUser.user.user_metadata?.name || 
-            authUser.user.identities?.[0]?.identity_data?.full_name || 
-            authUser.user.identities?.[0]?.identity_data?.name || 
-            authUser.user.email?.split('@')[0] || 
-            'Unknown User';
+      if (user && user.id) {
+        // Get user details from auth for authenticated users
+        try {
+          const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(user.id);
+          
+          if (!authError && authUser?.user) {
+            authorName = 
+              authUser.user.user_metadata?.full_name || 
+              authUser.user.user_metadata?.name || 
+              authUser.user.identities?.[0]?.identity_data?.full_name || 
+              authUser.user.identities?.[0]?.identity_data?.name || 
+              authUser.user.email?.split('@')[0] || 
+              'Unknown User';
+          }
+        } catch (authUserError) {
+          console.warn('Failed to get auth user details:', authUserError);
+          authorName = user.username || user.email?.split('@')[0] || 'User';
         }
       } else if (comment.guest_name) {
+        // For guest users, use the guest name
         authorName = comment.guest_name;
       }
 
@@ -314,9 +346,11 @@ export async function POST(
       });
 
     } catch (error) {
-      console.error('API error:', error);
+      console.error('💥 API error in POST /comments:', error);
+      console.error('💥 Error stack:', error instanceof Error ? error.stack : 'No stack trace');
       
       if (error instanceof z.ZodError) {
+        console.error('🔍 Zod validation error:', error.errors);
         return NextResponse.json(
           { error: 'Validation error', details: error.errors },
           { status: 400 }
@@ -324,7 +358,7 @@ export async function POST(
       }
       
       return NextResponse.json(
-        { error: 'Internal server error' },
+        { error: 'Internal server error', message: error instanceof Error ? error.message : 'Unknown error' },
         { status: 500 }
       );
     }
@@ -375,11 +409,14 @@ export async function PUT(
           );
         }
       } else {
-        // For guests, check session ID (simplified check)
-        return NextResponse.json(
-          { error: 'Guests cannot edit comments after page refresh' },
-          { status: 403 }
-        );
+        // For guests, check session ID
+        const guestSessionId = request.headers.get('x-guest-session-id');
+        if (!guestSessionId || comment.guest_session_id !== guestSessionId) {
+          return NextResponse.json(
+            { error: 'Not authorized to edit this comment' },
+            { status: 403 }
+          );
+        }
       }
 
       // Update the comment
@@ -478,11 +515,14 @@ export async function DELETE(
           );
         }
       } else {
-        // For guests, check session ID (simplified check)
-        return NextResponse.json(
-          { error: 'Guests cannot delete comments after page refresh' },
-          { status: 403 }
-        );
+        // For guests, check session ID
+        const guestSessionId = request.headers.get('x-guest-session-id');
+        if (!guestSessionId || comment.guest_session_id !== guestSessionId) {
+          return NextResponse.json(
+            { error: 'Not authorized to delete this comment' },
+            { status: 403 }
+          );
+        }
       }
 
       // Soft delete the comment

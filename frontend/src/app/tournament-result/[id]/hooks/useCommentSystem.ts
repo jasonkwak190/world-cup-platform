@@ -1,55 +1,32 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-
-// Enhanced comment interface matching tournament-comment structure
-export interface CommentAuthor {
-  name: string;
-  avatar: string;
-  isVerified: boolean;
-  level: 'VIP' | 'Gold' | 'Silver' | 'Bronze' | 'Guest';
-}
-
-// Current user interface for complete user data
-export interface CurrentUser {
-  id: string;
-  name: string;
-  avatar: string;
-  level?: 'VIP' | 'Gold' | 'Silver' | 'Bronze';
-}
-
-export interface CommentReply {
-  id: number;
-  author: CommentAuthor;
-  content: string;
-  timestamp: string;
-  createdAt: Date;
-  likes: number;
-  isLiked: boolean;
-  isOwner: boolean;
-  isCreator?: boolean;
-}
-
-export interface EnhancedComment {
-  id: number;
-  author: CommentAuthor;
-  content: string;
-  timestamp: string;
-  createdAt: Date;
-  likes: number;
-  isLiked: boolean;
-  isOwner: boolean;
-  isCreator?: boolean;
-  replies: CommentReply[];
-}
-
-export interface UseCommentSystemProps {
-  initialComments?: any[];
-  isAuthenticated?: boolean;
-  currentUser?: CurrentUser;
-  worldcupCreatorId?: string;
-  worldcupId?: string;
-}
+import { 
+  EnhancedComment, 
+  CommentReply, 
+  UseCommentSystemProps, 
+  CurrentUser,
+  CommentApiData 
+} from '@/types/comment';
+import { 
+  fetchComments, 
+  createComment, 
+  updateComment, 
+  deleteComment, 
+  toggleCommentLike,
+  getMultipleCommentLikeStatus 
+} from '@/services/commentService';
+import { 
+  transformApiCommentToEnhanced,
+  formatRelativeTime,
+  checkCommentOwnership,
+  sortComments,
+  paginateComments,
+  validateCommentContent,
+  validateGuestName 
+} from '@/utils/commentUtils';
+import { useApiState } from '@/hooks/useApiState';
+import { getGuestSessionId } from '@/utils/guestSession';
 
 export const useCommentSystem = ({
   initialComments = [],
@@ -58,10 +35,10 @@ export const useCommentSystem = ({
   worldcupCreatorId,
   worldcupId
 }: UseCommentSystemProps = {}) => {
-  const currentUserId = currentUser?.id;
+  // API 상태 관리
+  const apiState = useApiState<EnhancedComment[]>([]);
   
-  // State management - ALL state declarations come first
-  const [comments, setComments] = useState<EnhancedComment[]>([]);
+  // UI 상태 관리
   const [newComment, setNewComment] = useState('');
   const [guestName, setGuestName] = useState('');
   const [editingComment, setEditingComment] = useState<number | null>(null);
@@ -76,178 +53,157 @@ export const useCommentSystem = ({
   const [openMenu, setOpenMenu] = useState<number | null>(null);
   const [openReplyMenu, setOpenReplyMenu] = useState<{commentId: number, replyId: number} | null>(null);
 
-  // Helper function to check ownership - comes after all state declarations
-  const checkOwnership = useCallback((authorId: string | undefined, authorName: string, isAuthorAuthenticated: boolean) => {
-    if (isAuthenticated && isAuthorAuthenticated && currentUser) {
-      return currentUser.id === authorId;
-    }
-    if (!isAuthenticated && !isAuthorAuthenticated) {
-      return guestName === authorName && guestName.trim() !== '';
-    }
-    return false;
-  }, [isAuthenticated, currentUser, guestName]);
+  // 댓글 데이터 변환 함수 (공통 모듈 사용)
+  const transformComment = useCallback((comment: CommentApiData): EnhancedComment => {
+    return transformApiCommentToEnhanced(comment, currentUser, worldcupCreatorId, isAuthenticated);
+  }, [currentUser, worldcupCreatorId, isAuthenticated]);
 
-  // Convert initial comments to enhanced format
+  // 댓글 로딩 함수 (공통 서비스 사용)
+  const loadCommentsFromAPI = useCallback(async () => {
+    if (!worldcupId) return;
+    
+    await apiState.executeAsync(
+      async () => {
+        const result = await fetchComments(worldcupId, sortOption);
+        if (!result.success) {
+          throw new Error(result.error || '댓글을 불러오는데 실패했습니다.');
+        }
+        
+        // API 응답을 Enhanced 형식으로 변환
+        const enhanced = result.data?.map(transformComment) || [];
+        
+        // 인증된 사용자인 경우 좋아요 상태를 일괄 확인
+        if (isAuthenticated && enhanced.length > 0) {
+          const commentIds = enhanced.map(comment => comment.id.toString());
+          const likeStatuses = await getMultipleCommentLikeStatus(commentIds);
+          
+          return enhanced.map(comment => ({
+            ...comment,
+            isLiked: likeStatuses[comment.id.toString()] || false
+          }));
+        }
+        
+        return enhanced;
+      },
+      {
+        onSuccess: (enhancedComments) => {
+          // API 상태 대신 로컬 상태 설정
+          // apiState.data는 executeAsync에서 자동 설정됨
+        }
+      }
+    );
+  }, [worldcupId, sortOption, transformComment, isAuthenticated, apiState]);
+
+  // 현재 댓글 목록 (API 상태에서 가져오기)
+  const comments = apiState.data || [];
+
+  // 초기 로딩 및 데이터 변화 감지
   useEffect(() => {
-    if (initialComments && initialComments.length > 0) {
-      const enhanced = initialComments.map(comment => ({
-        id: typeof comment.id === 'string' ? parseInt(comment.id) : comment.id,
-        author: {
-          // Use current user name if it's the current user's comment, otherwise use comment user name or guest name
-          name: (currentUser && comment.user && currentUser.id === comment.user.id) 
-            ? currentUser.name 
-            : (comment.user?.name || comment.guestName || comment.author || 'Unknown'),
-          // Use current user avatar if it's the current user's comment, otherwise use comment user avatar or guest avatar
-          avatar: (currentUser && comment.user && currentUser.id === comment.user.id) 
-            ? currentUser.avatar 
-            : (comment.user?.image || `https://avatar.vercel.sh/${comment.guestName || 'guest'}.png`),
-          // Verified only if there is an actual user account
-          isVerified: !!comment.user,
-          // Proper level handling for both users and guests
-          level: comment.user 
-            ? (comment.user.level === 'vip' ? 'VIP' as const : 
-               comment.user.level === 'gold' ? 'Gold' as const :
-               comment.user.level === 'silver' ? 'Silver' as const : 'Bronze' as const) 
-            : 'Guest' as const
-        },
-        content: comment.content,
-        timestamp: formatRelativeTime(comment.createdAt),
-        createdAt: new Date(comment.createdAt),
-        likes: comment.likes || 0,
-        isLiked: false,
-        // Calculate ownership properly by comparing user IDs
-        isOwner: !!(currentUser && comment.user && currentUser.id === comment.user.id),
-        // Calculate creator status by comparing with worldcup creator ID
-        isCreator: !!(comment.user && comment.user.id === worldcupCreatorId),
-        replies: comment.replies ? comment.replies.map(reply => ({
-          id: typeof reply.id === 'string' ? parseInt(reply.id) : reply.id,
-          author: {
-            // Use current user name if it's the current user's reply, otherwise use reply user name or guest name
-            name: (currentUser && reply.user && currentUser.id === reply.user.id) 
-              ? currentUser.name 
-              : (reply.user?.name || reply.guestName || reply.author || 'Unknown'),
-            // Use current user avatar if it's the current user's reply, otherwise use reply user avatar or guest avatar
-            avatar: (currentUser && reply.user && currentUser.id === reply.user.id) 
-              ? currentUser.avatar 
-              : (reply.user?.image || `https://avatar.vercel.sh/${reply.guestName || 'guest'}.png`),
-            // Verified only if there is an actual user account for replies
-            isVerified: !!reply.user,
-            // Proper level handling for reply authors
-            level: reply.user 
-              ? (reply.user.level === 'vip' ? 'VIP' as const : 
-                 reply.user.level === 'gold' ? 'Gold' as const :
-                 reply.user.level === 'silver' ? 'Silver' as const : 'Bronze' as const) 
-              : 'Guest' as const
-          },
-          content: reply.content,
-          timestamp: formatRelativeTime(reply.createdAt),
-          createdAt: new Date(reply.createdAt),
-          likes: reply.likes || 0,
-          isLiked: false,
-          // Calculate ownership properly for replies by comparing user IDs
-          isOwner: !!(currentUser && reply.user && currentUser.id === reply.user.id),
-          // Calculate creator status for replies by comparing with worldcup creator ID
-          isCreator: !!(reply.user && reply.user.id === worldcupCreatorId)
-        })) : []
-      }));
+    if (worldcupId) {
+      // API에서 직접 댓글 로드
+      loadCommentsFromAPI();
+    } else if (initialComments && initialComments.length > 0) {
+      // fallback: initialComments가 있으면 변환해서 사용
+      const enhanced = initialComments.map((comment: any) => transformComment(comment));
       setComments(enhanced);
     }
-  }, [initialComments, currentUser, worldcupCreatorId]);
+  }, [worldcupId, loadCommentsFromAPI, initialComments, transformComment]);
 
-  // Utility functions
-  const formatRelativeTime = useCallback((dateString: string) => {
-    const now = new Date();
-    const date = new Date(dateString);
-    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+  // 정렬 옵션 변경 시 다시 로드
+  useEffect(() => {
+    if (worldcupId && comments.length > 0) {
+      loadCommentsFromAPI();
+    }
+  }, [sortOption, loadCommentsFromAPI]);
+
+  // 정렬된 댓글 목록
+  const sortedComments = sortComments(comments, sortOption);
+
+  // 댓글 좋아요 함수 (공통 서비스 사용)
+  const handleLike = useCallback(async (commentId: number, replyId?: number) => {
+    if (!isAuthenticated) {
+      alert('로그인이 필요합니다.');
+      return;
+    }
+
+    const result = await toggleCommentLike(commentId.toString());
     
-    if (diffInSeconds < 60) return '방금 전';
-    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}분 전`;
-    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}시간 전`;
-    return `${Math.floor(diffInSeconds / 86400)}일 전`;
-  }, []);
-
-  // Comment sorting
-  const sortComments = useCallback((commentsToSort: EnhancedComment[]) => {
-    if (sortOption === 'likes') {
-      return [...commentsToSort].sort((a, b) => b.likes - a.likes);
+    if (result.success && result.data) {
+      if (replyId) {
+        // Reply like handling - TODO: API 지원 시 활성화
+        apiState.setData(prev => prev ? prev.map(comment => {
+          if (comment.id === commentId && comment.replies) {
+            return {
+              ...comment,
+              replies: comment.replies.map(reply => 
+                reply.id === replyId
+                  ? { 
+                      ...reply, 
+                      likes: reply.isLiked ? reply.likes - 1 : reply.likes + 1,
+                      isLiked: !reply.isLiked 
+                    }
+                  : reply
+              )
+            };
+          }
+          return comment;
+        }) : null);
+      } else {
+        // Comment like handling - API 결과 반영
+        apiState.setData(prev => prev ? prev.map(comment => 
+          comment.id === commentId 
+            ? { 
+                ...comment, 
+                likes: result.data!.likeCount,
+                isLiked: result.data!.liked 
+              }
+            : comment
+        ) : null);
+      }
     } else {
-      return [...commentsToSort].sort((a, b) => {
-        if (a.createdAt && b.createdAt) {
-          return b.createdAt.getTime() - a.createdAt.getTime();
-        }
-        return 0;
-      });
+      alert(result.error || '좋아요 처리에 실패했습니다.');
     }
-  }, [sortOption]);
+  }, [isAuthenticated, apiState]);
 
-  // Like handling
-  const handleLike = useCallback((commentId: number, replyId?: number) => {
-    if (replyId) {
-      // Reply like handling
-      setComments(prev => prev.map(comment => {
-        if (comment.id === commentId && comment.replies) {
-          return {
-            ...comment,
-            replies: comment.replies.map(reply => 
-              reply.id === replyId
-                ? { 
-                    ...reply, 
-                    likes: reply.isLiked ? reply.likes - 1 : reply.likes + 1,
-                    isLiked: !reply.isLiked 
-                  }
-                : reply
-            )
-          };
-        }
-        return comment;
-      }));
-    } else {
-      // Comment like handling
-      setComments(prev => prev.map(comment => 
-        comment.id === commentId 
-          ? { 
-              ...comment, 
-              likes: comment.isLiked ? comment.likes - 1 : comment.likes + 1,
-              isLiked: !comment.isLiked 
-            }
-          : comment
-      ));
+  // 댓글 제출 함수 (공통 서비스 사용)
+  const handleSubmitComment = useCallback(async () => {
+    if (!worldcupId) return;
+
+    // 유효성 검사
+    const contentValidation = validateCommentContent(newComment);
+    if (!contentValidation.isValid) {
+      alert(contentValidation.error);
+      return;
     }
-  }, []);
 
-  // Comment submission
-  const handleSubmitComment = useCallback(() => {
-    if (!newComment.trim() || (!isAuthenticated && !guestName.trim())) return;
+    if (!isAuthenticated) {
+      const guestNameValidation = validateGuestName(guestName);
+      if (!guestNameValidation.isValid) {
+        alert(guestNameValidation.error);
+        return;
+      }
+    }
 
-    const comment: EnhancedComment = {
-      id: Date.now(),
-      author: {
-        // Use actual user name from currentUser or guest name
-        name: isAuthenticated && currentUser ? currentUser.name : guestName,
-        // Use actual user avatar from currentUser or guest avatar
-        avatar: isAuthenticated && currentUser 
-          ? currentUser.avatar 
-          : `https://avatar.vercel.sh/${guestName}.png`,
-        isVerified: isAuthenticated,
-        // Use actual user level or Guest
-        level: isAuthenticated && currentUser 
-          ? (currentUser.level || 'Bronze') 
-          : 'Guest'
+    const result = await createComment(
+      worldcupId,
+      {
+        content: newComment.trim(),
+        guestName: isAuthenticated ? undefined : guestName.trim()
       },
-      content: newComment,
-      timestamp: '방금 전',
-      createdAt: new Date(),
-      likes: 0,
-      isLiked: false,
-      isOwner: true, // Always true for newly created comments by current user
-      isCreator: isAuthenticated && currentUser && currentUser.id === worldcupCreatorId,
-      replies: []
-    };
+      isAuthenticated
+    );
 
-    setComments(prev => [comment, ...prev]);
-    setNewComment('');
-    if (!isAuthenticated) setGuestName('');
-  }, [newComment, guestName, isAuthenticated, currentUser, worldcupCreatorId]);
+    if (result.success) {
+      // 성공 시 입력 초기화
+      setNewComment('');
+      if (!isAuthenticated) setGuestName('');
+      
+      // 댓글 목록 새로고침
+      await loadCommentsFromAPI();
+    } else {
+      alert(result.error || '댓글 작성에 실패했습니다.');
+    }
+  }, [newComment, guestName, isAuthenticated, worldcupId, loadCommentsFromAPI]);
 
   // Comment editing
   const handleEditComment = useCallback((commentId: number) => {
@@ -260,104 +216,139 @@ export const useCommentSystem = ({
   }, [comments]);
 
   const handleSaveEdit = useCallback(async (commentId: number) => {
-    if (!worldcupId || !editContent.trim()) return;
+    if (!worldcupId) return;
 
-    try {
-      const response = await fetch(`/api/worldcups/${worldcupId}/comments`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          commentId: commentId.toString(),
-          content: editContent.trim()
-        })
-      });
-
-      if (response.ok) {
-        // Update the comment in local state
-        setComments(prev => prev.map(comment => 
-          comment.id === commentId 
-            ? { ...comment, content: editContent }
-            : comment
-        ));
-        setEditingComment(null);
-        setEditContent('');
-      } else {
-        const errorData = await response.json();
-        alert(errorData.error || '댓글 수정에 실패했습니다.');
-      }
-    } catch (error) {
-      console.error('Failed to edit comment:', error);
-      alert('댓글 수정 중 오류가 발생했습니다.');
+    const contentValidation = validateCommentContent(editContent);
+    if (!contentValidation.isValid) {
+      alert(contentValidation.error);
+      return;
     }
-  }, [editContent, worldcupId]);
 
-  // Comment deletion
+    const result = await updateComment(
+      worldcupId,
+      {
+        commentId: commentId.toString(),
+        content: editContent.trim()
+      },
+      isAuthenticated
+    );
+
+    if (result.success) {
+      // 로컬 상태 업데이트
+      apiState.setData(prev => prev ? prev.map(comment => 
+        comment.id === commentId 
+          ? { ...comment, content: editContent.trim() }
+          : comment
+      ) : null);
+      
+      setEditingComment(null);
+      setEditContent('');
+    } else {
+      alert(result.error || '댓글 수정에 실패했습니다.');
+    }
+  }, [editContent, worldcupId, isAuthenticated, apiState]);
+
+  // 댓글 삭제 함수 (공통 서비스 사용)
   const handleDeleteComment = useCallback(async (commentId: number) => {
     if (!worldcupId) return;
     
     if (confirm('댓글을 삭제하시겠습니까?')) {
-      try {
-        const response = await fetch(`/api/worldcups/${worldcupId}/comments?commentId=${commentId}`, {
-          method: 'DELETE'
-        });
+      const result = await deleteComment(worldcupId, commentId.toString(), isAuthenticated);
 
-        if (response.ok) {
-          // Remove the comment from local state
-          setComments(prev => prev.filter(comment => comment.id !== commentId));
-          setOpenMenu(null);
-        } else {
-          const errorData = await response.json();
-          alert(errorData.error || '댓글 삭제에 실패했습니다.');
-        }
-      } catch (error) {
-        console.error('Failed to delete comment:', error);
-        alert('댓글 삭제 중 오류가 발생했습니다.');
+      if (result.success) {
+        // 로컬 상태 업데이트
+        apiState.setData(prev => prev ? prev.filter(comment => comment.id !== commentId) : null);
+        setOpenMenu(null);
+      } else {
+        alert(result.error || '댓글 삭제에 실패했습니다.');
       }
     }
-  }, [worldcupId]);
+  }, [worldcupId, isAuthenticated, apiState]);
 
-  // Reply handling
-  const handleSubmitReply = useCallback((commentId: number) => {
-    if (!replyContent.trim() || (!isAuthenticated && !guestName.trim())) return;
+  // Reply handling - 실제 API 호출
+  const handleSubmitReply = useCallback(async (commentId: number) => {
+    if (!replyContent.trim() || (!isAuthenticated && !guestName.trim()) || !worldcupId) return;
 
-    const reply: CommentReply = {
-      id: Date.now(),
-      author: {
-        // Use actual user name from currentUser or guest name for replies
-        name: isAuthenticated && currentUser ? currentUser.name : guestName,
-        // Use actual user avatar from currentUser or guest avatar for replies
-        avatar: isAuthenticated && currentUser 
-          ? currentUser.avatar 
-          : `https://avatar.vercel.sh/${guestName}.png`,
-        isVerified: isAuthenticated,
-        // Use actual user level or Guest for replies
-        level: isAuthenticated && currentUser 
-          ? (currentUser.level || 'Bronze') 
-          : 'Guest'
-      },
-      content: replyContent,
-      timestamp: '방금 전',
-      createdAt: new Date(),
-      likes: 0,
-      isLiked: false,
-      isOwner: true // Always true for newly created replies by current user
-    };
-
-    setComments(prev => prev.map(comment => {
-      if (comment.id === commentId) {
-        return {
-          ...comment,
-          replies: [...comment.replies, reply]
-        };
+    try {
+      const requestBody: any = {
+        content: replyContent.trim(),
+        parentId: commentId.toString() // 부모 댓글 ID 설정
+      };
+      
+      if (!isAuthenticated) {
+        requestBody.guestName = guestName.trim();
       }
-      return comment;
-    }));
 
-    setReplyingTo(null);
-    setReplyContent('');
-  }, [replyContent, guestName, isAuthenticated, currentUser]);
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      };
+      
+      // Guest 사용자인 경우 세션 ID를 헤더에 추가
+      if (!isAuthenticated) {
+        headers['x-guest-session-id'] = getGuestSessionId();
+      }
+
+      const response = await fetch(`/api/worldcups/${worldcupId}/comments`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody)
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('Reply created successfully:', result);
+        
+        // Guest 답글인 경우 로컬 세션에 소유권 등록
+        if (!isAuthenticated && result.comment?.id) {
+          registerGuestComment(result.comment.id.toString());
+        }
+        
+        // 답글 생성 성공 시 임시로 로컬 상태 업데이트 (서버에서 대댓글 지원 완료 전까지)
+        const reply: CommentReply = {
+          id: result.comment?.id || Date.now(),
+          author: {
+            name: isAuthenticated && currentUser ? currentUser.name : guestName,
+            avatar: isAuthenticated && currentUser 
+              ? currentUser.avatar 
+              : `https://avatar.vercel.sh/${guestName}.png`,
+            isVerified: isAuthenticated,
+            level: isAuthenticated && currentUser 
+              ? (currentUser.level || 'Bronze') 
+              : 'Guest'
+          },
+          content: replyContent,
+          timestamp: '방금 전',
+          createdAt: new Date(),
+          likes: 0,
+          isLiked: false,
+          isOwner: true
+        };
+
+        setComments(prev => prev.map(comment => {
+          if (comment.id === commentId) {
+            return {
+              ...comment,
+              replies: [...comment.replies, reply]
+            };
+          }
+          return comment;
+        }));
+
+        setReplyingTo(null);
+        setReplyContent('');
+        
+        // 전체 댓글 목록 새로고침 (대댓글이 실제로 저장되었는지 확인)
+        await loadCommentsFromAPI();
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Failed to create reply:', response.status, errorData);
+        alert(`답글 작성에 실패했습니다. (${response.status})`);
+      }
+    } catch (error) {
+      console.error('Failed to submit reply:', error);
+      alert('답글 작성 중 오류가 발생했습니다.');
+    }
+  }, [replyContent, guestName, isAuthenticated, currentUser, worldcupId, loadCommentsFromAPI]);
 
   // Reply editing
   const handleEditReply = useCallback((commentId: number, replyId: number) => {
@@ -372,38 +363,99 @@ export const useCommentSystem = ({
     }
   }, [comments]);
 
-  const handleSaveReplyEdit = useCallback((commentId: number, replyId: number) => {
-    setComments(prev => prev.map(comment => {
-      if (comment.id === commentId && comment.replies) {
-        return {
-          ...comment,
-          replies: comment.replies.map(reply => 
-            reply.id === replyId 
-              ? { ...reply, content: editReplyContent }
-              : reply
-          )
-        };
-      }
-      return comment;
-    }));
-    setEditingReply(null);
-    setEditReplyContent('');
-  }, [editReplyContent]);
+  const handleSaveReplyEdit = useCallback(async (commentId: number, replyId: number) => {
+    if (!worldcupId || !editReplyContent.trim()) return;
 
-  const handleDeleteReply = useCallback((commentId: number, replyId: number) => {
-    if (confirm('답글을 삭제하시겠습니까?')) {
-      setComments(prev => prev.map(comment => {
-        if (comment.id === commentId && comment.replies) {
-          return {
-            ...comment,
-            replies: comment.replies.filter(reply => reply.id !== replyId)
-          };
-        }
-        return comment;
-      }));
-      setOpenReplyMenu(null);
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      };
+      
+      // Guest 사용자인 경우 세션 ID를 헤더에 추가
+      if (!isAuthenticated) {
+        headers['x-guest-session-id'] = getGuestSessionId();
+      }
+
+      const response = await fetch(`/api/worldcups/${worldcupId}/comments`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          commentId: replyId.toString(),
+          content: editReplyContent.trim()
+        })
+      });
+
+      if (response.ok) {
+        // Update the reply in local state
+        setComments(prev => prev.map(comment => {
+          if (comment.id === commentId && comment.replies) {
+            return {
+              ...comment,
+              replies: comment.replies.map(reply => 
+                reply.id === replyId 
+                  ? { ...reply, content: editReplyContent }
+                  : reply
+              )
+            };
+          }
+          return comment;
+        }));
+        setEditingReply(null);
+        setEditReplyContent('');
+      } else {
+        const errorData = await response.json();
+        alert(errorData.error || '답글 수정에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('Failed to edit reply:', error);
+      alert('답글 수정 중 오류가 발생했습니다.');
     }
-  }, []);
+  }, [editReplyContent, worldcupId]);
+
+  const handleDeleteReply = useCallback(async (commentId: number, replyId: number) => {
+    if (!worldcupId) return;
+    
+    if (confirm('답글을 삭제하시겠습니까?')) {
+      try {
+        const headers: Record<string, string> = {};
+        
+        // Guest 사용자인 경우 세션 ID를 헤더에 추가
+        if (!isAuthenticated) {
+          headers['x-guest-session-id'] = getGuestSessionId();
+        }
+
+        const response = await fetch(`/api/worldcups/${worldcupId}/comments?commentId=${replyId}`, {
+          method: 'DELETE',
+          headers
+        });
+
+        if (response.ok) {
+          // Guest 답글인 경우 로컬 세션에서 소유권 해제
+          if (!isAuthenticated) {
+            unregisterGuestComment(replyId.toString());
+          }
+          
+          // Remove the reply from local state
+          setComments(prev => prev.map(comment => {
+            if (comment.id === commentId && comment.replies) {
+              return {
+                ...comment,
+                replies: comment.replies.filter(reply => reply.id !== replyId)
+              };
+            }
+            return comment;
+          }));
+          setOpenReplyMenu(null);
+        } else {
+          const errorData = await response.json();
+          alert(errorData.error || '답글 삭제에 실패했습니다.');
+        }
+      } catch (error) {
+        console.error('Failed to delete reply:', error);
+        alert('답글 삭제 중 오류가 발생했습니다.');
+      }
+    }
+  }, [worldcupId]);
 
   // Reporting
   const handleReport = useCallback((commentId: number, replyId?: number) => {
@@ -445,11 +497,9 @@ export const useCommentSystem = ({
     };
   }, []);
 
-  // Pagination
-  const indexOfLastComment = currentPage * commentsPerPage;
-  const indexOfFirstComment = indexOfLastComment - commentsPerPage;
-  const currentComments = sortComments(comments).slice(indexOfFirstComment, indexOfLastComment);
-  const totalPages = Math.ceil(comments.length / commentsPerPage);
+  // 페이지네이션 (공통 유틸리티 사용)
+  const paginationResult = paginateComments(sortedComments, currentPage, commentsPerPage);
+  const { currentComments, totalPages } = paginationResult;
 
   const paginate = useCallback((pageNumber: number) => setCurrentPage(pageNumber), []);
 
@@ -457,7 +507,7 @@ export const useCommentSystem = ({
   return {
     // State
     comments: currentComments,
-    allComments: comments,
+    allComments: sortedComments,
     newComment,
     guestName,
     editingComment,
@@ -471,6 +521,8 @@ export const useCommentSystem = ({
     sortOption,
     openMenu,
     openReplyMenu,
+    loading: apiState.loading,
+    error: apiState.error,
     
     // Setters
     setNewComment,
@@ -498,7 +550,7 @@ export const useCommentSystem = ({
     toggleReplyMenu,
     paginate,
     
-    // Utils
+    // Utils (공통 모듈에서 import된 함수들)
     formatRelativeTime
   };
 };

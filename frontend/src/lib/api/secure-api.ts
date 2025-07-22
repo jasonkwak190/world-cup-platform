@@ -237,6 +237,32 @@ export async function secureSubmitVote(
 }
 
 /**
+ * Submit multiple votes in bulk for worldcup battle (with optional authentication)
+ */
+export async function secureSubmitBulkVotes(
+  worldcupId: string, 
+  votes: Array<{ winnerId: string; loserId?: string; roundType?: string }>
+): Promise<{ successfulVotes: number; failedVotes: number }> {
+  validateInput(worldcupId, 'Worldcup ID');
+  validateInput(votes, 'Votes data');
+  
+  if (votes.length === 0) {
+    return { successfulVotes: 0, failedVotes: 0 };
+  }
+  
+  const result = await secureApiCall<{ successfulVotes: number; failedVotes: number }>(
+    `/api/worldcups/${encodeURIComponent(worldcupId)}/vote-bulk`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ votes }),
+    },
+    false // Don't require auth for voting
+  );
+  
+  return result;
+}
+
+/**
  * Get vote statistics (public data, no auth required)
  */
 export async function secureGetVoteStats(worldcupId: string): Promise<any> {
@@ -256,7 +282,7 @@ export async function secureGetWorldcupStats(worldcupId: string): Promise<any> {
   validateInput(worldcupId, 'Worldcup ID');
   
   return await secureApiCall<any>(
-    `/api/worldcup/${encodeURIComponent(worldcupId)}/stats`,
+    `/api/worldcups/${encodeURIComponent(worldcupId)}/stats`,
     { method: 'GET' },
     false // Public data
   );
@@ -273,7 +299,7 @@ export async function secureUpdateWorldcupStats(
   validateInput(data, 'Stats data');
   
   await secureApiCall<void>(
-    `/api/worldcup/${encodeURIComponent(worldcupId)}/stats`,
+    `/api/worldcups/${encodeURIComponent(worldcupId)}/stats`,
     {
       method: 'POST',
       body: JSON.stringify(data),

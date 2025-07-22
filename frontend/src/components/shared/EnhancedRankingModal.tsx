@@ -91,13 +91,18 @@ export default function EnhancedRankingModal({
   const currentTheme = themeStyles[theme as keyof typeof themeStyles] || themeStyles.minimal;
 
   const loadRankingData = async () => {
-    if (!worldcupId) return;
+    if (!worldcupId) {
+      console.error('RANKING MODAL: No worldcupId provided');
+      return;
+    }
     
+    console.log('RANKING MODAL: Starting to load data for worldcupId:', worldcupId);
     setIsLoading(true);
     setError(null);
     
     try {
-      const url = `/api/worldcup/${worldcupId}/stats?_t=${Date.now()}`;
+      const url = `/api/worldcups/${worldcupId}/stats?_t=${Date.now()}`;
+      console.log('RANKING MODAL: Fetching URL:', url);
       
       const response = await fetch(url, {
         method: 'GET',
@@ -108,16 +113,21 @@ export default function EnhancedRankingModal({
         },
       });
       
+      console.log('RANKING MODAL: Response status:', response.status, response.statusText);
+      
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
       const data = await response.json();
+      console.log('RANKING MODAL: API Response:', data);
       
-      if (data.success && data.data) {
-        setRankingData(data.data);
+      if (data.items) {
+        console.log('RANKING MODAL: Setting ranking data:', data.items.length, 'items');
+        setRankingData(data.items);
       } else {
-        throw new Error(data.message || 'Failed to load ranking data');
+        console.error('RANKING MODAL: No items in response:', data);
+        throw new Error('Failed to load ranking data');
       }
     } catch (err) {
       console.error('RANKING MODAL: Error loading data:', err);
@@ -128,7 +138,9 @@ export default function EnhancedRankingModal({
   };
 
   useEffect(() => {
+    console.log('🎯 ENHANCED RANKING MODAL: useEffect triggered', { isOpen, worldcupId });
     if (isOpen) {
+      console.log('🎯 ENHANCED RANKING MODAL: Modal is open, loading ranking data');
       loadRankingData();
     }
   }, [isOpen, worldcupId]);
@@ -208,7 +220,20 @@ export default function EnhancedRankingModal({
     }
   };
 
-  if (!isOpen) return null;
+  console.log('🎯 ENHANCED RANKING MODAL: Render check', { 
+    isOpen, 
+    worldcupId, 
+    worldcupTitle,
+    theme,
+    rankingDataLength: rankingData.length,
+    isLoading,
+    error 
+  });
+  
+  if (!isOpen) {
+    console.log('🎯 ENHANCED RANKING MODAL: Not rendering - modal is closed');
+    return null;
+  }
 
   return (
     <AnimatePresence>

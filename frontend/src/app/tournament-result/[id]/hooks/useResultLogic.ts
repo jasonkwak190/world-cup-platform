@@ -62,12 +62,13 @@ export function useResultLogic({ worldcupId }: UseResultLogicProps) {
   const [showRanking, setShowRanking] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
   
-  // Comment system
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [commentText, setCommentText] = useState('');
-  const [guestName, setGuestName] = useState('');
-  const [commentFilter, setCommentFilter] = useState<'likes' | 'recent'>('likes');
-  const [showCommentForm, setShowCommentForm] = useState(false);
+  // Comment system - 이제 CommentSystem에서 독립적으로 관리됨
+  // 기본 상태만 유지 (theme 컴포넌트 호환성을 위해)
+  const [comments] = useState<Comment[]>([]);
+  const [commentText] = useState('');
+  const [guestName] = useState('');
+  const [commentFilter] = useState<'likes' | 'recent'>('likes');
+  const [showCommentForm] = useState(false);
 
   // Load initial data
   useEffect(() => {
@@ -135,7 +136,7 @@ export function useResultLogic({ worldcupId }: UseResultLogicProps) {
         const winnerId = searchParams.get('winner');
         if (winnerId) {
           try {
-            const statsResponse = await fetch(`/api/worldcup/${worldcupId}/stats`);
+            const statsResponse = await fetch(`/api/worldcups/${worldcupId}/stats`);
             if (statsResponse.ok) {
               const statsData = await statsResponse.json();
               const winnerItemStats = statsData.items?.find((item: any) => item.id === winnerId);
@@ -181,24 +182,7 @@ export function useResultLogic({ worldcupId }: UseResultLogicProps) {
           // Non-blocking error - don't affect user experience
         }
 
-        // Load comments and user states
-        const loadCommentsInline = async () => {
-          try {
-            const response = await fetch(`/api/worldcups/${worldcupId}/comments`);
-            if (response.ok) {
-              const commentsData = await response.json();
-              const comments = Array.isArray(commentsData) ? commentsData : (commentsData.comments || []);
-              setComments(comments);
-            } else {
-              console.error('Failed to load comments:', response.status, response.statusText);
-              setComments([]);
-            }
-          } catch (error) {
-            console.error('Failed to load comments:', error);
-            setComments([]);
-          }
-        };
-
+        // Load user interaction states (likes, bookmarks, reports)
         const checkLikeBookmarkStatusInline = async () => {
           if (!isAuthenticated) return;
           
@@ -238,10 +222,8 @@ export function useResultLogic({ worldcupId }: UseResultLogicProps) {
           }
         };
 
-        await Promise.all([
-          loadCommentsInline(),
-          checkLikeBookmarkStatusInline()
-        ]);
+        // 사용자 상호작용 상태 확인
+        await checkLikeBookmarkStatusInline();
 
       } catch (err) {
         console.error('Failed to load result data:', err);
@@ -262,23 +244,10 @@ export function useResultLogic({ worldcupId }: UseResultLogicProps) {
     setRetryCount(prev => prev + 1);
   }, []);
 
-  const loadComments = useCallback(async () => {
-    try {
-      const response = await fetch(`/api/worldcups/${worldcupId}/comments`);
-      if (response.ok) {
-        const commentsData = await response.json();
-        // Handle both array and object response formats
-        const comments = Array.isArray(commentsData) ? commentsData : (commentsData.comments || []);
-        setComments(comments);
-      } else {
-        console.error('Failed to load comments:', response.status, response.statusText);
-        setComments([]); // Set empty array on error
-      }
-    } catch (error) {
-      console.error('Failed to load comments:', error);
-      setComments([]); // Set empty array on error to prevent iteration issues
-    }
-  }, [worldcupId]);
+  // 댓글 로딩은 이제 CommentSystem에서 처리
+  // const loadComments = useCallback(() => {
+  //   // CommentSystem에서 독립적으로 처리됨
+  // }, []);
 
   const checkLikeBookmarkStatus = useCallback(async () => {
     try {
@@ -442,137 +411,36 @@ export function useResultLogic({ worldcupId }: UseResultLogicProps) {
   }, [router]);
 
   const handleShowRanking = useCallback(() => {
+    console.log('🎯 RESULT LOGIC: handleShowRanking called');
+    console.log('🎯 RESULT LOGIC: Current showRanking state:', showRanking);
     setShowRanking(true);
-  }, []);
+    console.log('🎯 RESULT LOGIC: setShowRanking(true) called');
+  }, [showRanking]);
 
   const handleShowImageModal = useCallback(() => {
     setShowImageModal(true);
   }, []);
 
+  // 댓글 제출은 이제 CommentSystem에서 처리
   const handleCommentSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!commentText.trim() || (!isAuthenticated && !guestName.trim())) {
-      return;
-    }
+    // CommentSystem에서 독립적으로 처리됨
+    console.log('Comment submission is now handled by CommentSystem');
+  }, []);
 
-    try {
-      console.log('💬 Submitting comment:', { 
-        isAuthenticated, 
-        hasContent: !!commentText.trim(), 
-        hasGuestName: !!guestName.trim() 
-      });
-
-      // Prepare headers with authentication if user is logged in
-      let headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      
-      if (isAuthenticated) {
-        try {
-          headers = await getAuthHeaders();
-          console.log('✅ Using authenticated headers for comment submission');
-        } catch (error) {
-          console.warn('❌ Failed to get auth headers, falling back to anonymous submission:', error);
-          headers = { 'Content-Type': 'application/json' };
-        }
-      }
-
-      const response = await fetch(`/api/worldcups/${worldcupId}/comments`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          content: commentText,
-          guestName: !isAuthenticated ? guestName : undefined
-        })
-      });
-
-      console.log('📝 Comment submission response:', response.status);
-
-      if (response.ok) {
-        console.log('✅ Comment submitted successfully');
-        setCommentText('');
-        setGuestName('');
-        setShowCommentForm(false);
-        await loadComments(); // Wait for reload to complete
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('❌ Comment submission failed:', response.status, errorData);
-        alert(`댓글 작성에 실패했습니다. (${response.status})`);
-      }
-    } catch (error) {
-      console.error('❌ Failed to submit comment:', error);
-      alert('댓글 작성 중 오류가 발생했습니다.');
-    }
-  }, [commentText, guestName, isAuthenticated, worldcupId, loadComments]);
-
+  // 댓글 신고 및 좋아요도 이제 CommentSystem에서 처리
   const handleReport = useCallback(async (commentId: string) => {
-    try {
-      const response = await fetch(`/api/comments/${commentId}/report`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          reason: 'inappropriate_content',
-          description: '부적절한 내용으로 신고'
-        })
-      });
-      
-      if (response.ok) {
-        alert('신고가 접수되었습니다.');
-      }
-    } catch (error) {
-      console.error('Failed to report comment:', error);
-    }
+    // CommentSystem에서 독립적으로 처리됨
+    console.log('Comment reporting is now handled by CommentSystem');
   }, []);
 
   const handleCommentLike = useCallback(async (commentId: string) => {
-    if (!isAuthenticated) {
-      alert('로그인이 필요합니다.');
-      return;
-    }
+    // CommentSystem에서 독립적으로 처리됨
+    console.log('Comment liking is now handled by CommentSystem');
+  }, []);
 
-    try {
-      console.log('👍 Liking comment:', commentId);
-
-      // Get authentication headers
-      const headers = await getAuthHeaders();
-      
-      const response = await fetch(`/api/comments/${commentId}/like`, {
-        method: 'POST',
-        headers
-      });
-
-      console.log('❤️ Comment like response:', response.status);
-
-      if (response.ok) {
-        const result = await response.json();
-        console.log('✅ Comment like result:', result);
-        
-        // Update local comment state
-        setComments(prevComments => 
-          prevComments.map(comment => 
-            comment.id === commentId 
-              ? { ...comment, likes: result.likeCount, liked: result.liked }
-              : comment
-          )
-        );
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('❌ Comment like failed:', response.status, errorData);
-        alert(`댓글 좋아요에 실패했습니다. (${response.status})`);
-      }
-    } catch (error) {
-      console.error('❌ Failed to like comment:', error);
-      alert('댓글 좋아요 중 오류가 발생했습니다.');
-    }
-  }, [isAuthenticated]);
-
-  // Sort comments based on filter - ensure comments is an array
-  const sortedComments = Array.isArray(comments) ? [...comments].sort((a, b) => {
-    if (commentFilter === 'likes') {
-      return b.likes - a.likes;
-    } else {
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    }
-  }) : [];
+  // 댓글 정렬도 이제 CommentSystem에서 처리
+  // const sortedComments = [];
 
   return {
     // Data
@@ -597,12 +465,12 @@ export function useResultLogic({ worldcupId }: UseResultLogicProps) {
     setShowRanking,
     setShowImageModal,
     
-    // Comments
-    comments: sortedComments,
-    commentText,
-    guestName,
-    commentFilter,
-    showCommentForm,
+    // Comments - 이제 CommentSystem에서 독립적으로 관리
+    comments: [], // 빈 배열로 호환성 유지
+    commentText: '',
+    guestName: '',
+    commentFilter: 'likes' as const,
+    showCommentForm: false,
     
     // Actions
     handleLike,
@@ -618,11 +486,11 @@ export function useResultLogic({ worldcupId }: UseResultLogicProps) {
     handleCommentLike, // comment like
     handleRetry, // retry loading
     
-    // Setters
-    setCommentText,
-    setGuestName,
-    setCommentFilter,
-    setShowCommentForm,
+    // Setters - 댓글 관련은 더미 함수로 호환성 유지
+    setCommentText: () => {},
+    setGuestName: () => {},
+    setCommentFilter: () => {},
+    setShowCommentForm: () => {},
     setShowReportModal,
     
     // Auth

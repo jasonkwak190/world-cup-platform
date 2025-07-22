@@ -128,17 +128,17 @@ tournament-result/
 ```
 
 ### 4. 댓글창 시스템
-**경로**: `frontend/src/app/tournament-comment` (결과 화면 내 통합)
+**UI 디자인 참고**: `frontend/src/app/tournament-comment` (결과 화면 내 통합)
 
 #### 기존 기능 유지
 - [ ] **로그인 상태**: 닉네임 입력 없이 댓글 작성
-- [ ] **비회원 상태**: 닉네임 + 댓글 입력
-- [ ] **댓글 정보**: 닉네임, 작성시간, 좋아요, 답글
-- [ ] **수정/삭제**: 비회원 세션 내에서만 가능
+- [ ] **비회원 상태**: 닉네임 + 댓글 입력 (닉네임 옆에 guest 표시)
+- [ ] **댓글 정보**: 닉네임, 작성시간, 좋아요, 답글기능
+- [ ] **수정/삭제**: 비회원 세션 내에서만 가능, 회원 경우 어느때나 가능
+- [ ] **DB 저장**: api 호출하여 comment 테이블에 저장 댓글, 좋아요
 
 #### 새로운 기능 추가
-- [ ] **신고 기능**: 신고 버튼 추가 (추후 개발)
-- [ ] **레벨 시스템**: VIP/Gold/Silver/Bronze (기본: Bronze)
+- [ ] **신고 기능**: 신고 버튼 추가 (상세 기능은 추후 개발, 지금은 모달만)
 - [ ] **필터 기능**: 좋아요순(기본), 최근순
 - [ ] **댓글 이동**: 작성 후 해당 댓글로 스크롤
 - [ ] **제작자 하이라이트**: 월드컵 제작자 댓글 시 반짝임 효과
@@ -154,6 +154,12 @@ tournament-result/comments/
 │   ├── CommentFilter.tsx          # 필터 기능
 │   ├── UserLevel.tsx              # 사용자 레벨
 │   └── CreatorHighlight.tsx       # 제작자 하이라이트
+│   └── themes/
+│       ├── NeonRankingTheme.tsx
+│       ├── PaperRankingTheme.tsx
+│       ├── ComicRankingTheme.tsx
+│       ├── MinimalRankingTheme.tsx
+│       └── GamingRankingTheme.tsx
 ├── hooks/
 │   ├── useComments.ts             # 댓글 데이터 관리
 │   ├── useCommentForm.ts          # 댓글 작성 폼

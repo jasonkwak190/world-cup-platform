@@ -12,7 +12,7 @@ import {
   undoLastMatch 
 } from '@/utils/tournament';
 import { VoteStats, WorldCupData, ItemPercentage } from '../components/themes/types';
-import { secureSubmitVote, secureGetWorldcupStats, secureUpdateWorldcupStats } from '@/lib/api/secure-api';
+import { secureSubmitVote, secureSubmitBulkVotes, secureGetWorldcupStats, secureUpdateWorldcupStats } from '@/lib/api/secure-api';
 
 interface UseGameLogicProps {
   worldcupId: string;
@@ -35,6 +35,9 @@ export function useGameLogic({ worldcupId }: UseGameLogicProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [winStreaks, setWinStreaks] = useState<Map<string, number>>(new Map());
+  
+  // Memory-based vote storage for batch processing (no localStorage)
+  const [localVotes, setLocalVotes] = useState<Array<{ winnerId: string; loserId: string | null }>>([]);
   
   // Theme and tournament settings
   const [theme, setTheme] = useState<string>('minimal');
@@ -145,8 +148,11 @@ export function useGameLogic({ worldcupId }: UseGameLogicProps) {
           startTime: Date.now()
         });
 
-        // Initialize win streaks
+        // Initialize win streaks and clear any existing votes
         setWinStreaks(new Map());
+        setLocalVotes([]);
+        
+        console.log('📊 Game initialized with memory-based vote storage (no localStorage)');
 
       } catch (err) {
         console.error('Failed to load game data:', err);
@@ -194,23 +200,17 @@ export function useGameLogic({ worldcupId }: UseGameLogicProps) {
       setVoteStats(stats);
       setShowStats(true);
       
-      // API call for voting using secure API
-      try {
-        console.log('💳 Submitting vote via secure API:', {
-          winnerId: winner.id,
-          loserId: rawMatch ? (isLeftWinner ? rawMatch.item2.id : rawMatch.item1.id) : null
-        });
-        
-        await secureSubmitVote(worldcupId, { 
-          winnerId: winner.id,
-          loserId: rawMatch ? (isLeftWinner ? rawMatch.item2.id : rawMatch.item1.id) : null
-        });
-        
-        console.log('✅ Vote submitted successfully');
-      } catch (apiError) {
-        console.warn('❌ Vote API call failed:', apiError);
-        // Continue with local game logic even if API fails
-      }
+      // Store vote locally for batch processing
+      const voteData = {
+        winnerId: winner.id,
+        loserId: rawMatch ? (isLeftWinner ? rawMatch.item2.id : rawMatch.item1.id) : null
+      };
+      
+      setLocalVotes(prevVotes => {
+        const newVotes = [...prevVotes, voteData];
+        console.log('📊 Vote stored in memory:', voteData, 'Total votes:', newVotes.length);
+        return newVotes;
+      });
       
       // Wait before proceeding
       await new Promise(resolve => setTimeout(resolve, 2000));
@@ -308,8 +308,11 @@ export function useGameLogic({ worldcupId }: UseGameLogicProps) {
       startTime: Date.now()
     });
     
-    // Reset win streaks
+    // Reset win streaks and votes
     setWinStreaks(new Map());
+    setLocalVotes([]);
+    
+    console.log('🔄 Game restarted - memory-based votes cleared');
     
     setSelectedItem(null);
     setVoteStats(null);
@@ -325,6 +328,60 @@ export function useGameLogic({ worldcupId }: UseGameLogicProps) {
   const handleSelectOtherTournament = useCallback(() => {
     router.push(`/tournament-select/${worldcupId}`);
   }, [router, worldcupId]);
+
+  // Function to handle bulk vote submission
+  const submitBulkVotes = useCallback(async (votes: Array<{ winnerId: string; loserId: string | null }>) => {
+    if (votes.length === 0) return { successfulVotes: 0, failedVotes: 0 };
+    
+    try {
+      console.log('📊 Submitting bulk votes:', votes.length, 'votes');
+      
+      // Transform votes to match API format (loserId can be null, API expects undefined for optional)
+      const apiVotes = votes.map(vote => ({
+        winnerId: vote.winnerId,
+        ...(vote.loserId && { loserId: vote.loserId })
+      }));
+      
+      // Use the new bulk API endpoint
+      const result = await secureSubmitBulkVotes(worldcupId, apiVotes);
+      
+      console.log('📊 Bulk vote submission completed:', {
+        successfulVotes: result.successfulVotes,
+        failedVotes: result.failedVotes,
+        totalVotes: votes.length
+      });
+      
+      return result;
+    } catch (error) {
+      console.error('❌ Bulk vote submission failed:', error);
+      // Fallback to individual submission if bulk fails
+      console.log('📊 Falling back to individual vote submissions...');
+      
+      try {
+        const votePromises = votes.map(vote => 
+          secureSubmitVote(worldcupId, vote).catch(error => {
+            console.warn('❌ Individual vote failed:', vote, error);
+            return { error, vote };
+          })
+        );
+        
+        const results = await Promise.allSettled(votePromises);
+        const successfulVotes = results.filter(r => r.status === 'fulfilled').length;
+        const failedVotes = votes.length - successfulVotes;
+        
+        console.log('📊 Fallback individual vote submission completed:', {
+          successfulVotes,
+          failedVotes,
+          totalVotes: votes.length
+        });
+        
+        return { successfulVotes, failedVotes };
+      } catch (fallbackError) {
+        console.error('❌ Both bulk and individual vote submissions failed:', fallbackError);
+        return { successfulVotes: 0, failedVotes: votes.length };
+      }
+    }
+  }, [worldcupId]);
 
   // Keyboard event handler
   useEffect(() => {
@@ -364,6 +421,60 @@ export function useGameLogic({ worldcupId }: UseGameLogicProps) {
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [gameState, isProcessing, handleChoice, handleUndo, handleRestart, handleGoHome]);
 
+  // Handle page unload - submit votes before leaving
+  useEffect(() => {
+    const handleBeforeUnload = async (e: BeforeUnloadEvent) => {
+      if (localVotes.length > 0) {
+        // Show confirmation dialog
+        e.preventDefault();
+        e.returnValue = '진행 중인 투표 데이터가 있습니다. 페이지를 나가시겠습니까?';
+        
+        // Try to submit votes synchronously (browser limitations apply)
+        try {
+          // Use navigator.sendBeacon for reliable data transmission during page unload
+          const voteData = JSON.stringify({
+            worldcupId,
+            votes: localVotes,
+            timestamp: Date.now()
+          });
+          
+          // Attempt to send data using beacon API (more reliable during unload)
+          if (navigator.sendBeacon) {
+            const success = navigator.sendBeacon(`/api/worldcups/${worldcupId}/vote-bulk`, voteData);
+            if (success) {
+              console.log('📊 Votes sent via beacon API before page unload');
+            } else {
+              console.warn('❌ Beacon API failed, votes may be lost');
+            }
+          } else {
+            // Fallback: attempt synchronous request (may not complete)
+            submitBulkVotes(localVotes);
+          }
+        } catch (error) {
+          console.error('❌ Failed to submit votes before unload:', error);
+        }
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      // When page becomes hidden, try to submit votes
+      if (document.hidden && localVotes.length > 0) {
+        console.log('📊 Page becoming hidden, attempting to submit votes...');
+        submitBulkVotes(localVotes).then(() => {
+          setLocalVotes([]);
+        });
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [localVotes, worldcupId, submitBulkVotes]);
+
   // Check for game completion and handle stats update
   useEffect(() => {
     if (gameState?.tournament.isCompleted && gameState.tournament.winner) {
@@ -376,23 +487,55 @@ export function useGameLogic({ worldcupId }: UseGameLogicProps) {
             worldcupId,
             winner: gameState.tournament.winner,
             playTime,
-            theme
+            theme,
+            totalVotes: localVotes.length
           });
           
-          // Update tournament statistics using secure API
-          try {
-            console.log('📊 Updating tournament statistics via secure API');
-            
-            await secureUpdateWorldcupStats(worldcupId, {
-              matches: gameState.tournament.matches,
-              winner: gameState.tournament.winner,
-              sessionToken: `game_${Date.now()}`
-            });
-            
-            console.log('✅ Statistics updated successfully');
-          } catch (error) {
-            console.warn('❌ Statistics update failed, but proceeding to results:', error);
+          // Process API calls in parallel
+          const apiPromises = [];
+          
+          // 1. Submit all votes using bulk submission
+          let voteResults = { successfulVotes: 0, failedVotes: 0 };
+          if (localVotes.length > 0) {
+            console.log('📊 Submitting', localVotes.length, 'votes using bulk submission...');
+            const votePromise = submitBulkVotes(localVotes);
+            apiPromises.push(votePromise);
           }
+          
+          // 2. Update tournament statistics
+          console.log('📊 Updating tournament statistics via secure API');
+          const statsPromise = secureUpdateWorldcupStats(worldcupId, {
+            matches: gameState.tournament.matches,
+            winner: gameState.tournament.winner,
+            sessionToken: `game_${Date.now()}`
+          }).catch(error => {
+            console.warn('❌ Statistics update failed:', error);
+            return { error };
+          });
+          apiPromises.push(statsPromise);
+          
+          // 3. Process all API calls in parallel
+          const results = await Promise.allSettled(apiPromises);
+          
+          // Extract results
+          if (localVotes.length > 0 && results[0].status === 'fulfilled') {
+            voteResults = results[0].value as { successfulVotes: number; failedVotes: number };
+          } else if (localVotes.length > 0) {
+            voteResults = { successfulVotes: 0, failedVotes: localVotes.length };
+          }
+          
+          const statsSuccess = results[results.length - 1]?.status === 'fulfilled';
+          
+          console.log('📊 Game completion processing completed:', {
+            successfulVotes: voteResults.successfulVotes,
+            failedVotes: voteResults.failedVotes,
+            statsSuccess,
+            totalVotes: localVotes.length
+          });
+          
+          // Clear memory-based votes
+          setLocalVotes([]);
+          console.log('✅ Memory-based votes cleared after successful batch processing');
           
           // Small delay to ensure all state updates are complete
           await new Promise(resolve => setTimeout(resolve, 500));
@@ -410,7 +553,7 @@ export function useGameLogic({ worldcupId }: UseGameLogicProps) {
           router.push(resultUrl);
         } catch (error) {
           console.error('Error handling game completion:', error);
-          // Still navigate to results even if stats update fails
+          // Still navigate to results even if batch processing fails
           const playTime = Date.now() - gameState.startTime;
           const resultUrl = `/tournament-result/${worldcupId}?theme=${theme}&playTime=${playTime}&winner=${gameState.tournament.winner?.id}`;
           router.push(resultUrl);
@@ -419,7 +562,7 @@ export function useGameLogic({ worldcupId }: UseGameLogicProps) {
       
       handleGameCompletion();
     }
-  }, [gameState, worldcupId, theme, router]);
+  }, [gameState, worldcupId, theme, router, localVotes]);
 
   // Get current game data with transformation
   const rawCurrentMatch = gameState ? getCurrentMatch(gameState.tournament) : null;
@@ -454,6 +597,7 @@ export function useGameLogic({ worldcupId }: UseGameLogicProps) {
     isProcessing,
     showStats,
     winStreaks,
+    localVotes,
     
     // Game Data
     currentMatch,

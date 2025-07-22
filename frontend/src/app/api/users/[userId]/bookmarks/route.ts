@@ -3,10 +3,11 @@ import { getUserBookmarks } from '@/utils/userInteractions';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
-    const { userId } = params;
+    const resolvedParams = await params;
+    const { userId } = resolvedParams;
     
     if (!userId) {
       return NextResponse.json(

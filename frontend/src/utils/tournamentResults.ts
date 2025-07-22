@@ -258,7 +258,7 @@ export async function getItemStatistics(worldcupId: string) {
 
     let response: Response;
     try {
-      response = await fetch(`/api/worldcup/${worldcupId}/stats?_t=${timestamp}`, {
+      response = await fetch(`/api/worldcups/${worldcupId}/stats?_t=${timestamp}`, {
         method: 'GET',
         headers: {
           'Cache-Control': 'no-cache, no-store, must-revalidate',

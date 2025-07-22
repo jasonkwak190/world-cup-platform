@@ -29,7 +29,7 @@ const updateWorldCupSchema = z.object({
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Rate limiting
@@ -49,7 +49,8 @@ export async function PUT(
       );
     }
 
-    const worldcupId = params.id;
+    const resolvedParams = await params;
+    const worldcupId = resolvedParams.id;
 
     // Check if user owns this worldcup
     const { data: existingWorldcup, error: ownershipError } = await supabase
