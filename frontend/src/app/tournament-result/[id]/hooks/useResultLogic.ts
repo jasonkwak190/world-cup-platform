@@ -90,7 +90,21 @@ export function useResultLogic({ worldcupId }: UseResultLogicProps) {
         setPlayTime(parseInt(playTimeParam));
         setWinnerId(winnerIdParam);
 
+        // Validate required parameters
+        if (!worldcupId) {
+          throw new Error('월드컵 ID가 없습니다.');
+        }
+        
+        if (!winnerIdParam) {
+          console.warn('⚠️ Winner ID parameter is missing from URL');
+        }
+
         // Load worldcup and winner data
+        console.log('🌐 Making API requests:', {
+          worldcupUrl: `/api/worldcups/${worldcupId}`,
+          winnerUrl: winnerIdParam ? `/api/worldcups/${worldcupId}/items/${winnerIdParam}` : 'N/A'
+        });
+        
         const [worldcupResponse, winnerResponse] = await Promise.all([
           fetch(`/api/worldcups/${worldcupId}`),
           winnerIdParam ? fetch(`/api/worldcups/${worldcupId}/items/${winnerIdParam}`) : Promise.resolve(null)
@@ -98,17 +112,38 @@ export function useResultLogic({ worldcupId }: UseResultLogicProps) {
 
         console.log('🌐 API Response Status:', {
           worldcup: worldcupResponse.status,
-          winner: winnerResponse?.status || 'N/A'
+          worldcupOk: worldcupResponse.ok,
+          winner: winnerResponse?.status || 'N/A',
+          winnerOk: winnerResponse?.ok || 'N/A'
         });
         
         if (!worldcupResponse.ok) {
           const errorText = await worldcupResponse.text().catch(() => 'Unknown error');
-          console.error('❌ Worldcup API Error:', errorText);
-          throw new Error(`월드컵 데이터를 불러올 수 없습니다. (${worldcupResponse.status})`);
+          console.error('❌ Worldcup API Error Details:', {
+            status: worldcupResponse.status,
+            statusText: worldcupResponse.statusText,
+            errorText,
+            url: `/api/worldcups/${worldcupId}`
+          });
+          throw new Error(`월드컵 데이터를 불러올 수 없습니다. (${worldcupResponse.status}: ${worldcupResponse.statusText})`);
         }
 
         const worldcupResult = await worldcupResponse.json();
+        console.log('📊 Worldcup API Response Data:', {
+          hasWorldcup: !!worldcupResult.worldcup,
+          worldcupKeys: worldcupResult.worldcup ? Object.keys(worldcupResult.worldcup) : [],
+          itemsCount: worldcupResult.worldcup?.items?.length || 0
+        });
+        
         const worldcup = worldcupResult.worldcup;
+        
+        if (!worldcup) {
+          throw new Error('월드컵 데이터 형식이 올바르지 않습니다.');
+        }
+        
+        if (!worldcup.id) {
+          throw new Error('월드컵 ID가 없습니다.');
+        }
         
         setWorldcupData({
           id: worldcup.id,
@@ -120,16 +155,37 @@ export function useResultLogic({ worldcupId }: UseResultLogicProps) {
           likes: worldcup.likes || 0
         });
         setLikes(worldcup.likes || 0);
+        
+        console.log('✅ Worldcup data loaded successfully:', {
+          id: worldcup.id,
+          title: worldcup.title,
+          itemsCount: worldcup.items?.length || 0
+        });
 
         if (winnerResponse?.ok) {
           const winnerResult = await winnerResponse.json();
+          console.log('🏆 Winner API Response:', {
+            hasItem: !!winnerResult.item,
+            hasDirectData: !!winnerResult.id,
+            winnerId: winnerResult.item?.id || winnerResult.id
+          });
           setWinnerData(winnerResult.item || winnerResult);
         } else if (winnerIdParam) {
+          console.log('🔍 Searching for winner in worldcup items:', {
+            winnerIdParam,
+            itemsAvailable: worldcup.items?.length || 0
+          });
           // Try to find winner in worldcup items as fallback
           const winnerFromItems = worldcup.items?.find((item: any) => item.id === winnerIdParam);
           if (winnerFromItems) {
+            console.log('✅ Found winner in items:', winnerFromItems.title);
             setWinnerData(winnerFromItems);
+          } else {
+            console.warn('❌ Winner not found in items. Available item IDs:', 
+              worldcup.items?.map((item: any) => item.id) || []);
           }
+        } else {
+          console.warn('⚠️ No winner ID provided and no winner response');
         }
         
         // Fetch real winner statistics from database

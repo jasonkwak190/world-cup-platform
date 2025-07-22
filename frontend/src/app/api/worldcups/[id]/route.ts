@@ -150,7 +150,8 @@ export async function GET(
         return {
           ...baseItem,
           mediaType: 'image' as const,
-          image: imageUrl
+          image: imageUrl,
+          image_url: imageUrl // Maintain backwards compatibility
         };
       }
     }) || [];

@@ -26,7 +26,7 @@ import {
   validateGuestName 
 } from '@/utils/commentUtils';
 import { useApiState } from '@/hooks/useApiState';
-import { getGuestSessionId } from '@/utils/guestSession';
+import { getGuestSessionId, registerGuestComment, unregisterGuestComment } from '@/utils/guestSession';
 
 export const useCommentSystem = ({
   initialComments = [],
@@ -58,63 +58,87 @@ export const useCommentSystem = ({
     return transformApiCommentToEnhanced(comment, currentUser, worldcupCreatorId, isAuthenticated);
   }, [currentUser, worldcupCreatorId, isAuthenticated]);
 
+  // 중복 호출 방지를 위한 로딩 상태 ref
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadedSortOption, setLoadedSortOption] = useState<string | null>(null);
+
   // 댓글 로딩 함수 (공통 서비스 사용)
-  const loadCommentsFromAPI = useCallback(async () => {
-    if (!worldcupId) return;
+  const loadCommentsFromAPI = useCallback(async (forcedSortOption?: 'likes' | 'recent') => {
+    if (!worldcupId || isLoading) {
+      return;
+    }
     
-    await apiState.executeAsync(
-      async () => {
-        const result = await fetchComments(worldcupId, sortOption);
-        if (!result.success) {
-          throw new Error(result.error || '댓글을 불러오는데 실패했습니다.');
-        }
-        
-        // API 응답을 Enhanced 형식으로 변환
-        const enhanced = result.data?.map(transformComment) || [];
-        
-        // 인증된 사용자인 경우 좋아요 상태를 일괄 확인
-        if (isAuthenticated && enhanced.length > 0) {
-          const commentIds = enhanced.map(comment => comment.id.toString());
-          const likeStatuses = await getMultipleCommentLikeStatus(commentIds);
+    const currentSort = forcedSortOption || sortOption;
+    
+    // 이미 같은 정렬 옵션으로 로드된 경우 스킵 (강제 리로드가 아닌 경우)
+    if (!forcedSortOption && loadedSortOption === currentSort) {
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    try {
+      await apiState.executeAsync(
+        async () => {
+          const result = await fetchComments(worldcupId, currentSort);
+          if (!result.success) {
+            throw new Error(result.error || '댓글을 불러오는데 실패했습니다.');
+          }
           
-          return enhanced.map(comment => ({
-            ...comment,
-            isLiked: likeStatuses[comment.id.toString()] || false
-          }));
+          // API 응답을 Enhanced 형식으로 변환
+          const enhanced = result.data?.map(transformComment) || [];
+          
+          // 인증된 사용자인 경우 좋아요 상태를 일괄 확인
+          if (isAuthenticated && enhanced.length > 0) {
+            const commentIds = enhanced.map(comment => comment.id.toString());
+            const likeStatuses = await getMultipleCommentLikeStatus(commentIds);
+            
+            return enhanced.map(comment => ({
+              ...comment,
+              isLiked: likeStatuses[comment.id.toString()] || false
+            }));
+          }
+          
+          return enhanced;
+        },
+        {
+          onSuccess: (enhancedComments) => {
+            setLoadedSortOption(currentSort);
+          }
         }
-        
-        return enhanced;
-      },
-      {
-        onSuccess: (enhancedComments) => {
-          // API 상태 대신 로컬 상태 설정
-          // apiState.data는 executeAsync에서 자동 설정됨
-        }
-      }
-    );
-  }, [worldcupId, sortOption, transformComment, isAuthenticated, apiState]);
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, [worldcupId, sortOption, transformComment, isAuthenticated, isLoading, loadedSortOption]);
 
   // 현재 댓글 목록 (API 상태에서 가져오기)
   const comments = apiState.data || [];
 
-  // 초기 로딩 및 데이터 변화 감지
+  // 초기 로딩 (한 번만 실행)
   useEffect(() => {
-    if (worldcupId) {
+    if (worldcupId && !loadedSortOption) {
       // API에서 직접 댓글 로드
       loadCommentsFromAPI();
-    } else if (initialComments && initialComments.length > 0) {
+    } else if (initialComments && initialComments.length > 0 && !loadedSortOption) {
       // fallback: initialComments가 있으면 변환해서 사용
-      const enhanced = initialComments.map((comment: any) => transformComment(comment));
-      setComments(enhanced);
+      try {
+        const enhanced = initialComments.map((comment: any) => transformComment(comment));
+        apiState.setData(enhanced);
+        setLoadedSortOption('likes'); // 기본값으로 설정
+      } catch (error) {
+        console.error('Error transforming initial comments:', error);
+        apiState.setError('댓글을 불러오는데 실패했습니다.');
+      }
     }
-  }, [worldcupId, loadCommentsFromAPI, initialComments, transformComment]);
+  }, [worldcupId, initialComments, loadedSortOption]); // transformComment와 loadCommentsFromAPI 의존성 제거
 
-  // 정렬 옵션 변경 시 다시 로드
+  // 정렬 옵션 변경 시 다시 로드 (중복 호출 방지)
   useEffect(() => {
-    if (worldcupId && comments.length > 0) {
-      loadCommentsFromAPI();
+    if (worldcupId && loadedSortOption && loadedSortOption !== sortOption) {
+      loadCommentsFromAPI(sortOption);
     }
-  }, [sortOption, loadCommentsFromAPI]);
+  }, [sortOption, worldcupId, loadedSortOption]); // loadCommentsFromAPI 의존성 제거
 
   // 정렬된 댓글 목록
   const sortedComments = sortComments(comments, sortOption);
@@ -324,7 +348,7 @@ export const useCommentSystem = ({
           isOwner: true
         };
 
-        setComments(prev => prev.map(comment => {
+        apiState.setData(prev => prev ? prev.map(comment => {
           if (comment.id === commentId) {
             return {
               ...comment,
@@ -332,7 +356,7 @@ export const useCommentSystem = ({
             };
           }
           return comment;
-        }));
+        }) : null);
 
         setReplyingTo(null);
         setReplyContent('');
@@ -387,7 +411,7 @@ export const useCommentSystem = ({
 
       if (response.ok) {
         // Update the reply in local state
-        setComments(prev => prev.map(comment => {
+        apiState.setData(prev => prev ? prev.map(comment => {
           if (comment.id === commentId && comment.replies) {
             return {
               ...comment,
@@ -399,7 +423,7 @@ export const useCommentSystem = ({
             };
           }
           return comment;
-        }));
+        }) : null);
         setEditingReply(null);
         setEditReplyContent('');
       } else {
@@ -436,7 +460,7 @@ export const useCommentSystem = ({
           }
           
           // Remove the reply from local state
-          setComments(prev => prev.map(comment => {
+          apiState.setData(prev => prev ? prev.map(comment => {
             if (comment.id === commentId && comment.replies) {
               return {
                 ...comment,
@@ -444,7 +468,7 @@ export const useCommentSystem = ({
               };
             }
             return comment;
-          }));
+          }) : null);
           setOpenReplyMenu(null);
         } else {
           const errorData = await response.json();
@@ -521,7 +545,7 @@ export const useCommentSystem = ({
     sortOption,
     openMenu,
     openReplyMenu,
-    loading: apiState.loading,
+    loading: apiState.loading || isLoading,
     error: apiState.error,
     
     // Setters

@@ -544,12 +544,22 @@ export function useGameLogic({ worldcupId }: UseGameLogicProps) {
           const winnerId = gameState.tournament.winner.id;
           if (!winnerId) {
             console.error('❌ Winner ID is missing, cannot navigate to results');
+            console.error('❌ Winner data:', gameState.tournament.winner);
             return;
           }
           
+          // Log detailed navigation info
+          console.log('🏆 Game completion navigation details:', {
+            worldcupId,
+            winnerId,
+            winnerTitle: gameState.tournament.winner.title,
+            theme,
+            playTime
+          });
+          
           // Navigate to results page
           const resultUrl = `/tournament-result/${worldcupId}?theme=${encodeURIComponent(theme)}&playTime=${playTime}&winner=${encodeURIComponent(winnerId)}`;
-          console.log('🚀 Navigating to results:', resultUrl);
+          console.log('🚀 Navigating to results URL:', resultUrl);
           router.push(resultUrl);
         } catch (error) {
           console.error('Error handling game completion:', error);
